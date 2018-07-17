@@ -1,0 +1,96 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<!--
+Copyright 2010-2018 Yusef Badri - All rights reserved.
+Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<HTML>
+<HEAD>
+<TITLE>Mailismus - Admin Guide</TITLE>
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+<link rel="stylesheet" type="text/css" href="../mta.css"/>
+</HEAD>
+<BODY>
+
+<div class="topcorner">
+<br/>
+<center>
+<img src="../mlogo.png">
+</center>
+</div>
+
+<div class="banner">
+<span class="bannertext">
+Mailismus 2.0.0
+<br/>
+Administration Guide
+</span>
+</div>
+
+<div class="menu">
+<p>
+<a href="../index.htm">Contents</a>
+</p>
+<hr class="mline"/>
+<p>
+<a href="index.htm">2&nbsp;-&nbsp;Installation</a>
+</p>
+<hr class="mline"/>
+<p class="cursect">
+2.3&nbsp;-&nbsp;Databases
+</p>
+</div>
+
+<div class="page">
+<table class="chtitle" width="100%">
+<tr><td>
+<center>
+2.3 - SQL Database Installation
+</center>
+</td></tr>
+</table>
+
+<p>
+Mailismus can optionally be configured to use a relational database for some of its functions.
+<br/>
+Currently that means Greylisting, which is an optional feature, but does require a backing database if it is to be used.
+<br/> <br/>
+Section &sect;4.11 goes through the supported database types, and the basic config settings which underpin them all, so this section explains how to do any prior installation and setup that may be required before Mailismus can access a database.
+
+<br/> <br/>
+Mailismus uses Java's JDBC interface to connect to the database, so you will need to install the appropriate driver for each database.
+A JDBC driver is simply a vendor-provided JAR file.
+<br/>
+Having obtained the JAR file and put it somewhere on your system, "installation" simply consists of adding its pathname to the Mailismus classpath, and the most convenient way to do this is to add it to the
+<span class="cfgname">dependjars</span>
+config item in the
+<span class="pathname">naf.xml</span>
+config file.
+See section &sect;3 for more info on NAF, but this basic example illustrates how to do it.
+</p>
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;naf&gt;
+    ...
+    &lt;dependjars&gt;%DIRTOP%/lib/extra/h2-1.3.162.jar&lt;/dependjars&gt;
+    ...
+    &lt;dispatchers&gt; ... &lt;/dispatchers&gt;
+&lt;/naf&gt;
+</pre>
+</td></tr>
+</table>
+
+<p>
+&nbsp;<br/>
+You can easily locate the download sites for the database types listed in &sect;4.11, and while some of them may offer more or less elaborate installation procedures, all that Mailismus needs is their JARs, not the full system.
+<br/>
+For the vast majority of databases (and at the time of writing, all the ones listed in section &sect;4.11), the JDBC driver maps to a single self-contained JAR file, but in other cases this may have dependencies on other JARs, or even on underlying native libraries
+(<span class="pathname">.so</span>
+files for Unix,
+<span class="pathname">DLLs</span>
+for Windows), so in those cases, you would need to put such native libraries on your Path as well.
+
+<br/>&nbsp;<br/>
+</div>
+</BODY>
+</HTML>

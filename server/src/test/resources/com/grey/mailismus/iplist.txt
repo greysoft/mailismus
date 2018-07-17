@@ -1,0 +1,8 @@
+# Test data for IPlist unit test
+1.2.3.4
+1.2.3.3
+1.2.3.4
+localhost
+
+badhostname
+   192.168.100.255  

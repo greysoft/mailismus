@@ -1,0 +1,176 @@
+<!--
+  Copyright 2013-2018 Yusef Badri - All rights reserved.
+  Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<mailserver>
+	<application>
+		<announcehost>localhost</announcehost>
+	</application>
+	<directory>
+		<plainpass>Y</plainpass>
+		<users>cp:/com/grey/mailismus/mta/smtp/ms_users</users>
+		<domains>cp:/com/grey/mailismus/mta/smtp/ms_domains</domains>
+		<aliases>cp:/com/grey/mailismus/mta/smtp/ms_aliases</aliases>
+	</directory>
+	<message_store>
+		<userpath>%DIRVAR%/ms</userpath>
+		<mailpath>Maildir</mailpath>
+	</message_store>
+	<mta>
+		<queue_utest_smtps>
+			<rootpath>%DIRVAR%/queue_server</rootpath>
+			<spool>
+				<rootpath>%DIRVAR%/spool_server</rootpath>
+			</spool>
+		</queue_utest_smtps>
+		<submit>
+			<listeners>
+				<listener name="UTEST_SMTP_AUTHOPT" port="42901">
+					<ssl latent="Y" cert="server1key"
+						tspath="cp:trustcerts.jks" kspath="cp:keystore.jks" certpass="server1pass"/>
+					<server>
+						<authtypes>all</authtypes>
+						<authtypes_ssl>plain</authtypes_ssl>
+						<filter timeout="10s" factory="com.grey.mailismus.mta.smtp.DeliveryTest$TestFilterFactory"/>
+						<validate_sender>N</validate_sender>
+						<remotenets>
+							<remotenet ip="127.0.0.1 | | %SYSNAME%/24">
+								<maxpeerconnections>100</maxpeerconnections>
+							</remotenet>
+						</remotenets>
+						<delay_badrecip>0</delay_badrecip>
+						<delay_badreq>0</delay_badreq>
+						<transcript>%DIRLOG%/transcripts/server-42901.log</transcript>
+					</server>
+				</listener>
+				<listener name="UTEST_SMTP_AUTHMDTY" port="42902">
+					<ssl latent="Y" cert="server1key"
+						tspath="cp:trustcerts.jks" kspath="cp:keystore.jks" certpass="server1pass"/>
+					<server>
+						<authtypes compat="Y" mandatory="Y">all</authtypes>
+						<authtypes_ssl>all</authtypes_ssl>
+						<validate_sender>N</validate_sender>
+						<delay_badrecip>0</delay_badrecip>
+						<delay_badreq>0</delay_badreq>
+						<transcript>%DIRLOG%/transcripts/server-42902.log</transcript>
+					</server>
+				</listener>
+				<listener name="UTEST_SMTP_AUTHNONE" port="42903">
+					<server>
+						<authtypes>-</authtypes>
+						<validate_sender>N</validate_sender>
+						<delay_badrecip>0</delay_badrecip>
+						<delay_badreq>0</delay_badreq>
+						<transcript>%DIRLOG%/transcripts/server-42903.log</transcript>
+					</server>
+				</listener>
+				<listener name="UTEST_SMTP_SSLMDTY" port="42904">
+					<ssl latent="Y" mandatory="y" cert="server1key"
+						tspath="cp:trustcerts.jks" kspath="cp:keystore.jks" certpass="server1pass"/>
+					<server>
+						<authtypes>plain | cram_md5 | external</authtypes>
+						<validate_sender>N</validate_sender>
+						<delay_badrecip>0</delay_badrecip>
+						<delay_badreq>0</delay_badreq>
+						<transcript>%DIRLOG%/transcripts/server-42904.log</transcript>
+					</server>
+				</listener>
+			</listeners>
+		</submit>
+		<deliver>
+			<relays>
+				<relay destdomains="anon1.relay,dom1.local,dom2.local,dom3.local" address="localhost:42901"/>
+				<relay destdomains="anon2.relay" address="localhost:42903"/>
+				<relay destdomains="anon3-mdtyssl.relay" address="localhost:42903">
+					<ssl latent="Y" mandatory="Y" peercert="-" tspath="cp:trustcerts.jks"/>
+				</relay>
+				<relay destdomains="anon4.relay" address="localhost:42904"/>
+				<relay destdomains="auto.auth.relay" address="localhost:42902">
+					<auth enabled="Y">
+						<username>user1</username>
+						<password>pass1</password>
+					</auth>
+					<ssl latent="Y" mandatory="Y" peercert="server1@localhost" tspath="cp:trustcerts.jks"/>
+				</relay>
+				<relay destdomains="auto2-notsupp.auth.relay" address="localhost:42903">
+					<auth enabled="Y">
+						<username>user1</username>
+						<password>pass1</password>
+					</auth>
+				</relay>
+				<relay destdomains="missing.auth.relay" address="localhost:42902">
+					<ssl latent="Y" mandatory="Y" peercert="server1@localhost" tspath="cp:trustcerts.jks"/>
+				</relay>
+				<relay destdomains="plain.auth.relay" address="localhost:42901">
+					<auth enabled="Y" override="plain">
+						<username>user1</username>
+						<password>pass1</password>
+					</auth>
+					<ssl latent="Y" mandatory="y" peercert="-" tspath="cp:trustcerts.jks"/>
+						cert="client1key" kspath="cp:keystore.jks" certpass="client1pass"/>
+				</relay>
+				<relay destdomains="plain_init.auth.relay" address="localhost:42902">
+					<auth enabled="Y" initrsp="Y" override="plain">
+						<username>user1</username>
+						<password>pass1</password>
+					</auth>
+					<ssl latent="Y" mandatory="Y" peercert="server1@localhost" tspath="cp:trustcerts.jks"/>
+				</relay>
+				<relay destdomains="plain_nossl.auth.relay" address="localhost:42901">
+					<auth enabled="Y" override="plain">
+						<username>user1</username>
+						<password>pass1</password>
+					</auth>
+				</relay>
+				<relay destdomains="crammd5.auth.relay" address="localhost:42901">
+					<auth enabled="Y" override="cram_md5">
+						<username>user1</username>
+						<password>pass1</password>
+					</auth>
+				</relay>
+				<relay destdomains="crammd5_init.auth.relay" address="localhost:42901">
+					<auth enabled="Y" initrsp="y" override="cram_md5">
+						<username>user1</username>
+						<password>pass1</password>
+					</auth>
+				</relay>
+				<relay destdomains="crammd5_badpass.auth.relay" address="localhost:42901">
+					<auth enabled="Y" initrsp="y" override="cram_md5">
+						<username>user1</username>
+						<password>pass999</password>
+					</auth>
+				</relay>
+				<relay destdomains="crammd5_notsupp.auth.relay" address="localhost:42903">
+					<auth enabled="Y" initrsp="y" override="cram_md5">
+						<username>user1</username>
+						<password>pass1</password>
+					</auth>
+				</relay>
+				<relay destdomains="external.auth.relay" address="localhost:42901">
+					<auth enabled="Y" override="external"/>
+					<ssl latent="Y" mandatory="y" peercert="server1@localhost" tspath="cp:trustcerts.jks"
+						cert="client1key" kspath="cp:keystore.jks" certpass="client1pass"/>
+				</relay>
+				<relay destdomains="external_init.auth.relay" address="localhost:42902">
+					<auth enabled="Y" initrsp="Y" override="external"/>
+					<ssl latent="Y" mandatory="y" peercert="server1@localhost" tspath="cp:trustcerts.jks"
+						cert="client1key" kspath="cp:keystore.jks" certpass="client1pass"/>
+				</relay>
+				<relay destdomains="temperr1.relay" address="localhost:42999"/>
+			</relays>
+			<maxmessages>4</maxmessages>
+			<interval_low>50</interval_low>
+			<interval_high>50</interval_high>
+			<delay_start>0</delay_start>
+			<audit>%DIRLOG%/audit/delivered.log</audit>
+			<client>
+				<transcript>%DIRLOG%/transcripts/client.log</transcript>
+				<maxpipeline>4</maxpipeline>
+			</client>
+		</deliver>
+		<report>
+			<audit enabled="Y">%DIRLOG%/audit/bounces.log</audit>
+			<ndr_copies_folder>%DIRVAR%/bounces</ndr_copies_folder>
+		</report>
+	</mta>
+</mailserver>

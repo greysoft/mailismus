@@ -1,0 +1,11 @@
+# Comment: The canonical alias definition - maps an incoming email address to a local username
+# role1@mydom1.com:username1
+
+# An alias without a domain part matches more broadly - matches any incoming address with same mailbox part
+# role2:username1:username2
+
+# Aliases can map to multiple local usernames
+# role3@mydom1.com:username1:username2
+
+#Aliases can also map to fully qualified non-local addresses
+# role4@mydom2.com:username3:another@somewhere-else-altogether.com

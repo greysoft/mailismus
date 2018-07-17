@@ -1,0 +1,143 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<!--
+Copyright 2010-2018 Yusef Badri - All rights reserved.
+Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<HTML>
+<HEAD>
+<TITLE>Mailismus - Admin Guide</TITLE>
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+<link rel="stylesheet" type="text/css" href="mta.css"/>
+</HEAD>
+<BODY>
+
+<div class="topcorner">
+<br/>
+<center>
+<img src="mlogo.png">
+</center>
+</div>
+
+<div class="banner">
+<span class="bannertext">
+Mailismus 2.0.0
+<br/>
+Administration Guide
+</span>
+</div>
+
+<div class="menu">
+<p>
+<a href="index.htm">Contents</a>
+</p>
+<hr class="mline"/>
+<p class="cursect">
+1&nbsp;-&nbsp;Introduction
+</p>
+<p>
+<a href="#audience">1.1&nbsp;-&nbsp;Audience</a>
+</p>
+<p>
+<a href="#parts">1.2&nbsp;-&nbsp;Components</a>
+</p>
+<p>
+<a href="#structure">1.3&nbsp;-&nbsp;Structure</a>
+</p>
+</div>
+
+<div class="page">
+<table class="chtitle" width="100%">
+<tr><td>
+<center>
+1 - Introduction
+</center>
+</td></tr>
+</table>
+
+<p>
+Welcome to Mailismus!
+<br/>
+Mailismus is a full-function mailserver, comprising MTA functionality (SMTP-based message interchange) and an integrated MS (ie. mailboxes for hosted users) which can be accessed via the standard IMAP and POP3 protocols.
+<br/> <br/>
+Mailismus is an open-source cross-platform product, based on the freely available Java runtime environment.
+<br/>
+The source code is hosted on GitHub, at
+<a href="https://github.com/greysoft/mailismus/">https://github.com/greysoft/mailismus</a>
+<br/> <br/>
+This is the product's reference documentation, so see
+<a href="http://www.greyware.co.uk/mailismus/">home page</a>
+for overview.
+<br/>
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="audience">
+1.1 - Intended Audience
+</a>
+</h2>
+
+<p>
+You should have a good understanding of the principles of email and DNS, and the role of the mail server.
+<br/> <br/>
+You should have a basic knowledge of how to administer the underlying OS platform (be it Windows or Unix).
+<br/> <br/>
+No programming knowledge is required.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="parts">
+1.2 - Mailismus Components
+</a>
+</h2>
+
+<p>
+The following names will come up in this guide:
+</p>
+
+<ul>
+<li><span class="softname">Mailismus</span>:<br/>
+This is the mailserver itself, the application of interest for this manual.
+<br/>
+It is also sometimes used as the umbrella term for the entire suite, including NAF.
+</li>
+
+<li><span class="softname">NAF (Network Application Framework)</span>:<br/>
+This is the supporting framework, providing fast, scalable I/O and event handling.
+<br/>
+It incorporates
+<span class="softname">GreyLog</span>,
+the logging framework used by Mailismus.
+</li>
+</ul>
+
+<p>
+<span class="softname">Mailismus</span>
+is a Java application, and can therefore run on any platform for which a JVM (Java Virtual Machine) exists, which means virtually all platforms.<br/>
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="structure">
+1.3 - How To Use This Guide
+</a>
+</h2>
+
+<p>
+If you have just downloaded Mailismus, start with the Installation section (&sect;2), and follow the instructions there for your platform.
+<br/> <br/>
+Next, you should go through the main reference chapter, &sect;4.
+<br/>
+You can skim the NAF Guide (section &sect;3), but you should rarely have to delve into NAF configuration, whereas section &sect;4 it is the basis for all Mailismus capabilities.
+<br/> <br/>
+The remaining chapters tie together the reference sections to provide a functional summary of selected topics.
+<br/> <br/>
+Although Mailismus offers a plethora of configuration options, the initial config files that ship with the installer are designed to enable Mailismus to successfully start up with basic send/receive functionality, with minimal config changes (in fact in most cases, with no config changes).
+<br/> <br/>
+In the event of any problems, Chapter &sect;5 (Logging) should be your first port of call, and it will in turn refer you on to the appropriate areas.
+</p>
+
+</div>
+</BODY>
+</HTML>

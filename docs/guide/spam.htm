@@ -1,0 +1,229 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<!--
+Copyright 2010-2018 Yusef Badri - All rights reserved.
+Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<HTML>
+<HEAD>
+<TITLE>Mailismus - Admin Guide</TITLE>
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+<link rel="stylesheet" type="text/css" href="mta.css"/>
+</HEAD>
+<BODY id="spam">
+
+<div class="topcorner">
+<br/>
+<center>
+<img src="mlogo.png">
+</center>
+</div>
+
+<div class="banner">
+<span class="bannertext">
+Mailismus 2.0.0
+<br/>
+Administration Guide
+</span>
+</div>
+
+<div class="menu">
+<p>
+<a href="index.htm">Contents</a>
+</p>
+<hr class="mline"/>
+<p class="cursect">
+6&nbsp;-&nbsp;Anti-Spam
+</p>
+<p>
+<a href="#submit">6.1&nbsp;-&nbsp;Submit&nbsp;Path</a>
+</p>
+<p>
+<a href="#deliver">6.2&nbsp;-&nbsp;Delivery&nbsp;Path</a>
+</p>
+</div>
+
+<div class="page">
+<table class="chtitle" width="100%">
+<tr><td>
+<center>
+6 - Anti-Spam Measures
+</center>
+</td></tr>
+</table>
+
+<p>
+This chapter ties together references to all the MTA's spam-related config settings, and other defensive measures.
+<br/>
+Mailismus employs network-based policies (eg. DNS-based validation, blacklisting, greylisting) which can trap the vast majority of spam emails without the overhead of scanning the message content, or running an external tool to scan them.
+<br/>
+However, it also provides a filtering API to enable you to integrate a 3rd-party message scanner or develop your own.
+<br/> <br/>
+In the case of our SMTP-Server component, we want to minimise incoming spam.
+<br/>
+In the case of our SMTP-Client component, we want to minimise the chances of outgoing emails triggering defensive measures in other servers, or causing our server to be flagged as a source of spam.
+<br/>
+In many cases, it's a straightforward trade-off against throughput, as an overly aggressive sender can resemble a spammer or other forms of attackers.
+<br/> <br/>
+Note that Mailismus provides mechanism, not policy.
+As a mailserver sysadmin, you have to decide the parameters of your service, and for its part, Mailismus aims to provide sufficient control points to give you the desired flexibility.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="submit">
+6.1 - The Submit Path
+</a>
+</h2>
+
+<p>
+One of the most important points to be aware of, is that in addition to the floods of fake offers that appear in your inbox, spammers also generate vast amounts of traffic to invalid addresses.
+<br/>
+A server can always opt to accept all incoming messages, and then find out whether the recipients are valid (or if their domains even exist) when it goes to deliver them onwards.
+If we take this approach however, we then become responsible for generating and returning the NDRs when they bounce, and in addition to the extra processing burden this imposes on us, it can also make us party to a back-scatter attack, ie. bombarding a faked sender address with thousands of NDRs for messages it never sent.
+You could find your own server on a blacklist as a result of being drawn into such an attack!
+<br/>
+For these reasons, it's best to reject invalid messages at the point of entry, so that they never become our problem in the first place.
+That means tightening up the SMTP Server.
+<br/> <br/>
+Note that the SMTP Server's
+<span class="cfgname">remotenets</span>
+config block (see &sect;4.4.4) can be used to apply different settings to different sets of clients depending on their IP addresses.
+For example, local machines could be marked for minimal validation and maximal throughput.
+<br/> <br/>
+The relevant server-side config settings are as follows:
+</p>
+
+<ul>
+<li><b>Validate Client Machine:</b><br/>
+The remote client's professed hostname can be vetted with the
+<span class="cfgname">validate_helo</span>
+setting (see &sect;4.4.4).
+</li>
+
+<li><b>Validate Sender Address:</b><br/>
+The sender address can be verified with the
+<span class="cfgname">validate_sender</span>
+settings, which are documented in &sect;4.4.4 and include the option of DNS lookup.
+</li>
+
+<li><b>Validate Recipient Address:</b><br/>
+The recipient addresses can be verified with the
+<span class="cfgname">validate_recip</span>
+settings, which are documented in &sect;4.4.4 and include the option of DNS lookup:
+<br/>
+Since a large number of invalid recipients are one of the hallmarks of a spam message (or a sender whose address lists are so inaccurate, that they might as well be a spammer), the spammer can be effectively slowed down by the
+<span class="cfgname">delay_badrecip</span>
+setting, also described in &sect;4.4.4.
+</li>
+
+<li><b>Blacklisting:</b><br/>
+You can bar emails from specific IPs, using the blacklist facility (see &sect;4.4.5).
+
+<li><b>Greylisting:</b><br/>
+You can block a significant number of spammers using the greylist facility (see &sect;4.4.6).
+
+<li><b>Filtering:</b><br/>
+You can develop your own filter based on the Mailismus filtering API, and load it into Mailismus to examine incoming messages (see &sect;4.4.10).
+
+<li><b>Directional Sender Filtering:</b><br/>
+You can use IP-based rules to detect some forged sender addresses with these settings, which are documented in &sect;4.4.4:<br/>
+&bull; <span class="cfgname">sender_deny</span><br/>
+&bull; <span class="cfgname">sender_permit</span><br/>
+</li>
+
+<li><b>Protocol Compliance:</b><br/>
+Lots of spammers use mass mailing software which tends not to be fully SMTP compliant.
+They haven't got time to wait around for the Server's responses, and don't generally care what the responses are anyway since they're hardly going to resend any failed messages.
+They just blast out a canned script as soon as they connect and move on to the next target on their hit list.
+<br/>
+Because of this, the simple measure of pausing before issuing our greeting may catch many of them out.
+See the
+<span class="cfgname">delay_greet</span>
+setting in &sect;4.4.4.
+<br/>
+Note that although this does have the effect of delaying all senders, that is a side-effect rather than the main purpose.
+This setting is aimed at rejecting spammers outright, not simply slowing them down.
+</li>
+
+<li><b>Politeness:</b><br/>
+Legitimate senders are normally wary of overloading other mailservers with a torrent of traffic, not least for the fear that they will themselves be tagged as spammers.
+This manifests itself as a general politeness and conservatism in their sending rates.
+<br/>
+Mailismus is quite prepared to accept unlimited connections from anybody to maximise throughput,
+but a legitimate sender is unlikely to take up the offer and will probably limit itself to no more than 20 simultaneous connections
+(if even that).
+<br/>
+For this reason if you specify a limit with the
+<span class="cfgname">maxpeerconnections</span>
+setting in &sect;4.4.4, you are unlikely to slow down legitimate senders, and only spammers would be affected.
+You can use the
+<span class="cfgname">remotenets</span>
+config block to assign much higher limits to local clients.
+</li>
+</ul>
+
+<hr class="pline"/>
+<h2>
+<a name="deliver">
+6.2 - The Delivery Path
+</a>
+</h2>
+
+<p>
+There are fewer anti-spam levers in the SMTP Client, as it has to deal with messages that have already been accepted into the mailserver, and relay them onwards.
+<br/> <br/>
+Note that the Client's
+<span class="cfgname">remotenets</span>
+config block (see &sect;4.5.3) can be used to apply different settings to different sets of remote servers depending on their IP addresses.
+For example, local destinations and smarthosts could be marked for maximum throughput.
+<br/> <br/>
+The relevant client-side config settings are as follows:
+</p>
+
+<ul>
+<li><b>Simultaneous Connections:</b><br/>
+Mailismus is a highly scalable I/O engine which is probably capable of overwhelming many mailservers, but it would be inadvisable to approach those limits,
+as there is a limit to how many simultaneous connections most mailservers will accept from any one IP.
+If this limit is regularly and grossly exceeded, then as well as the excess connections being refused, you're likely to find yourself being tagged as a spammer.
+<br/>
+See the 
+<span class="cfgname">maxserverconnections</span>
+setting in &sect;4.5.2, for how to throttle the outgoing connection rate to any one domain.
+</li>
+
+<li><b>Message Volume:</b><br/>
+In addition to limiting the number of connections to any one server, there is the greyer area of how many recipients and messages can be pumped into any one connection while it's open.
+<br/>
+The SMTP protocol places no limits on the number of recipients per message or messages per connection, nor does it provide any means for servers to signal their own limits, but invariably these unadvertised limits do exist internally, and there is the potential for problems when they're hit.
+<br/>
+Eg. a server should respond with a temporary error so that the client resumes in a new connection, but some may respond with a permanent error, thus bouncing dozens of valid messages that would otherwise have been accepted.
+<br/>
+In addition, there's the possibility that excessive recipients will be viewed negatively by spam profilers.
+<br/> <br/>
+The relevant settings for throttling recipients and messages are:<br/>
+&bull; <span class="cfgname">maxrecips</span> - see &sect;4.5.2<br/>
+&bull; <span class="cfgname">maxmessages</span> - see &sect;4.5.2
+</li>
+
+<li><b>DNS Correctness:</b><br/>
+This is probably the most important thing a client must ensure, since it's unlikely to get past the HELO stage if hostnames and IP addresses don't match up.
+<br/>
+The relevant setting is
+<span class="cfgname">announcehost</span>,
+which is documented in &sect;4.5.3.
+<br/>
+Make sure that the announced hostname matches the IP address you're calling out on, and if you have multiple IP interfaces, use the
+<span class="cfgname">remotenets</span>
+block to tailor the announced name.
+<br/> <br/>
+Finally (and this is completely external to Mailismus) make sure that your DNS settings provide a reverse mapping from the IP back to the hostname, as well as the straightforward name-to-IP mapping.
+Many mailservers will insist on this.
+If you cannot meet this requirement because you have no control over your
+<span class="pathname">in-addr.arpa</span>
+DNS domain, then you should consider relaying your outgoing email via your ISP.
+</li>
+</ul>
+
+</div>
+</BODY>
+</HTML>

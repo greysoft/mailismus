@@ -1,0 +1,83 @@
+<!--
+  Copyright 2010-2018 Yusef Badri - All rights reserved.
+  Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<mailserver>
+	<application>
+		<announcehost>%SYSNAME%</announcehost>
+	</application>
+	<directory enabled="Y">
+		<domains>%DIRCONF%/ms_local_domains</domains>
+		<users>%DIRCONF%/ms_users</users>
+		<aliases>%DIRCONF%/ms_aliases</aliases>
+		<plainpass>Y</plainpass>
+	</directory>
+	<message_store enabled="Y">
+		<userpath>%DIRVAR%/ms</userpath>
+	</message_store>
+	<mta>
+		<submit>
+			<listeners>
+				<listener name="SMTP">
+					<server>
+						<transcript maxfile="10M" enabled="Y">%DIRLOG%/transcripts/smtpserver-%DT%.log</transcript>
+						<relay_clients>%SYSNAME%/24 | 127.0.0.1</relay_clients>
+						<validate_helo direction="forward" dotted="true">N</validate_helo>
+						<validate_sender>N</validate_sender>
+						<validate_recip>N</validate_recip>
+						<remotenets>
+							<remotenet ip="%SYSNAME%/24 | 127.0.0.1">
+								<sender_deny>.</sender_deny>
+								<delay_greet>0</delay_greet>
+								<delay_badrecip>0</delay_badrecip>
+							</remotenet>
+						</remotenets>
+					</server>
+				</listener>
+			</listeners>
+		</submit>
+		<deliver>
+			<audit rot="monthly">%DIRLOG%/audit/Y%Y%/M%M%-delivered-%DT%.log</audit>
+			<client>
+				<transcript maxfile="10M" enabled="Y">%DIRLOG%/transcripts/smtpclient-%DT%.log</transcript>
+			</client>
+		</deliver>
+		<report>
+			<audit rot="monthly">%DIRLOG%/audit/Y%Y%/M%M%-bounced-%DT%.log</audit>
+		</report>
+	</mta>
+	<imap>
+		<server>
+			<listeners>
+					<listener name="IMAP">
+						<server>
+							<transcript maxfile="10M" enabled="Y">%DIRLOG%/transcripts/imapserver-%DT%.log</transcript>
+						</server>
+					</listener>
+			</listeners>
+		</server>
+	</imap>
+	<pop3server>
+		<listeners>
+			<listener name="POP3">
+				<server>
+					<transcript maxfile="10M" enabled="Y">%DIRLOG%/transcripts/pop3server-%DT%.log</transcript>
+					<authtypes>userpass</authtypes>
+				</server>
+			</listener>
+		</listeners>
+	</pop3server>
+	<pop3download>
+		<audit rot="monthly">%DIRLOG%/audit/Y%Y%/M%M%-pop3download-%DT%.log</audit>
+		<transcript maxfile="10M" enabled="Y">%DIRLOG%/transcripts/pop3download-%DT%.log</transcript>
+		<clients>
+			<client localuser="mymailboxname" freq="5m" enabled="N">
+				<server addr="mypop3server">
+					<username>myremotename</username>
+					<password>mypassword</password>
+					<authtypes>userpass</authtypes>
+				</server>
+			</client>
+		</clients>
+	</pop3download>
+</mailserver>

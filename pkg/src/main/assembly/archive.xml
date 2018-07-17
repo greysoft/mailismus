@@ -1,0 +1,60 @@
+<!--
+  Copyright 2011-2018 Yusef Badri - All rights reserved.
+  Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<assembly xmlns="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.0" 
+		xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.0
+				http://maven.apache.org/xsd/assembly-1.1.0.xsd">
+	<id>mailismus</id>
+	<formats>
+		<format>tar.gz</format>
+		<format>zip</format>
+	</formats>
+	<fileSets>
+		<fileSet>
+		 	<directory>${project.build.directory}/dependency</directory>
+		 	<outputDirectory>lib</outputDirectory>
+		 	<includes>
+		 		<include>*.jar</include>
+		 	</includes>
+		</fileSet>
+		<fileSet>
+		 	<directory>${basedir}/src/main/config</directory>
+		 	<outputDirectory>conf</outputDirectory>
+		 	<includes>
+		 		<include>*.xml</include>
+		 		<include>ms_*</include>
+		 	</includes>
+		</fileSet>
+		<fileSet>
+		 	<directory>${project.parent.basedir}</directory>
+		 	<outputDirectory>.</outputDirectory>
+		 	<includes>
+		 		<include>LICENCE.txt</include>
+		 		<include>NOTICE.txt</include>
+		 		<include>README.txt</include>
+		 	</includes>
+		</fileSet>
+		<fileSet>
+		 	<directory>${project.parent.basedir}/docs/guide</directory>
+		 	<outputDirectory>docs/AdminGuide</outputDirectory>
+		</fileSet>
+		<fileSet>
+		 	<directory>${project.parent.basedir}/../ossnaf/docs/guide</directory>
+		 	<outputDirectory>docs/nafguide</outputDirectory>
+		</fileSet>
+	</fileSets>
+	<files>
+		<file>
+			<source>${basedir}/src/main/scripts/mta.sh</source>
+		 	<outputDirectory>bin</outputDirectory>
+		 	<filtered>true</filtered>
+		</file>
+		<file>
+			<source>${basedir}/src/main/scripts/mta.bat</source>
+		 	<outputDirectory>bin</outputDirectory>
+		 	<filtered>true</filtered>
+		</file>
+	</files>
+</assembly>

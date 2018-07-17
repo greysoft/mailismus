@@ -1,0 +1,1140 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<!--
+Copyright 2010-2018 Yusef Badri - All rights reserved.
+Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<HTML>
+<HEAD>
+<TITLE>Mailismus - Admin Guide</TITLE>
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+<link rel="stylesheet" type="text/css" href="mta.css"/>
+</HEAD>
+<BODY>
+
+<div class="topcorner">
+<br/>
+<center>
+<img src="mlogo.png">
+</center>
+</div>
+
+<div class="banner">
+<span class="bannertext">
+Mailismus 2.0.0
+<br/>
+Administration Guide
+</span>
+</div>
+
+<div class="menu">
+<p>
+<a href="index.htm">Contents</a>
+</p>
+<hr class="mline"/>
+<p>
+<a href="mailserver.htm">4&nbsp;-&nbsp;Mail-Server&nbsp;Config</a>
+</p>
+<hr class="mline"/>
+<p class="cursect">
+4.4&nbsp;-&nbsp;Submit&nbsp;Task
+</p>
+<p>
+<a href="#function">4.4.1&nbsp;-&nbsp;Function</a>
+</p>
+<p>
+<a href="#config">4.4.2&nbsp;-&nbsp;Task&nbsp;Config</a>
+</p>
+<p>
+<a href="#listener">4.4.3&nbsp;-&nbsp;Listener</a>
+</p>
+<p>
+<a href="#server">4.4.4&nbsp;-&nbsp;SMTP&nbsp;Server</a>
+</p>
+<p>
+<a href="#blacklst">4.4.5&nbsp;-&nbsp;Blacklisting</a>
+</p>
+<p>
+<a href="#greylst">4.4.6&nbsp;-&nbsp;Greylisting</a>
+</p>
+<p>
+<a href="#transfmt">4.4.7&nbsp;-&nbsp;Transcripts</a>
+</p>
+<p>
+<a href="#smtpauth">4.4.8&nbsp;-&nbsp;SMTP&nbsp;Authentication</a>
+</p>
+<p>
+<a href="#ssl">4.4.9&nbsp;-&nbsp;SSL</a>
+</p>
+<p>
+<a href="#filter">4.4.10&nbsp;-&nbsp;Filtering</a>
+</p>
+</div>
+
+<div class="page">
+<table class="chtitle" width="100%">
+<tr><td>
+<center>
+4.4 - The Submit Task
+</center>
+</td></tr>
+</table>
+
+<h2>
+<a name="function">
+4.4.1 - Function
+</a>
+</h2>
+
+<p>
+The Submit Task is a NAFlet which accepts incoming messages, and stores them on the MTA queue for onward delivery.
+It is probably the single most important Mailismus component.
+<br/> <br/>
+The Submit task is composed of one or more NAF Listeners, which hand off incoming connections to SMTP-server instances.
+<br/>
+Although we speak here of Task, Listeners and Servers, the whole assemblage can loosely be referred to as the application's server component.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="config">
+4.4.2 - Task Config
+</a>
+</h2>
+
+<p>
+The top-level config of the Submit task is outlined below.
+<br/> <br/>
+The Submit task typically only has one Listener, listening on the standard SMTP port 25, but you may however choose to run separate listeners, eg. on ports 25 and 587 (MSA), each configured for their respective inbound and outbound roles.
+You could choose to run multiple listeners in the same Dispatcher, or split them off into different ones (and hence different threads).
+<br/>
+In the latter case, you would effectively have multiple Submit tasks, each of which would be specified in the
+<span class="softname">naf.xml</span>
+file. Of course they couldn't all be called
+<span class="cfgname">submit</span>
+- in fact none of them need to be.
+The top-level task-config tag merely has to match what's specified in the relevant Naflet entry in naf.xml.
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;submit&gt;
+    &lt;listeners&gt;
+        &lt;listener name="SMTP"&gt;
+            &lt;ssl ... /&gt;
+            &lt;server&gt;
+                ...
+            &lt;/server&gt;
+        &lt;/listener&gt;
+    &lt;/listeners&gt;
+&lt;/submit&gt;
+</pre>
+</td></tr>
+</table>
+
+<hr class="pline"/>
+<h2>
+<a name="listener">
+4.4.3 - Listener
+</a>
+</h2>
+
+<p>
+The Listener is a generic NAF component that is documented in the NAF Guide (&sect;7 there).
+<br/>
+The illustrative config block above shows a single listener, but it should be clear how additional ones would be specified within the enclosing
+<span class="cfgname">listeners</span>
+tag. There is only ever one
+<span class="cfgname">server</span>
+block inside each listener.
+<br/> <br/>
+Note the following aspects of the Submit Task's listener:
+<br/>
+&bull; It's
+<span class="cfgname">port</span>
+attribute need not be specified, since in this context, it defaults to the standard SMTP port of 25.
+<br/>
+&nbsp;&nbsp;&nbsp;Of course if there is more than one listener, you will have explicitly specify another port on the others.
+<br/>
+&bull; Likewise the server's
+<span class="cfgname">class</span>
+attribute is omitted, as it defaults to the Mailismus SMTP-Server class.
+<br/> <br/>
+The optional SSL config block is also documented in the NAF Guide.
+<br/>
+See section &sect;4.4.9 below for the specifics of how it relates to the SMTP server.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="server">
+4.4.4 - SMTP Server
+</a>
+</h2>
+
+<p>
+The server's config block is listed below, with largely default values.
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;server&gt;
+    &lt;transcript&gt;%DIRLOG%/transcripts/smtpserver-%DT%.log&lt;/transcript&gt;
+    &lt;relay_clients&gt;SYSNAME%/24 | 127.0.0.1&lt;/relay_clients&gt;
+    &lt;announcehost&gt;hostname&lt;/announcehost&gt;
+    &lt;smtpgreet&gt;greeting message&lt;/smtpgreet&gt;
+    &lt;validate_helo syntaxonly="N" fqdn="N" direction="forward" dotted="true"&gt;Y&lt;/validate_helo&gt;
+    &lt;validate_sender syntaxonly="N" fqdn="N"&gt;Y&lt;/validate_sender&gt;
+    &lt;validate_recip syntaxonly="N" fqdn="N"&gt;Y&lt;/validate_recip&gt;
+    &lt;sender_deny&gt;domain1 | domain2 | domain3&lt;/sender_deny&gt;
+    &lt;localdelivery&gt;Y&lt;/localdelivery&gt;
+    &lt;spf_sender_rewrite&gt;Y&lt;/spf_sender_rewrite&gt;
+    &lt;maxpeerconnections&gt;0&lt;/maxpeerconnections&gt;
+    &lt;maxmsgsize&gt;0&lt;/maxmsgsize&gt;
+    &lt;maxrecips&gt;0&lt;/maxrecips&gt;
+    &lt;maxmessages&gt;0&lt;/maxmessages&gt;
+    &lt;maxbadreqs&gt;2&lt;/maxbadreqs&gt;
+    &lt;timeout&gt;2m&lt;/timeout&gt;
+    &lt;delay_greet&gt;0&lt;/delay_greet&gt;
+    &lt;delay_badrecip&gt;0&lt;/delay_badrecip&gt;
+    &lt;delay_badreq&gt;0&lt;/delay_badreq&gt;
+    &lt;omitreceivedheader&gt;N&lt;/omitreceivedheader&gt;
+    &lt;extPIPELINING&gt;Y&lt;/extPIPELINING&gt;
+    &lt;extSIZE&gt;Y&lt;/extSIZE&gt;
+    &lt;ext8BITMIME&gt;N&lt;/ext8BITMIME&gt;
+    &lt;authtypes&gt; ... &lt;/authtypes&gt;
+    &lt;authtypes_ssl&gt; ... &lt;/authtypes_ssl&gt;
+    &lt;blacklist&gt; ... &lt;/blacklist&gt;
+    &lt;greylist&gt; ... &lt;/greylist&gt;
+    &lt;filter&gt; ... &lt;/filter&gt;
+    &lt;remotenets&gt;
+        &lt;remotenet ip="%SYSNAME%/24 | 127.0.0.1"&gt;
+            &lt;sender_deny&gt;.&lt;/sender_deny&gt;
+            &lt;sender_permit&gt;domain1 | domain2 | domain3&lt;/sender_permit&gt;
+            ...
+        &lt;/remotenet&gt;
+    &lt;/remotenets&gt;
+&lt;/server&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">transcript</span><br/>
+This config item supports the same attributes as the GreyLog loggers (rotation, buffering, etc - see
+<a href="../nafguide/greylog.htm">GreyLog Guide</a>).
+<br/>
+This config item has no default and transcripts will be turned off if it is omitted.
+<br/>
+See &sect;4.4.7 for a description of the transcript contents.
+</p>
+
+<p><span class="cfgtitle">relay_clients</span><br/>
+This specifies the set of clients who are allowed to relay messages through this server.
+<br/>
+Relaying is defined as submitting a message to a recipient address which is not served by this server,
+ie. not listed as a known domain in the
+<span class="cfgname">relays</span>
+block (see &sect;4.5.4) or the Message Store (see &sect;4.2).
+<br/>
+Clients can be specified as an individual hostname or IP, or as a subnet block in CIDR notation, and multiple specs are allowed separated by a vertical bar.
+You may specify a hostname in place of the CIDR IP part, and it will be mapped to its IP to derive the corresponding CIDR block.
+<br/>
+There is no default, meaning that if omitted, nobody is allowed to relay messages through this server.
+The example setting shown above is the suggested setting in the initial
+<span class="pathname">mailismus.xml</span>
+file which ships with Mailismus, and means that other machines on a typical local Class C subnet are permitted, as are applications on this machine itself.
+</p>
+
+<p><span class="cfgtitle">announcehost</span><br/>
+This controls how the Server will announce itself in its greeting message.
+If absent it defaults to the setting in the
+<span class="cfgname">application</span>
+block - see &sect;4.1
+</p>
+
+<p><span class="cfgtitle">smtpgreet</span><br/>
+This lets you set the SMTP greeting message issued by the server.
+<br/>
+This setting defaults to:
+<span class="cfgvalue">%H% %PRODNAME% ESMTP Ready</span>
+<br/>
+where
+<span class="cfgvalue">%H%</span>
+is replaced by the announce-hostname as configured above, and
+<span class="cfgvalue">%PRODNAME%</span>
+defaults to
+<span class="cfgvalue">Mailismus</span>.
+<br/>
+The standard SMTP reply code of 220 is prepended, so if you don't alter any of the defaults, the final greeting would come out as:
+</p>
+<table class="protobox">
+<tr><td>
+<pre>
+220 this_hostname Mailismus ESMTP Ready
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">validate_helo</span><br/>
+This controls how the hostname supplied in the client's
+<span class="protocmd">HELO</span>
+(or
+<span class="protocmd">EHLO</span>)
+greeting is validated, and the default settings are illustrated in the above config block.
+<br/>
+The inner value is a simple boolean, and defaults to Yes.
+If set to Yes, the full set of attributes are:
+</p>
+<ul>
+<li><span class="cfgname">syntaxonly</span>
+This is a boolean which indicates that no DNS lookup will be performed, and Mailismus will merely perform syntactic validation instead.
+This defaults to No, which means that the hostname will be verified against the DNS.
+</li>
+
+<li><span class="cfgname">fqdn</span>
+This is a boolean which defaults to No, and qualifies a positive
+<span class="cfgname">syntaxonly</span>
+setting by adding an extra criterion to the syntactic validation, namely that the hostname should be a fully qualified domain name - which in practice just means that it must contain at least one dot.
+</li>
+
+<li><span class="cfgname">direction</span>
+This qualifies a negative
+<span class="cfgname">syntaxonly</span>
+setting, by specifying the type of DNS lookup to perform, and it takes the values
+<span class="cfgvalue">FORWARD</span>
+(the default),
+<span class="cfgvalue">BACKWARD</span>
+or
+<span class="cfgvalue">BOTH</span>.
+<br/>
+FORWARD means that a simple hostname lookup (DNS A query) will be performed on the supplied name, the returned IP will then be compared to the actual IP of the remote client (which we always know) and the connection will be rejected if they don't match.
+If no IP is found, then the hostname is invalid, and the connection is also rejected.
+<br/>
+BACKWARD means that a reverse lookup (DNS PTR query) is performed on the remote client's known IP, and the returned hostname is compared to the supplied hostname.
+If they don't match, or if the PTR query found no match, then the connection is rejected.
+<br/>
+BOTH means that a BACKWARD validation will be performed first, and if that check passes, it will be followed by a FORWARD validation.
+In other words, we make sure that the hostname and IP address mutually point at each other.
+<br/>
+BOTH is obviously the most rigorous check, but BACKWARD validation can be a bit harsh, as legitimate mailservers on some small subnets may well not have their reverse IP mapping configured in the DNS.
+Arguably, they should therefore relay their outgoing mail via their ISP, whose mailservers can reasonably be expected to have a full DNS config.
+</li>
+
+<li><span class="cfgname">dotted</span>
+This is a boolean which defaults to Yes, and controls whether a literal dotted IP address is acceptable as the supplied hostname.
+<br/>
+If set to Yes, then the DNS lookup will be avoided if the HELO argument is a dotted IP.
+That IP will instead be immediately compared to the actual IP of the remote client (which we always know) and the connection will be rejected if they don't match.
+<br/>
+If set to No, then a DNS hostname lookup will be performed on the supplied name, regardless of what it may look like.
+<br/>
+This setting is ignored if
+<span class="cfgname">syntaxonly</span>
+is set (since that means no IP verification will be performed), or if
+<span class="cfgname">direction</span>
+is not set to
+<span class="cfgvalue">FORWARD</span>.
+</li>
+
+<li><span class="cfgname">allowtimeout</span>
+This is a boolean which defaults to No, and it also qualifies a negative
+<span class="cfgname">syntaxonly</span>
+setting, by specifying how to react if the DNS query fails, ie. times out without returning a result.
+<br/>
+A value of Yes means that we give up on the validation attempt and declare it a pass, ie. accept the given name.
+<br/>
+A value of No means that declare a fail, ie. the given name is not going to be accepted if a it doesn't get positively validated.
+</li>
+</ul>
+
+<p><span class="cfgtitle">validate_sender</span><br/>
+This controls how the domain part (only) of the sender email address (SMTP:
+<span class="protocmd">MAIL FROM</span>)
+is validated, and the default setting is illustrated in the above config block.
+<br/>
+The inner value is a simple boolean, and defaults to Yes.
+<br/>
+If set to Yes, it differs from HELO validation, as we're dealing with email domains rather than hostnames, and the full set of attributes are:
+</p>
+<ul>
+<li><span class="cfgname">syntaxonly</span>
+This behaves identically to the above HELO validation.
+<br/>
+If set to No however (ie. DNS lookup is enabled), the DNS validation mechanism is different, as email domains require a DNS MX lookup.
+</li>
+
+<li><span class="cfgname">fqdn</span>
+This behaves identically to the above HELO validation.
+</li>
+
+<li><span class="cfgname">allowtimeout</span>
+This behaves identically to the above HELO validation.
+</li>
+</ul>
+
+<p><span class="cfgtitle">validate_recip</span><br/>
+This controls how the domain part (only) of the recipient email addresses
+(SMTP:
+<span class="protocmd">RCPT TO</span>)
+are validated, and the default setting is illustrated in the above config block.
+<br/>
+This setting has identical attributes and defaults to
+<span class="cfgname">validate_sender</span>.
+</p>
+
+<p><span class="cfgtitle">sender_deny</span><br/>
+This specifies a list of email domains separated by vertical bars, and if the sender address matches any of them, the connection will be rejected on the grounds that it's probably forged.
+<br/>
+There is no Deny list by default, so any sender address would be allowed.
+<br/>
+This is based on the observation that spammers often spoof the target domain as the sender address too, so the typical usage for this setting would be to list all your local domains, and then specify a null list in the
+<span class="cfgname">remotenet</span>
+block for local clients (as illustrated above - a dot indicates a null list).
+This would have the effect that only local clients are allowed to specify one of your domains as the sender address.
+</p>
+
+<p><span class="cfgtitle">sender_permit</span><br/>
+This is the inverse of
+<span class="cfgname">sender_deny</span>
+and the connection will be rejected if the sender address does NOT match any of the specified domains.
+<br/>
+This is probably less broadly useful than the Deny list, and you would typically specify it on your local
+<span class="cfgname">remotenet</span>
+blocks, to prevent your own users sending forged emails.
+<br/>
+Once again, a dot indicates a null list (ie. anything allowed), and can be used to override an enclosing sender_permit definition.
+</p>
+
+<p><span class="cfgtitle">localdelivery</span><br/>
+This is a boolean setting which defaults to True.
+<br/>
+If a Message-Store (MS) is defined, Mailismus usually uses its associated Directory to determine if a recipient is local, and then delivers the message into their local MS mailbox.
+<br/>
+Setting this attribute to False modifies that behaviour, so that Mailismus looks up and validates local recipients as usual (and rejects the message if they are unknown), but it does not actually deliver the message into the MS or expand aliases etc. Instead, it simply relays the message onwards by whatever rules apply for that recipient's domain, as if it had never recognised the recipient as local.
+<br/> <br/>
+This behaviour would be useful in a multi-mailserver setup, where you wish to have a front-end mailserver reject invalid incoming recipients at the perimeter, and then relay acceptable messages onwards to other backend mailservers.
+<br/>
+If frontend mailservers simply routed all incoming messages onto backend ones (eg. by domain) without making use of this feature, then invalid users would not be discovered until the message reached the fnal mailserver, and it would have to respond with a bounced-message report, which obviously opens it up to back-scatter spamming attacks.
+<br/>
+By using this attribute to detect invalid recipients at source, bad messages can be rejected by an SMTP error code without ever being accepted into your mailserver infrastructure.
+</p>
+
+<p><span class="cfgtitle">spf_sender_rewrite</span><br/>
+This is a boolean setting for SPF-compatible email forwarding, which defaults to True.
+<br/>
+If the sender address is remote and the recipient address undergoes alias expansion, Mailismus normally rewrites the sender address to prevent SPF validation failures at the new recipient's mailserver from rejecting the email (because emails from that sender are not expected to originate from our IP).
+<br/>
+Setting this to False disables sender rewriting.
+</p>
+
+<p><span class="cfgtitle">maxpeerconnections</span><br/>
+This specifies the max simultaneous connections allowed from any one client IP.
+<br/>
+The default of zero means no limit.
+<br/>
+The special value of -1 means no connections allowed, and would only make sense within a specific
+<span class="cfgname">remotenet</span>
+block, to forbid connections from it.
+Alternatively, -1 could be set as the top-level value and overridden in a specific
+<span class="cfgname">remotenet</span>
+block, to permit connections from that subnet only.
+</p>
+
+<p><span class="cfgtitle">maxmsgsize</span><br/>
+This specifies the max message size that will be accepted, either as plain bytes or in units of KiloBytes or MegaBytes using notation like
+<span class="cfgvalue">2000K</span>
+or
+<span class="cfgvalue">2M</span>
+<br/>
+The default of zero means no limit.
+</p>
+
+<p><span class="cfgtitle">maxrecips</span><br/>
+This specifies the max number of recipients that will be accepted per message.
+<br/>
+The default of zero means no limit.
+</p>
+
+<p><span class="cfgtitle">maxmessages</span><br/>
+This specifies the max number of messages that will be accepted per SMTP connections.
+<br/>
+The default of zero means no limit.
+</p>
+
+<p><span class="cfgtitle">maxbadreqs</span><br/>
+This specifies the max number of consecutive invalid commands that can be sent, before we terminate the connection.
+<br/>
+The default is 2, and zero means we won't tolerate a single invalid command.
+<br/>
+There is of course no reason for a valid SMTP client to ever send an invalid command, and it is likely to be a human user mistyping when manually probing an SMTP Server via Telnet.
+If an automated client issues an invalid command, it invariably means an irrecoverable breakdown in the SMTP dialogue to a protocol error in either party.
+<br/>
+See
+<span class="cfgname">delay_badreq</span>
+</p>
+
+<p><span class="cfgtitle">timeout</span><br/>
+This specifies the max idle period, after which the server will disconnect the remote client.
+<br/>
+The default is 2 minutes.
+</p>
+
+<p><span class="cfgtitle">delay_greet</span><br/>
+This is an anti-spam measure, which specifies a delay before the Server will issue its greeting, after a connection is accepted.
+Clients are not supposed to send any commands until they receive the initial greeting, so if they do we will immediately disconnect them.
+<br/>
+The default of zero means no greet-delay, but if you do wish to enable it, we would recommend 1.5 to 2 seconds (1.5 can be specified as 1500).
+The downside is obviously that legitimate senders also get delayed a bit.
+<br/>
+The potential effectiveness of this measure is based on the observation that a lot of spamming mass mailers violate the SMTP protocol by not waiting for the initial greeting, or indeed any other response.
+They simply fire out their prepared commands as quickly as possible and move on to their next victim.
+</p>
+
+<p><span class="cfgtitle">delay_badrecip</span><br/>
+This specifies a delay that will be applied when rejecting any recipients, ie. we will pause this long before replying with any status other than 250 (OK), in response to an SMTP
+<span class="protocmd">RCPT TO</span>
+command.
+<br/>
+The default is zero, meaning no delay.
+<br/>
+This is an anti-spam measure, as it effectively "tarpits" a client which is sending an excessive number of bad recipients, and of course one of the signatures of a spammer is that they specify long speculative lists of largely invalid recipients.
+</p>
+
+<p><span class="cfgtitle">delay_badreq</span><br/>
+This specifies a delay that will be applied when sending the error response to any invalid commands we receive.
+<br/>
+The default is zero, meaning no delay.
+<br/>
+This is another anti-spam tarpit measure, but it's of lesser value as invalid commands are a rarity, and we will disconnect before receiving too many.
+<br/>
+See
+<span class="cfgname">maxbadreqs</span>
+</p>
+
+<p><span class="cfgtitle">omitreceivedheader</span><br/>
+Boolean setting which is False by default.
+<br/>
+SMTP servers are required to add a
+<span class="protocmd">Received</span>
+header to the message body as it passes through them, and Mailismus duly does so.
+<br/>
+This setting allows it to relay the messages more stealthily, should you wish to do so for whatever reason.
+</p>
+
+<p><span class="cfgtitle">extPIPELINING</span><br/>
+This option makes Mailismus advertise support for the EMSTP command-pipelining extension.
+<br/>
+On by default.
+</p>
+
+<p><span class="cfgtitle">extSIZE</span><br/>
+This option makes Mailismus advertise support for the EMSTP SIZE extension.
+<br/>
+On by default.
+</p>
+
+<p><span class="cfgtitle">ext8BITMIME</span><br/>
+This option makes Mailismus advertise support for the EMSTP 8BITMIME extension, and is off by default.
+<br/>
+Mailismus itself is 8-bit clean, and does transparently relay 8-bit content.
+The difficulty is that upstream MTAs may not be, and if we advertise 8-bit support, we could find ourselves with messages on our hands that cannot be successfully relayed onwards ... unless we do content conversion, and Mailismus doesn't support that.
+<br/>
+You would enable this extension if you are operating in a closed environment where you know that the upstream MTAs also support 8BITMIME, or you're willing to take the chance that other MTAs will cleanly receive 8-bit message content even if they don't advertise this extension.
+</p>
+
+<p>
+<span class="cfgtitle">blacklist</span><br/>
+<span class="cfgtitle">greylist</span><br/>
+<span class="cfgtitle">authtypes</span><br/>
+<span class="cfgtitle">authtypes_ssl</span><br/>
+See sections &sect;4.4.5, &sect;4.4.6 and &sect;4.4.8 below.
+</p>
+
+<p><span class="cfgtitle">remotenets</span><br/>
+This is an optional block containing one or more nested
+<span class="cfgname">remotenet</span>
+blocks. Each
+<span class="cfgname">remotenet</span>
+block has an
+<span class="cfgname">ip</span>
+attribute which specifies one or more IP address blocks in CIDR notation (delimited by vertical bars),
+but you may specify a hostname in place of the IP part (as illustrated above).
+<br/>
+The purpose of this is that each
+<span class="cfgname">remotenet</span>
+block identifies a family of clients (ie. those whose IP matches the CIDR block) to which you want to apply alternative config settings.
+There are no new settings defined for the
+<span class="cfgname">remotenet</span>
+block, but it may override most of the settings defined in the common server config.
+<br/>
+The full list of settings that may be overridden within a
+<span class="cfgname">remotenet</span>
+block is:
+<br/>
+&bull; <span class="cfgname">announcehost</span><br/>
+&bull; <span class="cfgname">authtypes</span><br/>
+&bull; <span class="cfgname">authtypes_ssl</span><br/>
+&bull; <span class="cfgname">delay_badrecip</span><br/>
+&bull; <span class="cfgname">delay_badreq</span><br/>
+&bull; <span class="cfgname">delay_greet</span><br/>
+&bull; <span class="cfgname">ext8BITMIME</span><br/>
+&bull; <span class="cfgname">extPIPELINING</span><br/>
+&bull; <span class="cfgname">extSIZE</span><br/>
+&bull; <span class="cfgname">maxbadreqs</span><br/>
+&bull; <span class="cfgname">maxmessages</span><br/>
+&bull; <span class="cfgname">maxmsgsize</span><br/>
+&bull; <span class="cfgname">maxpeerconnections</span><br/>
+&bull; <span class="cfgname">maxrecips</span><br/>
+&bull; <span class="cfgname">omitreceivedheader</span><br/>
+&bull; <span class="cfgname">sender_deny</span><br/>
+&bull; <span class="cfgname">sender_permit</span><br/>
+&bull; <span class="cfgname">smtpgreet</span><br/>
+&bull; <span class="cfgname">timeout</span><br/>
+&bull; <span class="cfgname">validate_helo</span><br/>
+&bull; <span class="cfgname">validate_recip</span><br/>
+&bull; <span class="cfgname">validate_sender</span><br/>
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="blacklst">
+4.4.5 - Blacklisting
+</a>
+</h2>
+
+<p>
+Blacklisting is a facility whereby all emails from specified IPs can be rejected, based on a config file which lists the barred IPs.
+<br/>
+The precise behaviour is controlled by the config block below, which illustrates the default values.
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;blacklist&gt;
+    &lt;sourcefile&gt;%DIRVAR%/blacklist.txt&lt;sourcefile&gt;
+    &lt;netprefix&gt;28&lt;netprefix&gt;
+    &lt;hostnames&gt;Y&lt;hostnames&gt;
+    &lt;interval&gt;6h&lt;interval&gt;
+    &lt;mem_threshold&gt;0&lt;mem_threshold&gt;
+    &lt;smtpreply&gt;Service refused - your IP is on a blacklist&lt;smtpreply&gt;
+&lt;/blacklist&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">sourcefile</span><br/>
+The central blacklisting parameter, and the only one which is mandatory and has no default, this specifies the full pathname of the file from which Mailismus will read the list of barred IPs.
+<br/>
+The IPs are listed one per line.
+</p>
+
+<p><span class="cfgtitle">netprefix</span><br/>
+This specifies a CIDR-style net prefix which will be applied to all entries in the IPs file.
+<br/>
+By default, each entry is aggregated with a prefix of 28, meaning that whatever IPs you specify, the ban applies to all other IPs in the same /28 subnet.
+<br/>
+A value of 32 means each entry represents only that single IP, but we don't recommend making netprefix any larger than 28 as that represents the smallest subnet that is expected to be under a single ownership (apart from static single IPs assigned by domestic ISPs, but any mailservers running on such an account are not likely to rank high in the trust ratings).
+Similiarly, we don't recommend making it any smaller than 24, as hosts in distinct /24 subnets are virtually guaranteed to be under separate administrations.
+<br/>
+If the source file contains multiple entries that fall within the same subnet, then the redundant ones will be ignored.
+</p>
+
+<p><span class="cfgtitle">hostnames</span><br/>
+If true (which is the default), the IP entries in the source file can actually be expressed as hostnames, rather than dotted decimal IPs.
+This does not preclude a mixture of hostnames and literal dotted IPs.
+<br/>
+The netprefix setting still applies, so if (say) you had netprefix=28, then an entry such as smtp.marketeers.com represents that host and any others in the same /28 subnet.
+</p>
+
+<p><span class="cfgtitle">interval</span><br/>
+A blacklist is likely to be regularly updated by whatever data provider you use, meaning that the configured source file is effectively a feed.
+It will therefore need to be reloaded at regular intervals, and this setting lets you specify that.
+<br/>
+The default is 6 hours.
+</p>
+
+<p><span class="cfgtitle">mem_threshold</span><br/>
+Memory Threshold - the default is zero, meaning that the blacklist will be held in memory, no matter how large.
+<br/>
+If non-zero, then the blacklist will be stored in a database instead, if its size exceeds that threshold.
+<br/>
+Rather than unconditionally decreeing whether the blacklist should be held in memory or database, this setting allows you to gracefully handle the situation where future automated reloads may result in a blacklist that is much bigger (or smaller) than you had initially bargained for.
+<br/>
+See the
+<span class="cfgname">application/database</span>
+config block in &sect;4.1,
+for database-related config.
+</p>
+
+<p><span class="cfgtitle">smtpreply</span><br/>
+By default, emails from blacklisted IPs will be rejected with this SMTP response message:
+</p>
+<table class="protobox">
+<tr><td>
+<pre>
+550 Service refused - your IP is on a blacklist
+</pre>
+</td></tr>
+</table>
+<p>
+This setting lets you override the free-text portion of that message (but not the numeric SMTP reply code of 550).
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="greylst">
+4.4.6 - Greylisting
+</a>
+</h2>
+
+<p>
+Greylisting is a simple but powerful technique which may block 95% of all spam, at a minimal cost in processing resources.
+<br/>
+It is based on the observation that most spammers don't send their emails out via regular MTAs which queue the outgoing messages and retry any that fail.
+Indeed, their account might not even stay up long enough to wait for reasonable retry intervals.
+Rather they blast out as many emails as they can, as quickly as they can, using customised email clients that discard any emails which fail -- or in many cases, aren't even aware of any failures as they just pump out a scripted pipeline of SMTP commands without waiting for a response (see the
+<span class="cfgname">delay_greet</span>
+setting in &sect;4.4.4 for another application of this rationale).
+<br/> <br/>
+The idea behind Greylisting is to initially reject messages from unknown senders and only accept them on a subsequent retry, which ensures that the remote peer is at least a compliant MTA, and hence probably not a spammer.
+<br/>
+The mechanism is that the upstream IP address, sender email address and recipient email address of each message are extracted as a 3-tuple (or triplet) and recorded in a local database.
+If the 3-tuple isn't already registered, then the message will be rejected with a temporary error code (which should trigger a retry), else the message is accepted and a timestamp recording when we last saw this 3-tuple is updated.
+<br/>
+When the initial message is rejected, the associated 3-tuple enters what's known as a quarantine period, and further retries will not be accepted until this quarantine period is over.
+If the sender was a spammer, the probability is that no retries will ever be attempted.
+<br/>
+Once a retry is accepted, the 3-tuple is marked as approved, and any subsequent messages that match it will be accepted without delay.
+<br/> <br/>
+Give or take some implemention-related fine tuning and housekeeping, that's basically it.
+As can be seen, Greylisting is an automated mechanism that requires no manual intervention once turned on.
+It works purely by inspecting the SMTP header, so it doesn't have to open the actual message body, or invoke any expensive tools to scan it.
+Furthermore, it saves on bandwidth by rejecting the incoming message before the (potentially large) body is transmitted.
+
+<br/> <br/>
+<b>Disadvantages:</b><br/>
+With all these benefits, there must be a catch, and the disadvantage of greylisting is the loss of immediacy when messages are received from rare corresponds, as they will be delayed for at least the quarantine period (exactly how long they're delayed depends on the upstream MTA's retry schedule).
+<br/>
+Note that regular correspondents will not be delayed because their 3-tuple will already be registered.
+
+<br/> <br/>
+<b>MX Considerations:</b><br/>
+Beware that the presence of alternate MX relays for your domains is a complicating factor for greylisting, if they don't share the same greylisting registry - and a shared database server would be a lot less performant than an embedded database (which cannot be shared).
+<br/>
+Greylisting is obviously pointless if all the related MX relays don't implement it, as once a message accepted by any one of them it will eventually get successfully submitted into the main mailserver.
+For the same reason, the MX servers for a domain are also obliged not to apply greylisting to each other, since that will only serve to pointlessly delay a transaction that is bound to ultimately succeed (since they are all properly functioning MTAs with retry capability).
+Therefore, in the event that they each have their own greylisting registry, and each retry attempt by the upstream sender targets a different MX, then if there are n MX relays, it follows that the first n send attempts will all end in failure.
+<br/>
+If N is only 2 or 3 this increases the delay for first-time correspondents, but does not constitute a problem as legitimate MTAs are well equipped to handle that amount of retries, but if N is very large and the upstream MTA has significant retry delays, the message may expire on its queue before it can be accepted.
+
+<br/> <br/>
+<b>Configuration:</b><br/>
+The greylisting config block is as follows, with the default values illustrated:
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;greylist&gt;
+    &lt;whitelist&gt;
+        ...
+    &lt;/whitelist&gt;
+    &lt;quarantine_interval&gt;30m&lt;/quarantine_interval&gt;
+    &lt;retry_interval&gt;6h&lt;/retry_interval&gt;
+    &lt;expiry_interval&gt;7d&lt;/expiry_interval&gt;
+    &lt;purge_interval&gt;3h&lt;/purge_interval&gt;
+    &lt;updates_freeze&gt;1h&lt;/updates_freeze&gt;
+    &lt;smtpreply&gt;Please try again later&lt;smtpreply&gt;
+&lt;/greylist&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">whitelist</span><br/>
+This specifies a set of hosts to which greylisting should not be applied. (ie. accept their emails without delay).
+At a mimimum, it should comprise local clients (ie. machines for which we are the outgoing SMTP server) and all the other MX hosts for any domains we serve.
+<br/>
+This whitelist block has the same configuration syntax as the blacklist block we saw above in &sect;4.4.5, and the only practical difference is that whereas a blacklist is probably going to be an automatically updated feed, this whitelist will typically be a static config file, which you update manually when changes occur.
+</p>
+
+<p><span class="cfgtitle">quarantine_interval</span><br/>
+This specifies the duration of the quarantine period when a new correspondent sends a message, ie. it is the length of time for which a new 3-tuple will be greylisted.
+<br/>
+Any further retries (or indeed any other messages matching the pair of correspondents specified by this 3-tuple) during this quarantine period will also be rejected.
+<br/>
+Defaults to 30 minutes.
+</p>
+
+<p><span class="cfgtitle">retry_interval</span><br/>
+This specifies the maximum interval within which a greylisted message must be resent, once the quarantine period is over.
+If the sender does not retry during this period, then the 3-tuple is considered to be stale and will be removed from the registry during the next purge.
+Any subsequent messages for this correspondence will have to go through the greylisting process from the beginning.
+<br/>
+Defaults to 6 hours.
+</p>
+
+<p><span class="cfgtitle">expiry_interval</span><br/>
+This specifies how long a correspondence remains valid, since the last time a message matching its 3-tuple was received.
+If no messages matching a 3-tuple are received during this interval, then it is considered to be stale and will be removed from the registry during the next purge.
+Any subsequent messages for this correspondence will have to go through the greylisting process all over again.
+<br/>
+Defaults to 1 week.
+</p>
+
+<p><span class="cfgtitle">purge_interval</span><br/>
+This is the interval at which the greylisting registry is purged.
+<br/>
+As referred to in some of the above settings, stale quarantined and approved entries are periodically deleted (to prevent the registry growing indefinitely), and this is known as purging the registry.
+<br/>
+Defaults to 3 hours.
+</p>
+
+<p><span class="cfgtitle">updates_freeze</span><br/>
+This is an optimisation which avoids updating the last-received timestamp of an approved 3-tuple every single time a matching message is received, as that could result in heavy database traffic for a particularly active correspondence.
+Instead, we put a freeze on any further updates for this interval, and the next matching message to arrive after that will update the timestamp.
+<br/>
+Defaults to 1 hour.
+</p>
+
+<p><span class="cfgtitle">smtpreply</span><br/>
+By default, greylisted emails will be rejected with this SMTP response message:
+</p>
+<table class="protobox">
+<tr><td>
+<pre>
+450 Please try again later
+</pre>
+</td></tr>
+</table>
+<p>
+This setting lets you override the free-text portion of that message (but not the numeric SMTP reply code of 450).
+
+<br/> <br/>
+<b>Requirements:</b><br/>
+This feature requires database functionality to be enabled.
+<br/>
+See the
+<span class="cfgname">application/database</span>
+config block in section &sect;4.11,
+for database-related config.
+
+<br/> <br/>
+Once activated, the live Greylist can be viewed via NAFMAN
+(the <span class="cfgtitle">greylist</span> command).
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="transfmt">
+4.4.7 - Transcript Format
+</a>
+</h2>
+
+<p>
+A sample transcript fragment is shown below, which includes two successful message submissions and an invalid HELO command.
+</p>
+
+<table class="protobox">
+<tr><td>
+<pre>
+E1-4 ===== 2010-10-27 09:23:30.955 &lt;&lt; Connection from 91.189.234.122:62663 to 192.168.101.13:25
+E3-2 ===== 2010-10-27 09:23:31.236 &lt;&lt; Connection from 82.218.125.213:62665 to 192.168.101.13:25
+E1-4 09:23:32.955 &gt;&gt; 220 Grey Server (Mailismus) ESMTP Ready
+E3-2 09:23:33.236 &gt;&gt; 220 Grey Server (Mailismus) ESMTP Ready
+E1-4 09:23:33.585 &lt;&lt; EHLO [91.189.234.122]
+E1-4 09:23:33.585 &gt;&gt; 250-Grey Server Hello
+250 PIPELINING
+E3-2 09:23:33.869 &lt;&lt; EHLO h082218125213.host.wavenet.com
+E3-2 09:23:33.869 &gt;&gt; 250-Grey Server Hello
+250 PIPELINING
+E1-4 09:23:34.215 &lt;&lt; MAIL FROM:&lt;sender@source1.ie&gt;
+E1-4 09:23:34.215 &gt;&gt; 250 OK
+E3-2 09:23:34.498 &lt;&lt; MAIL FROM:&lt;sender@source2.com&gt;
+E3-2 09:23:34.498 &gt;&gt; 250 OK
+E1-4 09:23:34.850 &lt;&lt; RCPT TO:&lt;info@domain1.org.uk&gt;
+E1-4 09:23:34.850 &gt;&gt; 250 OK
+E3-2 09:23:35.126 &lt;&lt; RCPT TO:&lt;info@domain2.org.uk&gt;
+E3-2 09:23:35.126 &gt;&gt; 250 OK
+E1-4 09:23:35.479 &lt;&lt; DATA
+E1-4 09:23:35.479 &gt;&gt; 354 Start mail input; end with &lt;CRLF&gt;.&lt;CRLF&gt;
+E3-2 09:23:35.776 &lt;&lt; DATA
+E3-2 09:23:35.776 &gt;&gt; 354 Start mail input; end with &lt;CRLF&gt;.&lt;CRLF&gt;
+E1-4 09:23:36.129 Event: Received MailBody octets=3238
+E1-4 09:23:36.129 &gt;&gt; 250 Message accepted as CF83C625
+E3-2 09:23:36.413 Event: Received MailBody octets=3191
+E3-2 09:23:36.413 &gt;&gt; 250 Message accepted as CF83C626
+E1-4 09:23:36.771 &lt;&lt; QUIT
+E1-4 09:23:36.771 &gt;&gt; 221 Closing connection
+E1-4 09:23:36.771 Event: Disconnect
+E3-2 09:23:37.039 &lt;&lt; QUIT
+E3-2 09:23:37.039 &gt;&gt; 221 Closing connection
+E3-2 09:23:37.039 Event: Disconnect
+E3-2 ===== 2010-10-27 09:25:56.925 &lt;&lt; Connection from 190.146.10.71:62595 to 192.168.101.13:25
+E4-7 09:25:58.924 &gt;&gt; 220 Grey Server (Mailismus) ESMTP Ready
+E4-7 09:25:59.116 &lt;&lt; EHLO CENTRAL
+E5-12 ===== 2010-10-27 09:26:09.304 &lt;&lt; Connection from 190.146.10.71:62633 to 192.168.101.13:25
+E5-12 09:26:11.304 &gt;&gt; 220 Grey Server (Mailismus) ESMTP Ready
+E5-12 09:26:11.516 &lt;&lt; HELO relay01.blah.com
+E4-7 09:26:19.114 &gt;&gt; 501 Please say Hello properly
+E4-7 09:26:19.114 Event: Disconnect
+</pre>
+</td></tr>
+</table>
+
+<p>
+The first thing you will notice is that each line begins with an entity ID, such as E3-2, E1-4, etc.
+This identifies a particular SMTP connection, and its only significance is that it allows you to trace the activity of that SMTP server instance when it is interleaved with other connections.
+<br/> <br/>
+The second thing to note is the use of directional chevrons to indicate if traffic is incoming or outgoing.
+<br/>
+Since this is a server transcript, all the incoming lines are SMTP client requests, and the outgoing lines are the server's responses.
+<br/> <br/>
+Also noteworthy, is that the transcript records selected events (eg. connect and disconnect) as well as the SMTP dialogue.
+<br/>
+If the reason for a disconnect is not obvious from the SMTP dialogue, the disconnect event will be annotated to explain why.
+<br/> <br/>
+You will also note that the potentially hundreds or thousands of data chunks required to convey the message body are not individually logged.
+<br/>
+This is as much for reasons of privacy as to save disk space, and the message body is solely represented by a single line at the end, which reports the size of the received message.
+<br/> <br/>
+Finally, you may have noticed that Mailismus advertises the pipelining extension, but it appears that the clients sent their commands one at a time anyway.
+<br/>
+That's not necessarily what actually happened though.
+It's just that Mailismus only transcripts the commands as it processes them, so you will only ever see client commands timestamped and logged at that point.
+<br/> <br/>
+While the Transcript logging tries to be as efficient as possible, it should be obvious that it imposes some processing burden, and on extremely busy servers, it will be a significant burden.
+Transcripts should only really be turned on when you want to investigate something, or capture some sample traffic.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="smtpauth">
+4.4.8 - SMTP Authentication
+</a>
+</h2>
+
+<p>
+SMTP Authentication provides mechanisms (based on SASL) whereby SMTP clients may log on to a server to gain certain priviliges.
+<br/>
+In the case of Mailismus (and generally) this relates to permission to relay, ie. sending messages to domains that are not local to this server.
+<br/> <br/>
+We have already seen the
+<span class="cfgname">relay_clients</span>
+config element above, which serves a similiar purpose.
+You can use either, both or neither of relay_clients and SMTP-Auth, and they combine in the following manner:
+<br/>
+&bull; Client has authenticated and is a member of relay_clients: Allowed to relay.<br/>
+&bull; Client has not authenticated and is a member of relay_clients: Allowed to relay.<br/>
+&bull; Client has authenticated and is not a member of relay_clients: Allowed to relay.<br/>
+&bull; Client has not authenticated and is not a member of relay_clients: Not allowed to relay.<br/>
+<br/>
+Even if authentication is mandatory, membership of relay_clients excuses a client from having to authenticate, so if you really want authentication to apply to absolutely everybody, then don't define relay_clients!
+<br/>
+Regardless of relay_clients membership, an SMTP client which attempts to authenticate and fails will be disconnected.
+<br/>
+If authentication is to take place, it must be before the first SMTP
+<span class="protocmd">MAIL FROM</span>
+is issued.
+<br/> <br/>
+SMTP-Auth is configured via the following elements:
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;authtypes mandatory="N" compat="N"&gt;plain | cram_md5 | external&lt;/authtypes&gt;
+&lt;authtypes_ssl&gt;plain | external&lt;/authtypes_ssl&gt;
+</pre>
+</td></tr>
+</table>
+
+<ul>
+<li><span class="cfgtitle">authtypes</span><br/>
+This config item specifies the set of SASL mechanisms that are enabled for clients to authenticate with, and consists of a pipe-delimited list of the following options:
+<span class="cfgvalue">plain</span>,
+<span class="cfgvalue">cram_md5</span>,
+<span class="cfgvalue">external</span>.
+<br/>
+The special value
+<span class="cfgvalue">all</span>
+means all 3, and is therefore equivalent to the above example.
+<br/>
+The special value
+<span class="cfgvalue">-</span> (hyphen)
+means none, ie. no SASL mechanisms are enabled.
+<br/>
+The default is none (same as hyphen), ie. if you omit
+<span class="cfgname">authtypes</span>,
+then SMTP-Auth will not be enabled.
+<br/> <br/>
+In addition to the list of SASL mechanisms, this element also contains these optional attributes:
+<ul>
+<li><span class="cfgtitle">mandatory</span>:
+This specifies whether authentication is required, and is false by default.
+<br/>
+Mandatory authentication means that clients will not be allowed to submit any messages to this server
+until and unless they have authenticated.
+<br/>
+As stated above, members of
+<span class="cfgvalue">relay_clients</span>
+are excused from this requirement.
+</li>
+<li><span class="cfgtitle">compat</span>:
+This is false by default, but if true, it causes our
+<span class="protocmd">EHLO</span>
+response to repeat the list SASL mechanisms a second time, this time beginning with
+<span class="protocmd">AUTH=</span>
+rather than AUTH followed by a space.
+<br/>
+This used to be required by some old non-compliant clients, but it's doubtful any clients in use today aren't able to parse the standard EHLO response correctly.
+</li>
+</ul>
+</li>
+<li><span class="cfgtitle">authtypes_ssl</span><br/>
+This specifies the SASL mechanisms that are available only in SSL mode, and defaults to
+<span class="cfgvalue">plain</span>
+and
+<span class="cfgvalue">external</span>
+ie. these authentication mechanisms will be disabled in non-SSL mode.
+<br/>
+The special value
+<span class="cfgvalue">all</span>
+means that all the SASL mechanisms are disabled in non-SSL mode, while the special value
+<span class="cfgvalue">-</span> (hyphen)
+means that none of them are disabled in non-SSL mode.
+<br/>
+The mechanisms listed here must be a subset of the overall set enabled by
+<span class="cfgname">authtypes</span>
+and any extra mechanisms specified here be ignored.
+</li>
+</ul>
+
+<p>
+Having specified SMTP-Authentication as described above, all that's left is to enable the Mailismus
+<span class="softname">Message Store</span>
+component and configure its
+<span class="softname">Directory</span>
+component (see section &sect;4.2).
+The SMTP-Server will verify login attempts against the users and passwords stored there.
+<br/>
+If the Message Store is not enabled, then SMTP-Authentication is also disabled, regardless of the above settings.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="ssl">
+4.4.9 - SSL
+</a>
+</h2>
+
+<p>
+SSL is specified in the NAF Guide (section &sect;8) and the only thing left to add here is the treatment of its
+<span class="cfgname">latent</span>
+and
+<span class="cfgname">mandatory</span>
+attributes in the context of the SMTP Server.
+<br/> <br/>
+If
+<span class="cfgname">latent</span>
+is set to its default value of False, then connections will be established in SSL mode to start with.
+<br/>
+If True, then Mailismus will advertise its SSL support via the
+<span class="protocmd">STARTTLS</span>
+extension, and will switch to SSL mode if the remote client asks it to.
+<br/>
+If the client does initiate an upgrade to SSL mode, it must do so before commencing any messages, or authenticating.
+<br/> <br/>
+If
+<span class="cfgname">mandatory</span>
+is set to True, then the SMTP Server will reject any attempts to authenticate or commence a message
+(the SMTP
+<span class="protocmd">MAIL FROM</span>
+command)
+until the connection is switched to SSL (or obviously, unless it commenced in SSL mode, ie. latent=false).
+<br/>
+If False, then the client is not required to ever switch to SSL. It is up to the client to decide.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="filter">
+4.4.10 - Filtering
+</a>
+</h2>
+
+<p>
+This is a facility which allows you to define your own custom message filter and load it into Mailismus.
+<br/>
+Your filter would be invoked at the end of the SMTP DATA phase, and all the details of the incoming message (sender, recipients, etc) will be passed to it, to enable it to scan the message.
+<br/>
+The custom filter then decides whether to accept or reject the message, and if rejected, an SMTP error response will be sent to the remote client.
+Thus the message never enters the queue, and there is no need for it to generate a bounce report.
+<br/> <br/>
+The custom filter must be written in Java, by implementing just two interfaces.
+You must provide a factory class which implements
+<span class="softname">com.grey.mailismus.mta.submit.filter.api.FilterFactory</span>,
+ and the factory must create filters which implements
+<span class="softname">com.grey.mailismus.mta.submit.filter.api.MessageFilter</span>.
+<br/>
+Your factory class will be instantiated on Mailismus startup and will be invoked once per incoming message to return an instance of your filtering class.
+<br/>
+The filter will be invoked in a background thread and can perform whatever processing you wish, including the message off to a third-party email scanner.
+When processing is complete, the filter merely has to call a provided Mailismus interface indicating whether the message has been approved or rejected, and Mailismus will take care of sending the SMTP response.
+<br/> <br/>
+You will have to compile your filter code into a JAR and load that into Mailismus at runtime, by specifying its pathname in the
+<span class="cfgname">dependjars</span>
+element of the
+<span class="pathname">naf.xml</span>
+config file (see NAF Programmer's Guide, section &sect;2).
+<br/>
+Obviously when developing and building your code, the Mailismus JAR will need to be on your ClassPath, but the filter does not need to be a NAF application.
+
+<br/> <br/>
+The filter config block is as follows:
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;filter class="com.myorganisation.MyFactoryClass" timeout="2m" enabled="Y"&gt;
+        ...
+&lt;/filter&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">class</span><br/>
+This specifies your factory class.
+Note, the factory class, not the filter class.
+<br/>
+The idea is that one instance of this class is created by reflection during Mailismus startup and it does any relatively expensive configuration setup required.
+It then creates a large number of instances of your filter class (one per incoming message) on demand, via what is intended to be a lightweight filter constructor.
+<br/>
+This attribute has no default and must be supplied.
+</p>
+
+<p><span class="cfgtitle">timeout</span><br/>
+If the filter processing does not complete within this time limit, it will be presumed to have failed, and the connection will be aborted.
+<br/>
+The default is 2 minutes, and it must be non-zero.
+</p>
+
+<p><span class="cfgtitle">enabled</span><br/>
+You can set this to N(o) to disable filtering, rather than removing this config block altogether.
+<br/>
+This attribute defaults to Y(es) if absent, ie. the presence of the
+<span class="cfgname">filter</span>
+block would mean filtering is in effect.
+</p>
+
+<p><span class="cfgtitle"><i>custom config</i></span><br/>
+Apart from the standard attributes described above, you may also put any config elements you want within the config block, for your own use.
+Your factory class will be supplied with parameters which enable it to parse the config block.
+</p>
+
+<br/>&nbsp;<br/>&nbsp;<br/>
+</div>
+</BODY>
+</HTML>

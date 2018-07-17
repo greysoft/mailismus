@@ -1,0 +1,281 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<!--
+Copyright 2010-2018 Yusef Badri - All rights reserved.
+Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<HTML>
+<HEAD>
+<TITLE>Mailismus - Admin Guide</TITLE>
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+<link rel="stylesheet" type="text/css" href="mta.css"/>
+</HEAD>
+<BODY>
+
+<div class="topcorner">
+<br/>
+<center>
+<img src="mlogo.png">
+</center>
+</div>
+
+<div class="banner">
+<span class="bannertext">
+Mailismus 2.0.0
+<br/>
+Administration Guide
+</span>
+</div>
+
+<div class="menu">
+<p>
+<a href="index.htm">Contents</a>
+</p>
+<hr class="mline"/>
+<p>
+<a href="mailserver.htm">4&nbsp;-&nbsp;Mail-Server&nbsp;Config</a>
+</p>
+<hr class="mline"/>
+<p class="cursect">
+4.8&nbsp;-&nbsp;POP&nbsp;Server
+</p>
+<p>
+<a href="#config">4.8.1&nbsp;-&nbsp;Task&nbsp;Config</a>
+</p>
+<p>
+<a href="#listener">4.8.2&nbsp;-&nbsp;Listener</a>
+</p>
+<p>
+<a href="#server">4.8.3&nbsp;-&nbsp;Server</a>
+</p>
+</div>
+
+<div class="page">
+<table class="chtitle" width="100%">
+<tr><td>
+<center>
+4.8 - POP Server
+</center>
+</td></tr>
+</table>
+
+<p>
+This Mailismus component implements a POP3 server (Post Office Protocol v3).
+<br/> <br/>
+The POP server requires the Message-Store (see section &sect;4.2) and Directory subsystems to be configured.
+<br/>
+The only Directory config file it's concerned with is the
+<span class="cfgname">users</span>
+file (see section &sect;4.10.1), which defines the login credentials for POP clients.
+<br/> <br/>
+Mailismus supports the following optional POP3 commands and extensions:
+<br/>
+USER, PASS, APOP, TOP, UIDL, CAPA, AUTH (Plain, CRAM-MD5 &amp; External), STLS, PIPELINING.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="config">
+4.8.1 - Task Config
+</a>
+</h2>
+
+<p>
+The top-level config of the POP server task is outlined below.
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;pop3server&gt;
+    &lt;listeners&gt;
+        &lt;listener name="POP3"&gt;
+            &lt;server&gt;
+                ...
+            &lt;/server&gt;
+            &lt;ssl ... /&gt;
+        &lt;/listener&gt;
+    &lt;/listeners&gt;
+&lt;/pop3server&gt;
+</pre>
+</td></tr>
+</table>
+
+<hr class="pline"/>
+<h2>
+<a name="listener">
+4.8.2 - Listener
+</a>
+</h2>
+
+<p>
+The Listener is a generic NAF component that is documented in the NAF Guide (see &sect;7 there).
+<br/>
+The POP3 server typically only has one Listener, listening on the standard POP3 port of 110, but you may however choose to run separate listeners, eg. on ports 110 and 995 (pure SSL).
+<br/> <br/>
+Note the following aspects of the POP3 listener:
+<br/>
+&bull; It's
+<span class="cfgname">port</span>
+attribute need not be specified, since in this context, it defaults to the standard POP3 ports of 110 or 995, depending on SSL mode.
+<br/>
+&nbsp;&nbsp;&nbsp;Of course if there is more than one listener, you will have explicitly specify another port on the others.
+<br/>
+&bull; Likewise the server's
+<span class="cfgname">class</span>
+attribute is omitted, as it defaults to the Mailismus POP3-Server class.
+
+<br/> <br/>
+The optional SSL config block is also a generic NAF facility (see NAF Guide, section &sect;8) and the only thing left to add here is the treatment of its
+<span class="cfgname">latent</span>
+and
+<span class="cfgname">mandatory</span>
+attributes in the context of the POP3 Server.
+<br/>
+Note that Mailismus supports the POP3
+<span class="protocmd">STLS</span>
+extension, whereby a client may switch to SSL mode after establishing the connection.
+</p>
+<ul><li>
+If
+<span class="cfgname">latent</span>
+is set to its default value of False, then connections will be established in SSL mode to start with.
+<br/>
+If True, then Mailismus will advertise its support of the
+<span class="protocmd">STLS</span>
+extension, and will switch to SSL mode if the remote client asks it to.
+<br/>
+If the client does initiate an upgrade to SSL mode, it must do so before authenticating.
+</li><li>
+If
+<span class="cfgname">mandatory</span>
+is set to True, then the POP Server will reject any attempts to authenticate
+until the connection is switched to SSL.
+<br/>
+If False, then the client is not required to switch to SSL. It is up to the client to decide.
+</li>
+</ul>
+
+<hr class="pline"/>
+<h2>
+<a name="server">
+4.8.3 - POP Server
+</a>
+</h2>
+
+<p>
+The server's config block is listed below, with largely default values.
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;server&gt;
+    &lt;transcript&gt;%DIRLOG%/transcripts/pop3server-%DT%.log&lt;/transcript&gt;
+    &lt;greet&gt;Mailismus POP3 Ready&lt;/greet&gt;
+    &lt;authtypes&gt;USERPASS | APOP | SASL_PLAIN | SASL_CRAM_MD5 | SASL_EXTERNAL&lt;/authtypes&gt;
+    &lt;authtypes_ssl&gt;SASL_EXTERNAL | SASL_PLAIN&lt;/authtypes_ssl&gt;
+    &lt;timeout&gt;2m&lt;/timeout&gt;
+    &lt;expire&gt;-1&lt;/expire&gt;
+&lt;/server&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">transcript</span><br/>
+This file records a transcript of the POP3 protocol dialogue.
+<br/>
+This config item supports the same attributes as the GreyLog loggers (rotation, buffering, etc - see
+<a href="../nafguide/greylog.htm">GreyLog Guide</a>).
+<br/>
+This setting has no default and transcripts will be turned off if it is omitted.
+</p>
+
+<p><span class="cfgtitle">greet</span><br/>
+This specifies the greeting message which the POP server issues in response to new connections.
+<br/>
+The default is as illustrated above.
+</p>
+
+<p><span class="cfgtitle">authtypes</span><br/>
+This specifies the authentication methods which clients are allowed to use (as advertised by the POP3
+<span class="protocmd">CAPA</span>
+command)
+and defaults to the full set of supported mechanisms as illustrated above.
+<br/>
+The
+<span class="cfgname">USERPASS</span>
+option refers to POP3's built-in
+<span class="protocmd">USER</span>
+and
+<span class="protocmd">PASS</span>
+commands.
+<br/> <br/>
+The SASL-External mechanism is only relevant if SSL is in effect, and requires the client to supply its own X.509 certificate.
+<br/>
+The certificate's
+<span class="protocmd">Common-Name</span>
+attribute is taken as the username, and the existence of this username in our Directory is sufficient to authenticate the client.
+<br/> <br/>
+The special value
+<span class="cfgvalue">all</span>
+means All and is equivalent to omitting this config item (as that is the default).
+<br/>
+The special value
+<span class="cfgvalue">-</span>
+means None, and prevents any users from logging in (although in that case, you might as well turn off your POP3 server!)
+</p>
+
+<p><span class="cfgtitle">authtypes_ssl</span><br/>
+This specifies the login methods which are only allowed in SSL mode, and is thus always a subset of the methods in the
+<span class="cfgname">authtypes</span>
+config item.
+<br/>
+If SSL capability is not configured, then this defaults to
+<span class="cfgvalue">SASL_EXTERNAL</span>,
+ie. only SASL-External is forbidden (since it makes no sense in the absence of a certificate).
+<br/>
+If SSL capability is configured and is mandatory (ie. connections are initially established in SSL mode), then this config item is superfluous, and defaults to being the same as
+<span class="cfgname">authtypes</span>.
+<br/>
+If SSL capability is configured but latent (ie. the client has to explicitly switch to SSL mode via the POP3
+<span class="protocmd">STLS</span>
+command), then this setting defaults to SASL-Plain and SASL-External, as illustrated above.
+<br/> <br/>
+The special value
+<span class="cfgvalue">all</span>
+means all the login methods are restricted to SSL mode only, ie. no logins are permitted in non-SSL mode.
+<br/>
+The special value
+<span class="cfgvalue">-</span>
+means None, ie. none of the login methods are restricted to SSL mode (though it still makes no sense for SASL-External, which will fail anyway without a certificate).
+</p>
+
+<p><span class="cfgtitle">timeout</span><br/>
+This specifies the idle timeout.
+<br/>
+Defaults to 2 minutes.
+</p>
+
+<p><span class="cfgtitle">expire</span><br/>
+This specifies the message-retention period (in days), as advertised by the
+<span class="protocmd">CAPA</span>
+command's
+<span class="protocmd">EXPIRE</span>
+response.
+<br/>
+It defaults to -1 which means
+<span class="cfgvalue">NEVER</span>.
+<br/>
+The only setting enforced by Mailismus is 0 (zero), in which case it will delete all downloaded messages at the end of the session.
+<br/>
+All other values are merely intended as advisory information for the users, and you will have to purge old messages from the server by some other means, external to Mailismus.
+<br/> <br/>
+Note that the
+<span class="cfgname">expire</span>
+setting merely refers to server-side message deletion, and doesn't necessarily mean messages don't get deleted. The expectation is that POP clients delete messages by default anyway, after downloading them.
+</p>
+
+<br/>&nbsp;<br/>&nbsp;<br/>
+</div>
+</BODY>
+</HTML>

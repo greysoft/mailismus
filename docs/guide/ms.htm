@@ -1,0 +1,252 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<!--
+Copyright 2010-2018 Yusef Badri - All rights reserved.
+Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<HTML>
+<HEAD>
+<TITLE>Mailismus - Admin Guide</TITLE>
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+<link rel="stylesheet" type="text/css" href="mta.css"/>
+</HEAD>
+<BODY id="reports">
+
+<div class="topcorner">
+<br/>
+<center>
+<img src="mlogo.png">
+</center>
+</div>
+
+<div class="banner">
+<span class="bannertext">
+Mailismus 2.0.0
+<br/>
+Administration Guide
+</span>
+</div>
+
+<div class="menu">
+<p>
+<a href="index.htm">Contents</a>
+</p>
+<hr class="mline"/>
+<p>
+<a href="mailserver.htm">4&nbsp;-&nbsp;Mail-Server&nbsp;Config</a>
+</p>
+<hr class="mline"/>
+<p class="cursect">
+4.2&nbsp;-&nbsp;Message&nbsp;Store
+</p>
+<p>
+<a href="#config">4.2.1&nbsp;-&nbsp;Config</a>
+</p>
+<p>
+<a href="#mstypes">4.2.2&nbsp;-&nbsp;MS&nbsp;Types</a>
+</p>
+<p>
+<a href="#maildir">4.2.2.1&nbsp;-&nbsp;Maildir-MS</a>
+</p>
+<p>
+<a href="#mscustom">4.2.3&nbsp;-&nbsp;Custom&nbsp;MS</a>
+</p>
+</div>
+
+<div class="page">
+<table class="chtitle" width="100%">
+<tr><td>
+<center>
+4.2 - The Message Store
+</center>
+</td></tr>
+</table>
+
+<p>
+The Message Store (MS) represents the mechanism by which Mailismus defines and accesses mailboxes, for delivering email messages to local users (the final leg of any message's journey) and subsequently retrieving them on behalf of their email clients (Outlook, Thunderbird, etc) via POP3 or IMAP.
+</p>
+
+<h2>
+<a name="config">
+4.2.1 - Configuration
+</a>
+</h2>
+
+<p>
+The top-level config block looks as follows:
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;message_store class="..."&gt;
+    ...
+&lt;/message_store&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">class</span><br/>
+This specifies the MS implementation, and the default value if absent is the
+<span class="compcode">MaildirStore</span>
+class illustrated in section &sect;4.2.2.1 below.
+<br/>
+The Maildir MS is the sole implementation provided as part of Mailismus, although as we shall see later, you may also define your own custom MS for delivery purposes (but not for retrieval).
+<br/><br/>
+The remaining config settings are implementation-specific.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="mstypes">
+4.2.2 - MS Types
+</a>
+</h2>
+<h2>
+<a name="maildir">
+4.2.2.1 - Maildir-MS
+</a>
+</h2>
+
+<p>
+The Maildir MS is an MS implementation that provides mailboxes based on the popular
+<span class="softname">Maildir</span>
+mail storage format.
+<br/>
+It is a de facto standard, and the nearest it has to a specification remains Daniel Bernstein's
+<a href="http://cr.yp.to/proto/maildir.html">original document</a>,
+but as an end user, all you need to know about it is that you can access the mailboxes using any third-party mail reader, POP server or IMAP server that claims to be Maildir compatible (which in the Unix world at least, is lots of them).
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;message_store class="com.grey.mailismus.ms.maildir.MaildirStore"&gt;
+    &lt;userpath&gt;%DIRVAR%/ms&lt;/userpath&gt;
+    &lt;mailpath&gt;Maildir&lt;/mailpath&gt;
+    &lt;dotstuffing&gt;N&lt;/dotstuffing&gt;
+    &lt;exclusive&gt;N&lt;/exclusive&gt;
+    &lt;filename_colon&gt;:&lt;/filename_colon&gt;
+    &lt;filename_comma&gt;,&lt;/filename_comma&gt;
+&lt;/message_store&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">userpath</span><br/>
+<span class="cfgtitle">mailpath</span><br/>
+These fields collectively specify the path to each user's Maildir storage area.
+<br/>
+<span class="cfgname">userpath</span>
+specifies the path to the users' home directory (or if virtual users, the path to the directories representing virtual users) and
+defaults to
+<span class="cfgvalue">%DIRVAR%/ms</span>.
+<br/>
+<span class="cfgname">mailpath</span>
+specifies the relative path to the Maildir directory from the user's home directory, and defaults to
+<span class="cfgvalue">Maildir</span>.
+<br/>
+The net result of the above settings, is that the mailbox aread for a user account named
+<span class="cfgvalue">user1</span>
+will be under
+<span class="pathname">%DIRVAR%/ms/user1/Maildir</span>.
+<br/> <br/>
+The illustrative config block above clearly refers to virtual users since no actual user home directories are ever likely to be under the Mailismus work area, but on a typical Unix system where home directories are under
+<span class="pathname">/home</span>,
+you would have to set
+<span class="cfgvalue">userpath=/home</span>
+and omit or default the
+<span class="cfgname">mailpath</span>
+setting, thus yielding Maildir paths like
+<span class="pathname">/home/user1/Maildir</span>.
+</p>
+
+<p><span class="cfgtitle">dotstuffing</span><br/>
+Internet messages are transmitted in a special syntax known as the "dot-stuffed" format, and the dot-stuffing has to be reversed at some stage before messages are presented to the end-user.
+<br/>
+This config setting controls where the "dot-stuffing" gets undone.
+<br/>
+It defaults to No, which means the dot-stuffing will not be undone when new messages are delivered into the MS by the MTA.
+<br/> <br/>
+The following matrix illustrates which Mailismus process has to do what conversion work, depending on this setting.
+<br/>
+Note that in terms of the message flow, it is the MTA which stores incoming messages (which are dot-stuffed to begin with) in the user's drop folder, while the POP3 and IMAP servers subsequently retrieve the messages from the drop folder.
+</p>
+<table border="1">
+<tr>
+<th>dotstuffing</th> <th>MTA</th> <th>POP3 Server</th> <th>IMAP Server</th>
+</tr>
+<tr>
+<td>No</td> <td>No conversion</td> <td>No conversion</td> <td>Undo dot-stuffing</td>
+</tr>
+<tr>
+<td>Yes</td> <td>Undo dot-stuffing</td> <td>Redo dot-stuffing</td> <td>No conversion</td>
+</tr>
+</table>
+<p>
+The Mailismus POP3 and IMAP servers are able to take note of this setting to decide what conversion work is required on their part, so as can be seen the default setting of No is highly recommended, as it is optimal if the POP3 server is in play, and neutral if not (assuming an IMAP server is being used in its stead).
+<br/>
+<b>*** WARNING ***</b><br/>
+The above analysis only applies if Mailismus is the only process being used to deliver or pick up the new messages.
+<br/>
+If any other agent is adding/removing messages in the drop folder, then no optimisation is possible and the
+<span class="cfgname">dotstuffing</span>
+setting must be Yes, so that messages are always in the expected vanilla format for their current status.
+</p>
+
+<p><span class="cfgtitle">exclusive</span><br/>
+This setting is No by default, but setting it to Yes permits some minor optimisations in the Mailismus MS-retrievel tasks (the IMAP and POP3 servers).
+<br/>
+You can set it to Yes if you know that the Mailismus MTA is the only actor delivering new messages into the MS.
+</p>
+
+<p><span class="cfgtitle">filename_colon</span><br/>
+<span class="cfgtitle">filename_comma</span><br/>
+These settings allow you to vary the two special characters which are used in the filenames of Maildir messages, as the defaults (illustrated above) may cause difficulties on some non-Unix platforms.
+<br/>
+In fact
+<span class="cfgname">filename_colon</span>
+defaults to
+<span class="cfgvalue">+</span>
+(plus sign)
+on Windows, so you shouldn't have to override these settings on Windows either.
+<br/>
+You can enter the character as a decimal numeric value, by preceding it with
+<span class="cfgvalue">/</span>
+(forward slash)
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="mscustom">
+4.2.3 - Custom MS
+</a>
+</h2>
+
+<p>
+You may define your own custom implementation for the MS, which allows you to intercept message delivery and store received SMTP messages in your own store (eg. a database, or maybe even a bridging service that forwards emails in another medium, such as SMS texts).
+<br/>
+Once messages have been delivered into a custom MS, message retrieval is entirely up to you. The message-access services provided as part of Mailismus (IMAP and POP3) will not interoperate with a custom MS.
+
+<br/> <br/>
+A custom MS must implement the
+<span class="softname">com.grey.mailismus.ms.MessageStore</span>
+interface and the
+<span class="pathname">mailismus.xml</span>
+config file would then specify its full classname in the message_store
+<span class="cfgname">class</span>
+attribute, as illustrated in section &sect;4.2.1 above.
+
+<br/> <br/>
+The JAR(s) which implement your custom code will need to be specified in the
+<span class="cfgname">dependjars</span>
+setting of the
+<span class="pathname">naf.xml</span>
+config file (see NAF Programmer's Guide, section &sect;2).
+
+<br/> <br/>
+See the NAF Programmer's Guide and its open-source code for more info on the data types referred to here.
+</p>
+
+</div>
+</BODY>
+</HTML>

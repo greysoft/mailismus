@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Copyright 2010-2018 Yusef Badri - All rights reserved.
+  Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<loggers>
+    <logger name="default">
+        <file level="trc">%stdout%</file>
+    </logger>
+    <logger name="mta-submit">
+        <file level="trc" rot="monthly" class="com.grey.logging.LatinLogger">%DIRLOG%/trace/mta-submit-%DT%.log</file>
+    </logger>
+    <logger name="mta-deliver">
+        <file level="trc" rot="monthly" class="com.grey.logging.LatinLogger">%DIRLOG%/trace/mta-deliver-%DT%.log</file>
+    </logger>
+    <logger name="mta-report">
+        <file level="trc" rot="monthly" class="com.grey.logging.LatinLogger">%DIRLOG%/trace/mta-report-%DT%.log</file>
+    </logger>
+    <logger name="imap">
+        <file level="trc" rot="monthly" class="com.grey.logging.LatinLogger">%DIRLOG%/trace/imap-%DT%.log</file>
+    </logger>
+    <logger name="pop3">
+        <file level="trc" rot="monthly" class="com.grey.logging.LatinLogger">%DIRLOG%/trace/pop3-%DT%.log</file>
+    </logger>
+</loggers>

@@ -1,0 +1,25 @@
+<!--
+  Copyright 2013-2018 Yusef Badri - All rights reserved.
+  Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<mailserver>
+	<directory>
+		<plainpass>Y</plainpass>
+		<users>cp:/com/grey/mailismus/imap4/ms_users</users>
+	</directory>
+	<message_store>
+		<userpath>%DIRVAR%/ms</userpath>
+		<mailpath>Maildir</mailpath>
+	</message_store>
+	<imap>
+		<server>
+			<listeners>
+				<listener name="UTEST_IMAP4" port="0">
+					<server>
+						<transcript>%DIRLOG%/transcripts/imap4.log</transcript>
+					</server>
+				</listener>
+			</listeners>
+		</server>
+	</imap>
+</mailserver>

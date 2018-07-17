@@ -1,0 +1,588 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<!--
+Copyright 2010-2018 Yusef Badri - All rights reserved.
+Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<HTML>
+<HEAD>
+<TITLE>Mailismus - Admin Guide</TITLE>
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+<link rel="stylesheet" type="text/css" href="mta.css"/>
+</HEAD>
+<BODY id="deliver">
+
+<div class="topcorner">
+<br/>
+<center>
+<img src="mlogo.png">
+</center>
+</div>
+
+<div class="banner">
+<span class="bannertext">
+Mailismus 2.0.0
+<br/>
+Administration Guide
+</span>
+</div>
+
+<div class="menu">
+<p>
+<a href="index.htm">Contents</a>
+</p>
+<hr class="mline"/>
+<p>
+<a href="mailserver.htm">4&nbsp;-&nbsp;Mail-Server&nbsp;Config</a>
+</p>
+<hr class="mline"/>
+<p class="cursect">
+4.5&nbsp;-&nbsp;Delivery&nbsp;Task
+</p>
+<p>
+<a href="#function">4.5.1&nbsp;-&nbsp;Function</a>
+</p>
+<p>
+<a href="#config">4.5.2&nbsp;-&nbsp;Task&nbsp;Config</a>
+</p>
+<p>
+<a href="#client">4.5.3&nbsp;-&nbsp;SMTP&nbsp;Client</a>
+</p>
+<p>
+<a href="#relays">4.5.4&nbsp;-&nbsp;Relays</a>
+</p>
+</div>
+
+<div class="page">
+<table class="chtitle" width="100%">
+<tr><td>
+<center>
+4.5 - The Delivery Task
+</center>
+</td></tr>
+</table>
+
+<h2>
+<a name="function">
+4.5.1 - Function
+</a>
+</h2>
+
+<p>
+The Delivery Task is a NAFlet which delivers stored messages onwards to their next-hop destination.
+It is one of the big two Mailismus naflets, the other being the Submit Task.
+<br/> <br/>
+The Delivery task is composed of a marshalling agent called the SMTP Sender (or Forwarder), which obtains pending messages from the queue (see &sect;4.3), and hands them to SMTP Clients.
+<br/>
+The SMTP Clients connect to the remote SMTP servers and perform the necessary SMTP protocol operations to deliver the messages.
+<br/> <br/>
+The Delivery task works by fetching a batch of messages from the queue, and allocating this batch optimally to a set of SMTP-Client instances. By "optimally", we mean that if the same message has multiple recipients in the same domain, they will be allocated to the same client, so that they can all be delivered within a single SMTP connection.
+Mailismus also batches additional messages for the same domain into a single connection.
+<br/>
+This cycle is continuously repeated at configurable intervals. The intention is that the interval should be very short if the previous batch did find some messages, and longer if no messages were waiting, to avoid hogging the machine if there is no work to do.
+<br/>
+If the batch of messages exceeds configured limits on the number of total connections or connections per domain, then the excess messages will be carried over into the next batch, where they will be nearer the front of the queue.
+<br/> <br/>
+Once this is understood, you can see that most of the Sender config deals with the tuning of this batch processing in terms of limits and intervals, while the SMTP-Client config is focussed mainly on protocol options.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="config">
+4.5.2 - Task Config
+</a>
+</h2>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;deliver&gt;
+    &lt;relays&gt; ... &lt;/relays&gt;
+    &lt;audit rot="monthly"&gt;%DIRLOG%/audit/Y%Y%/delivered-%DT%.log&lt;/audit&gt;
+    &lt;queuecache&gt;2500&lt;/queuecache&gt;
+    &lt;maxconnections&gt;2500&lt;/maxconnections&gt;
+    &lt;maxserverconnections&gt;20&lt;/maxserverconnections&gt;
+    &lt;maxmessages&gt;100&lt;/maxmessages&gt;
+    &lt;maxrecips&gt;50&lt;/maxrecips&gt;
+    &lt;interval_low&gt;100&lt;/interval_low&gt;
+    &lt;interval_high&gt;15s&lt;/interval_high&gt;
+    &lt;interval_error&gt;3m&lt;/interval_error&gt;
+    &lt;delay_start&gt;30s&lt;/delay_start&gt;
+    &lt;client&gt;
+        ...
+    &lt;/client&gt;
+&lt;/deliver&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">relays</span><br/>
+See section &sect;4.5.4 below.
+</p>
+
+<p><span class="cfgtitle">audit</span><br/>
+This specifies an audit log, reporting the delivery of each message to each recipient.
+<br/>
+It is meant to serve as a formal record of activity, suitable for archiving (as opposed to the more debug-oriented trace logs).
+It records the delivery timestamp, the sender and recipient email addresses, and the IP addresses the message was received from and delivered to.
+<br/>
+This config item supports the same attributes as the GreyLog loggers (rotation, buffering, etc - see
+<a href="../nafguide/greylog.htm">GreyLog Guide</a>).
+<br/>
+This config item has no default and auditing will be turned off if it is omitted.
+</p>
+
+<p><span class="cfgtitle">interval_low</span><br/>
+If any entries were found when we polled the queue to build the latest cached batch, this is the pause before polling again.
+<br/>
+Defaults to a tenth of a second.
+</p>
+
+<p><span class="cfgtitle">interval_high</span><br/>
+If no entries were found when we polled the queue to build the latest cached batch, this is the pause before polling again.
+<br/>
+It defaults to 15 seconds, and this low/high split delay allows us to avoid thrashing the queue when it has no pending messages.
+</p>
+
+<p><span class="cfgtitle">interval_error</span><br/>
+If we encountered an error when we polled the queue to build the latest cached batch, this is the pause before polling again.
+<br/>
+Defaults to 3 minutes.
+</p>
+
+<p><span class="cfgtitle">delay_start</span><br/>
+This specifies the pause on initial system startup, before we first poll the queue.
+<br/>
+Defaults to 30 seconds.
+</p>
+
+<p><span class="cfgtitle">maxconnections</span><br/>
+This specifies the max number of simultaneous outgoing SMTP connections.
+<br/>
+Defaults to 2,500 unless in slave-relay mode, in which case it defaults to 500.
+<br/>
+It should be set to the same size as
+<span class="cfgname">queuecache</span>
+as any larger is pointless (but harmless, as will never be exercised) but any smaller means that there will be leftover recipients in the cache after each delivery batch, which means the queue-manager is doing wasted work to load and restore them.
+</p>
+
+<p><span class="cfgtitle">maxserverconnections</span><br/>
+This specifies the max number of simultaneous outgoing SMTP connections to any one destination (remote domain or relay).
+Of course multiple connections to one destination domain might in practice be spread amongst multiple remote servers, but we treat it as as one target, and limit the total connections to it.
+<br/>
+Defaults to 20, and is irrelevant in slave-relay mode, since all connections would be made to the smarthost, and there is no limit.
+</p>
+
+<p><span class="cfgtitle">maxmessages</span><br/>
+This specifies the max number of messages we will batch into a single SMTP connection.
+<br/>
+This setting is the one that mainly controls how long it can take to process a single batch, and it defaults to 100.
+This limit is based on ensuring that a batch completes in a reasonable time, to minise the latency before we flush it back to the queue.
+</p>
+
+<p><span class="cfgtitle">maxrecips</span><br/>
+This specifies the max number of common recipients we will batch into a single message.
+<br/>
+Defaults to 50 (well below RFC-5321 minimum of 100, just to be conservative).
+</p>
+
+<p><span class="cfgtitle">queuecache</span><br/>
+This defaults to 2,500 and specifies the max size of the delivery batch, measured as the number of cached queue entries (each queue entry constitutes a unique recipient/message combination).
+<br/>
+It is subject to the limit imposed by the queue manager itself, with its
+<span class="cfgname">maxmemoryqueue</span>
+setting (see &sect;4.3.1).
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="client">
+4.5.3 - SMTP Client
+</a>
+</h2>
+
+<p>
+The client's config block is listed below, with largely default values.
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;client&gt;
+    &lt;transcript&gt;%DIRLOG%transcripts/smtpclient-%DT%.log&lt;/transcript&gt;
+    &lt;announcehost&gt;hostname&lt;/announcehost&gt;
+    &lt;maxpipeline&gt;25&lt;/maxpipeline&gt;
+    &lt;timeout&gt;1m&lt;/timeout&gt;
+    &lt;mindatarate&gt;1000000&lt;/mindatarate&gt;
+    &lt;sayHELO&gt;N&lt;/sayHELO&gt;
+    &lt;fallbackHELO&gt;N&lt;/fallbackHELO&gt;
+    &lt;sendQUIT&gt;Y&lt;/sendQUIT&gt;
+    &lt;waitQUIT&gt;Y&lt;/waitQUIT&gt;
+    &lt;fallbackMX_A&gt;N&lt;/fallbackMX_A&gt;
+    &lt;anonssl latent="Y" ... /&gt;
+    &lt;remotenets&gt;
+        &lt;remotenet ip="%SYSNAME%/24"&gt;
+            ...
+        &lt;/remotenet&gt;
+    &lt;/remotenets&gt;
+&lt;/client&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">transcript</span><br/>
+This config item supports the same attributes as the GreyLog loggers (rotation, buffering, etc - see
+<a href="../nafguide/greylog.htm">GreyLog Guide</a>).
+<br/>
+This config item has no default and transcripts will be turned off if it is omitted.
+<br/>
+See &sect;4.4.7 for a description of the transcript contents.
+<br/>
+The only difference with the server transcripts, is that in this case, we're the ones initiating the connections and sending the commands.
+</p>
+
+<p><span class="cfgtitle">announcehost</span><br/>
+This specifies how the client will announce itself in its greeting message
+(SMTP: <span class="protocmd">HELO</span>
+or
+<span class="protocmd">EHLO</span>).
+<br/>
+If absent it defaults to the setting in the
+<span class="cfgname">application</span>
+block - see &sect;4.1
+<br/>
+Unlike its namesake in the SMTP-Server config, it is critical for clients that this hostname is a valid DNS entry which matches the IP address we call out on, and ideally has a reverse entry as well (ie. the
+<span class="pathname">in-addr.arpa</span>
+DNS domain).
+</p>
+
+<p><span class="cfgtitle">maxpipeline</span><br/>
+This controls how aggressively the client pipelines its outgoing requests, when the remote Server advertises its support for the ESMTP pipelining extension.
+<br/>
+The default is 25, meaning we will have at most 25 outstanding requests, before we pause to wait for responses.
+<br/>
+Setting this to 1 effectively disables pipelining, regardless of what the Server supports.
+A value of 0 is also interpreted as being 1.
+</p>
+
+<p><span class="cfgtitle">timeout</span><br/>
+This specifies the max time to wait for a response from the server, after which the client will declare failure and abandon the connection.
+<br/>
+The default is 1 minute.
+</p>
+
+<p><span class="cfgtitle">mindatarate</span><br/>
+This specifies the minimum data rate (in bps - bits per second) that you expect when sending the message body, and is used to extend the
+<span class="cfgname">timeout</span>
+interval during this phase of the connection if the message is sufficiently large.
+<br/>
+This setting can only increase the timeout interval in effect, not reduce it, and if the message is judged too small to exceed the
+<span class="cfgname">timeout</span>
+setting, the latter will remain in effect.
+<br/>
+The default value is 1,000,000 (but must be entered without punctuation) or in other words 1 Mbps.
+<br/>
+Regardless of your outgoing bandwidth, it is probably inadvisable to assume that incoming data on a busy server at the other end exceeds 1Mbps per connection.
+</p>
+
+<p><span class="cfgtitle">sayHELO</span><br/>
+This tells the Client to use plain SMTP rather than ESMTP, by issuing the SMTP
+<span class="protocmd">HELO</span>
+greeting rather than
+<span class="protocmd">EHLO</span>.
+<br/>
+The default is to announce our ESMTP capability, by saying
+<span class="protocmd">EHLO</span>.
+</p>
+
+<p><span class="cfgtitle">fallbackHELO</span><br/>
+This tells the Client to fall back to issuing a
+<span class="protocmd">HELO</span>
+command if the
+<span class="protocmd">EHLO</span>.
+is rejected.
+<br/>
+The SMTP standard recommends falling back to HELO, but also mandates that servers must support EHLO, and you're very unlikely to come across any servers that don't support EHLO nowadays.
+<br/>
+For that reason, this setting defaults to No (don't fall back) as falling back merely delays recognition of the far more likely possibility that our EHLO was rejected because of who we are, rather than because the server doesn't support EHLO.
+</p>
+
+<p><span class="cfgtitle">sendQUIT</span><br/>
+Setting this to No enables the client to accelerate the standard SMTP end-of-connection dialogue, by disconnecting abruptly without sending the SMTP
+<span class="protocmd">QUIT</span>
+command.
+<br/>
+This default to Yes (ie. send QUIT), as it is not generally considered polite behaviour to take this shortcut.
+It does not affect the message delivery either way, as the message transfer phase of the connection is already over at this stage.
+</p>
+
+<p><span class="cfgtitle">waitQUIT</span><br/>
+If we issue an SMTP
+<span class="protocmd">QUIT</span>
+command, this controls whether we wait for the server's response, or accelerate the process by disconnecting immediately after sending the QUIT.
+<br/>
+Clearly the message transfer phase is over at this, and we've already issued our final SMTP squawk,
+but abruptly disconnecting before the server has had a chance to respond to the QUIT may result in spurious errors in its logfiles,
+so for the sake of orthodoxy and politeness, the default is Yes, ie. we do wait for the QUIT response.
+</p>
+
+<p><span class="cfgtitle">fallbackMX_A</span><br/>
+This enables what is known as the "Implicit MX" rule, whereby if the destination email domain has no mail relays specified in the DNS, then we fall back to treating it as a simple hostname.
+<br/>
+For example: If sending a message to somebody@mydomain.org but the domain mydomain.org had no MX RRs (Resource Records), then we would simply connect to the host called mydomain.org (if any).
+<br/>
+The Implicit MX rule has been mandated by the SMTP standards ever since RFC 821 was first published in 1982, but Mailismus defaults this setting to No on the grounds that it's very unlikely any valid email domain would rely on it today.
+<br/>
+To formally conform to the standard, you need to intervene and set this to Yes.
+<br/>
+Since the absence of any MX RRs generally means that the recipient address is invalid, enabling this setting will invariably result in a wasted hostname lookup after the MX lookup failed, and what is likely to be an unsuccessful SMTP connection if the hostname does happen to exist, so we strongly recommend leaving this off.
+</p>
+
+<p><span class="cfgtitle">anonssl</span><br/>
+This is an optional config element which enables SSL to be used when connecting to the general population of SMTP servers (ie. quite apart from the specifically configured relays).
+<br/>
+It contains the standard SSL attributes described in section &sect;8 of the NAF Guide, and section &sect;4.5.4 below (Relays) describes how these SSL settings are treated in the context of the SMTP client.
+<br/>
+Obviously it makes no sense to require SSL support in the general population of SMTP servers on the Internet, so if you do use this config element, you should set its
+<span class="cfgname">latent</span>
+attribute to True, and
+<span class="cfgname">mandatory</span>
+should be left as False (as hinted in the above config block).
+<br/>
+It is unlikely you would ever use
+<span class="cfgname">anonssl</span>
+and we are not necessarily recommending it, but it is there just in case you want to take up the invitation from any random SMTP server that advertises SSL capability (via the
+<span class="protocmd">STARTTLS</span>
+SMTP extension).
+</p>
+
+<p><span class="cfgtitle">remotenets</span><br/>
+This serves the same purpose as in the Server config.
+It is an optional block containing one or more nested
+<span class="cfgname">remotenet</span>
+blocks. Each
+<span class="cfgname">remotenet</span>
+block has an
+<span class="cfgname">ip</span>
+attribute which specifies one ore more IP address blocks in CIDR notation (delimited by vertical bars),
+but you may specify a hostname in place of the IP part (as illustrated above).
+<br/>
+The purpose of this is that each
+<span class="cfgname">remotenet</span>
+block identifies a family of remote servers (ie. those whose IP matches the CIDR block) to which you want to apply alternative config settings.
+There are no new settings defined for the
+<span class="cfgname">remotenet</span>
+block, but it may override most of the settings defined in the common client config.
+<br/>
+The full list of settings that may be overridden within a
+<span class="cfgname">remotenet</span>
+block is:
+<br/>
+&bull; <span class="cfgname">announcehost</span><br/>
+&bull; <span class="cfgname">maxpipeline</span><br/>
+&bull; <span class="cfgname">timeout</span><br/>
+&bull; <span class="cfgname">mindatarate</span><br/>
+&bull; <span class="cfgname">sayHELO</span><br/>
+&bull; <span class="cfgname">fallbackHELO</span><br/>
+&bull; <span class="cfgname">sendQUIT</span><br/>
+&bull; <span class="cfgname">waitQUIT</span><br/>
+&bull; <span class="cfgname">anonssl</span><br/>
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="relays">
+4.5.4 - Relays
+</a>
+</h2>
+
+<p>
+This optional config block allows Mailismus to function as a distribution node, by specifying message-routing rules based on either the recipient domain or the sender's email address.
+This is as opposed to the usual means by which mailservers (including Mailismus) generally route a message to the recipient domain, which is to look up its MX relays in the DNS and then forward the message to one of them.
+<br/>
+These routing rules therefore override MX lookup, and allow you to manually define next-hop routing for specific addresses.
+Mailismus will compare the sender and recipient of each outgoing message to all the configured
+<span class="cfgname">relay</span>
+nodes, and if it finds a match, it forwards the message to that relay node. If no matches, DNS/MX-based forwarding is then performed as usual.
+<br/> <br/>
+You can also specify a catch-all relay (known as the default relay), to which messages for all other domains are sent. This means no DNS lookups will ever be done to determine the next hop.
+<br/>
+The
+<span class="cfgvalue">relay1.mydomain.com</span>
+entry in the example config block below is a default relay, as it has no destination-domains or source-routing rules specified.
+<br/>
+If the default relay is the only entry in the
+<span class="cfgname">relays</span>
+block, then it becomes what is known as a smarthost, ie. all our outgoing messages are relayed through it.
+In this case, Mailismus is said to be in slave-relay mode.
+<br/> <br/>
+In addition to supporting bespoke routing rules, the
+<span class="cfgname">relays</span>
+block also allows Mailismus to act as a secondary MX relay for various domains. In that case the domain's primary MX server address would be specified here as one of the
+<span class="cfgname">relay</span>
+nodes, along with the domain name (see the
+<span class="cfgname">destdomains</span>
+attribute below).
+<br/>
+This functionality is required for backup mailservers because when a mailserver is configured as a secondary MX relay, it obviously can't use DNS lookup to locate the message destination, as it's own hostname would be returned as one of the MX relays, leading to a circular loop.
+<br/> <br/>
+The
+<span class="cfgname">relays</span>
+config block can contain any number of
+<span class="cfgname">relay</span>
+entries (or none, as the entire block is optional), and the example block below illustrates various forms the
+<span class="cfgname">relay</span> entries can take.
+<br/>
+The examples below are far from exhaustive, and most combinations of the various relay attributes can appear in most entries.
+<br/>
+In particular, authentication and SSL are optional and either, both or neither can be specified in each individual relay definition.
+<br/> <br/>
+It is also important to note that the
+<span class="cfgname">destdomains</span>
+and
+<span class="cfgname">senders</span>
+attributes are allowed to appear in the same relay definition, which would simply mean that both the source and destination routing rules point at the same next-hop relay.
+<br/>
+If a message would match both a source-routing rule and one of the destination rules, then source-routing takes precedence, and it will get forward to the associated relay.
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;relays&gt;
+    &lt;relay address="relay1.somedomain.com"/&gt;
+    &lt;relay address="relay2.somedomain.com:8025" destdomains="domain1.com"/&gt;
+    &lt;relay address="relay3.somedomain.com" senders="srcdomain1,senderB@srcdomain2"
+                    sendernets=\"192.168/16, 127.0.0.1\"&gt;
+        &lt;auth enabled="Y" initrsp="N"&gt;
+            &lt;username&gt;myname1&lt;username&gt;
+            &lt;password&gt;mypass1&lt;password&gt;
+        &lt;/auth&gt;
+    &lt;/relay&gt;
+    &lt;relay address="192.168.101.1:8025" destdomains="domain3a.com, domain3b.com"&gt;
+        &lt;auth enabled="Y" override="external"/&gt;
+        &lt;ssl ... /&gt;
+    &lt;/relay&gt;
+    &lt;relay address="relay4.somedomain.com:8025" destdomains="domain4.com"&gt;
+        &lt;ssl ... /&gt;
+    &lt;/relay&gt;
+    &lt;relay address="relay5.somedomain.com" senders="sender1@srcdomain1"&gt;
+&lt;/relays&gt;
+</pre>
+</td></tr>
+</table>
+
+<ul>
+<li><span class="cfgtitle">address</span><br/>
+This is the only mandatory attribute within a
+<span class="cfgname">relay</span>
+block, and it specifies the relay's network address.
+<br/>
+The destination address can be specified as either a hostname or a dotted IP, with or without a colon-separated TCP port.
+If no TCP port is specified, then it defaults to the standard SMTP port of 25.
+</li>
+<li><span class="cfgtitle">destdomains</span><br/>
+This specifies the destination domain(s) to which this relay definition applies, and effectively constitutes a destination-routing rule.
+It consists of a comma-separated list of one or more domain names, each of which must be unique among all the defined relays.
+<br/>
+If a recipient address matches one of these domains, then Mailismus will forward the outgoing message to this relay.
+<br/>
+This attribute is optional since as explained above, if both
+<span class="cfgname">destdomains</span>
+and
+<span class="cfgname">senders</span>
+are omitted, this entry becomes a default relay.
+However, you can only specify one default relay, so at least one of these attributes are required for the other relays.
+<br/>
+While it is possible to define multiple
+<span class="cfgname">relay</span>
+blocks all containing one destination domain that points to the same address, it is better to list all such domains in the same
+<span class="cfgname">relay</span>
+block, as that enables more optimal batching of related recipients into SMTP messages.
+That is, provided there are no other differences such as specific authentication procedures for a particular domain, in which case it should of course have its own
+<span class="cfgname">relay</span>
+definition.
+</li>
+<li><span class="cfgtitle">senders</span><br/>
+This specifies a source-routing rule and consists of a comma-separated list of one or more sender addresses, which can be expressed as either a full username@domain email address, or a wildcard domain name.
+Each such form must be unique across all the defined relays.
+<br/>
+The most specific match takes precedence, so in the above example, messages from sender1@srcdomain1 would be forwarded to relay5, while messages from any other user in srcdomain1 would be forwarded to relay3.
+<br/>
+This attribute is optional, but as explained above, there can be only one relay which specifies neither
+<span class="cfgname">senders</span>
+nor
+<span class="cfgname">destdomains</span>
+</li>
+<li><span class="cfgtitle">sendernets</span><br/>
+This is an optional attribute which is only relevant if
+<span class="cfgname">senders</span>
+is specified (and it is optional even then) and which restricts the source IPs to which this source-routing rule should be applied.
+<br/>
+It specifies one or more hostnames (expressed as either a hostname or a dotted decimal IP) and/or subnets (specified in CIDR notation, with a trailing routing prefix).
+<br/>
+Using the example config block above to illustrate its functionality, only messages which arrived into Mailisms from 192.168.x.x or localhost would be eligible to have the relay3 source-routing rule applied to them. All other messages will automatically be a non-match.
+<br/>
+Although this attribute is optional, it is recommended that it always accompanies
+<span class="cfgname">senders</span>,
+to guard against routing loops.
+</li>
+<li><span class="cfgtitle">auth</span><br/>
+This block defines any SMTP-Authentication settings that are required to connect to the relay.
+If enabled, the SMTP client will attempt to authenticate to the relay before sending any messages.
+<ul>
+<li><span class="cfgtitle">enabled</span><br/>
+This defaults to false, and specifies whether SMTP-Auth is actually enabled for this relay.
+</li>
+<li><span class="cfgtitle">override</span><br/>
+Mailismus supports three SASL authentication methods, namely Plain, CRAM-MD5 (specified as
+<span class="cfgvalue">cram_md5</span>)
+and External.
+<br/>
+By default, Mailismus will automatically adapt to whatever mechanisms the remote server advertises that it supports, and if it doesn't support any of these three, Mailismus will attempt to continue without authenticating.
+<br/>
+This optional attribute tells Mailismus to unconditionally authenticate using the specified mechanism, and it will not bother checking what mechanisms the remote server advertises.
+</li>
+<li><span class="cfgtitle">initrsp</span><br/>
+This is a low-level protocol setting, to do with the fact that SASL permits some authentication data to be sent along with the initial authenticate command, thus reducing the number of round trips required.
+<br/>
+This is clearly a good thing and might seem like an obvious choice, but not all servers support the so-called initial-response feature, so this is set to false by default, to guarantee interoperability.
+</li>
+<li><span class="cfgtitle">username</span>
+and
+<span class="cfgtitle">password</span>
+<br/>
+These attributes specify the credentials to supply to the remote server, when performing the SASL authentication.
+<br/>
+Note that in the examples above, these parameters were omitted for the SASL-External case.
+That is because it uses a client certificate as its credentials, and any username/password parameters would be ignored.
+</li>
+</ul>
+</li>
+<li><span class="cfgtitle">ssl</span><br/>
+This defines any SSL parameters required to connect to the relay.
+SSL configuration is specified in the NAF Guide (see section &sect;8) and the only thing left to add here is the treatment of its
+<span class="cfgname">latent</span>
+and
+<span class="cfgname">mandatory</span>
+attributes in the context of the SMTP Client.
+<br/>
+If
+<span class="cfgname">latent</span>
+is set to its default value of False, then the connection will be established in SSL mode to start with.
+<br/>
+If
+<span class="cfgname">latent</span>
+is True, then Mailismus will switch to SSL mode immediately after the server greeting (ie. before commencing a message or doing any authentication), but only if the remote server advertises SSL capability (via the
+<span class="protocmd">STARTTLS</span>
+extension).
+<br/>
+The client is normally prepared to continue in non-SSL mode if the server doesn't support SSL, but if
+<span class="cfgname">mandatory</span>
+is set to True, then it will abort the connection immediately after the initial server greeting.
+</li>
+</ul>
+
+<br/>&nbsp;<br/>&nbsp;<br/>
+</div>
+</BODY>
+</HTML>

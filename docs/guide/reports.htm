@@ -1,0 +1,263 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<!--
+Copyright 2010-2018 Yusef Badri - All rights reserved.
+Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<HTML>
+<HEAD>
+<TITLE>Mailismus - Admin Guide</TITLE>
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+<link rel="stylesheet" type="text/css" href="mta.css"/>
+</HEAD>
+<BODY id="reports">
+
+<div class="topcorner">
+<br/>
+<center>
+<img src="mlogo.png">
+</center>
+</div>
+
+<div class="banner">
+<span class="bannertext">
+Mailismus 2.0.0
+<br/>
+Administration Guide
+</span>
+</div>
+
+<div class="menu">
+<p>
+<a href="index.htm">Contents</a>
+</p>
+<hr class="mline"/>
+<p>
+<a href="mailserver.htm">4&nbsp;-&nbsp;Mail-Server&nbsp;Config</a>
+</p>
+<hr class="mline"/>
+<p class="cursect">
+4.6&nbsp;-&nbsp;Reports&nbsp;Task
+</p>
+<p>
+<a href="#function">4.6.1&nbsp;-&nbsp;Function</a>
+</p>
+<p>
+<a href="#config">4.6.2&nbsp;-&nbsp;Task&nbsp;Config</a>
+</p>
+</div>
+
+<div class="page">
+<table class="chtitle" width="100%">
+<tr><td>
+<center>
+4.6 - The Reports Task
+</center>
+</td></tr>
+</table>
+
+<h2>
+<a name="function">
+4.6.1 - Function
+</a>
+</h2>
+
+<p>
+The Reports Task is a NAFlet which generates NDRs for bounced messages.
+NDRs (Non Delivery Reports) are special email messages which report the failure of another message, in a standardised format.
+<br/> <br/>
+This task periodically polls the queue (see &sect;4.3) for bounces, and processed a batch of them, analogously to how the Delivery task functions (see &sect;4.5).
+It goes through the batch, generating an NDR for each bounce and injecting it into the queue, following which it removes the original bounced message.
+<br/> <br/>
+Unlike the Submit and Delivery tasks, this task does not participate in any network connections.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="config">
+4.6.2 - Task Config
+</a>
+</h2>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;report&gt;
+    &lt;audit rot="monthly"&gt;%DIRLOG%/audit/Y%Y%/bounced-%DT%.log&lt;/audit&gt;
+    &lt;interval_low&gt;5s&lt;/interval_low&gt;
+    &lt;interval_high&gt;1m&lt;/interval_high&gt;
+    &lt;interval_error&gt;3m&lt;/interval_error&gt;
+    &lt;delay_start&gt;20s&lt;/delay_start&gt;
+    &lt;queuecache&gt;100&lt;/queuecache&gt;
+    &lt;generate_ndr&gt;Y&lt;/generate_ndr&gt;
+    &lt;ndr_recip_redirect&gt;me_instead@mydomain.com&lt;/ndr_recip_redirect&gt;
+    &lt;ndr_recips_additional&gt;me_too@somedomain.com | and_me@anotherdomain.com&lt;/ndr_recips_additional&gt;
+    &lt;ndr_copies_folder&gt;%DIRVAR%/bounces&lt;/ndr_copies_folder&gt;
+    &lt;announcemta&gt;%SYSNAME%&lt;/announcemta&gt;
+    &lt;ndr_from&gt;postmaster@thisdomain&lt;/ndr_from&gt;
+    &lt;ndr_subject&gt;Delivery Failure Report&lt;/ndr_subject&gt;
+    &lt;ndr_textpart&gt;&lt;/ndr_textpart&gt;
+    &lt;attachmsg&gt;4K&lt;/attachmsg&gt;
+&lt;/report&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">audit</span><br/>
+This specifies an audit log, reporting all message bounces.
+<br/>
+It is meant to serve as a formal record of activity, suitable for archiving (as opposed to the more debug-oriented trace logs).
+It records the timestamp at which failure was declared, the bounced message's sender and recipient email addresses, the failure diagnostic, and the IP address the message was originally received from.
+<br/>
+This config item supports the same attributes as the GreyLog loggers (rotation, buffering, etc - see
+<a href="../nafguide/greylog.htm">GreyLog Guide</a>).
+<br/>
+This config item has no default and auditing will be turned off if it is omitted.
+</p>
+
+<p><span class="cfgtitle">interval_low</span><br/>
+If any entries were found when we polled the queue to build the latest cached batch, this is the pause before polling again.
+<br/>
+Defaults to 5 seconds.
+</p>
+
+<p><span class="cfgtitle">interval_high</span><br/>
+If no entries were found when we polled the queue to build the latest cached batch, this is the pause before polling again.
+<br/>
+Defaults to 1 minute.
+</p>
+
+<p><span class="cfgtitle">interval_error</span><br/>
+If we encountered an error when we polled the queue to build the latest cached batch, this is the pause before polling again.
+<br/>
+Defaults to 3 minutes.
+</p>
+
+<p><span class="cfgtitle">delay_start</span><br/>
+This specifies the pause on initial system startup, before we first poll the queue.
+<br/>
+Defaults to 1 minute.
+</p>
+
+<p><span class="cfgtitle">queuecache</span><br/>
+This specifies the max size of the bounces batch, measured as the number of cached queue entries (each queue entry constitutes a unique recipient/message combination).
+<br/>
+This defaults to 100 and is also subject to the limit imposed by the queue manager itself, with its
+<span class="cfgname">maxmemoryqueue</span>
+setting (see &sect;4.3.1).
+<br/>
+This batch size should not be set too large, as the Reports Task will not be responsive to other events while it is processing it, and this would hinder its suggested role as the NAFMAN Primary agent.
+</p>
+
+<p><span class="cfgtitle">generate_ndr</span><br/>
+This controls whether we generate NDRs at all, or just discard bounced messages silently.
+<br/>
+Defaults to Yes, ie. do generate NDRs.
+</p>
+
+<p><span class="cfgtitle">ndr_recip_redirect</span><br/>
+NDRs are normally sent to the original message's sender, but this setting lets you override that, and divert them to another email address.
+<br/>
+This setting is blank by default, and the special value of
+<span class="cfgvalue">.</span>
+(dot) denotes the "Sink" recipient, which means don't send the NDR to anybody at all.<br/>
+If you simply wanted to disable NDRs, you'd use the
+<span class="cfgvalue">generate_NDR</span>
+setting, so the concept of the Sink recipient setting is intended to support a scenario where you do want to generate NDRs, but just not in email form (see
+<span class="cfgname">ndr_copies_folder</span>)
+or only to an alternative set of recipients (see
+<span class="cfgname">ndr_recips_additional</span>).
+</p>
+
+<p><span class="cfgtitle">ndr_recips_additional</span><br/>
+This specifies an additional set of recipients to whom the NDR should be copied, in addition to the main recipient (or instead of, if
+<span class="cfgname">ndr_recip_redirect</span>
+is set to the Sink destination).
+<br/>
+Note that the SMTP standard requires that an NDR only have one recipient, so the Reports task generates an additional message for each additional recipient, rather than one message to multiple recipients.
+</p>
+
+<p><span class="cfgtitle">ndr_copies_folder</span><br/>
+This specifies that a copy of each NDR should be saved as a file in the specified directory, in addition to (or instead of) being emailed to one or more recipients.
+<br/>
+This setting could be used to support a scenario where you have another application running on the mailserver that wishes to process all NDRs, and it could poll this directory.
+<br/>
+NDRs are not archived to file, by default.
+</p>
+
+<p><span class="cfgtitle">announcemta</span><br/>
+This specifies the hostname we will use in the NDR message ID, and wherever the NDR has to declare which MTA generated it.
+<br/>
+Defaults to the
+<span class="cfgname">announcehost</span>
+setting in the
+<span class="cfgname">application</span>
+config block (see &sect;4.1).
+</p>
+
+<p><span class="cfgtitle">ndr_from</span><br/>
+This specifies the email address we will insert into the NDR's
+<span class="protocmd">From</span>
+address.
+<br/>
+By default, it's based on the
+<span class="cfgname">announcehost</span>
+setting in the
+<span class="cfgname">application</span>
+config block (see &sect;4.1).
+We take the hostname configured there, strip the first portion if its a fully qualified domain name, and then prepend
+<span class="cfgvalue">postmaster@</span>.
+<br/>
+This means that if for example the System announcehost was
+<span class="cfgvalue">hostname.mydomain.com</span>
+the default value for this setting would come out as
+<span class="cfgvalue">postmaster@mydomain.com</span>.
+<br/>
+Note that this strictly refers to the RFC822
+<span class="protocmd">From</span>
+address in the NDR's message headers.
+It is NOT the SMTP envelope sender - the SMTP standard decrees that should be blank, to prevent endless loops.
+</p>
+
+<p><span class="cfgtitle">ndr_subject</span><br/>
+This specifies the Subject heading we will use in the generated NDRs.
+<br/>
+Defaults to
+<span class="cfgvalue">Delivery Failure Report</span>
+</p>
+
+<p><span class="cfgtitle">ndr_textpart</span><br/>
+An NDR is a MIME message consisting of multiple bodyparts, of which the first part is a plain text explanation of the problem.
+<br/>
+This setting lets you specify the wording of this bodypart, and the default is as follows:
+</p>
+<table class="protobox">
+<tr><td>
+<pre>
+This is the %PRODNAME% mailserver at %REPMTA%.
+Your message could not be delivered - the details are attached.
+</pre>
+</td></tr>
+</table>
+<p>
+Where:<br/>
+&bull;
+<span class="cfgvalue">%PRODNAME%</span>
+defaults to
+<span class="cfgvalue">Mailismus</span>
+&bull;
+<span class="cfgvalue">%REPMTA%</span>
+is replaced by the value of the
+<span class="cfgname">announcemta</span>
+setting above
+</p>
+
+<p><span class="cfgtitle">attachmsg</span><br/>
+An NDR is a MIME message consisting of multiple bodyparts, of which the final part is the attached original message (ie. the message which bounced).
+<br/>
+This setting specifies how much of the bounced message to attach, and defaults to 4K.
+A value of zero means don't attach the bounced message at all.
+</p>
+
+</div>
+</BODY>
+</HTML>

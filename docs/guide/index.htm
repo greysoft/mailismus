@@ -1,0 +1,207 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<!--
+Copyright 2010-2018 Yusef Badri - All rights reserved.
+Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<HTML>
+<HEAD>
+<TITLE>Mailismus - Admin Guide</TITLE>
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+<link rel="stylesheet" type="text/css" href="mta.css"/>
+</HEAD>
+<BODY id="contents">
+
+<div class="topcorner">
+<br/>
+<center>
+<img src="mlogo.png">
+</center>
+</div>
+
+<div class="banner">
+<span class="bannertext">
+Mailismus 2.0.0
+<br/>
+Administration Guide
+</span>
+</div>
+
+<div class="menu">
+<p>
+<a href="http://www.greyware.co.uk/mailismus/">Mailismus&nbsp;Home</a>
+</p>
+<hr class="mline"/>
+<p>
+<a href="intro.htm">1&nbsp;-&nbsp;Introduction</a>
+</p>
+<p>
+<a href="install/index.htm">2&nbsp;-&nbsp;Installation</a>
+</p>
+<p>
+<a href="naf.htm">3&nbsp;-&nbsp;NAF</a>
+</p>
+<p>
+<a href="mailserver.htm">4&nbsp;-&nbsp;Configuration</a>
+</p>
+<p>
+<a href="logs.htm">5&nbsp;-&nbsp;Logging</a>
+</p>
+<p>
+<a href="spam.htm">6&nbsp;-&nbsp;Anti-Spam</a>
+</p>
+<p>
+<a href="licencing.htm">7&nbsp;-&nbsp;Licencing</a>
+</p>
+<p>
+<a href="glossary.htm">A&nbsp;-&nbsp;Glossary</a>
+</p>
+</div>
+
+<div class="page">
+<table class="chtitle" width="100%">
+<tr><td>
+<center>
+CONTENTS
+</center>
+</td></tr>
+</table>
+
+<ul class="contents">
+<li>
+1 - Introduction
+<ul>
+<li>1.1 - Intended Audience</li>
+<li>1.2 - Mailismus Components</li>
+<li>1.3 - How To Use This Guide</li>
+</ul>
+<br/></li>
+
+<li>
+2 - Installation
+<ul>
+<li>2.1 - Unix
+<ul>
+	<li>2.1.1 - Prerequisites
+	<li>2.1.2 - Install Mailismus</li>
+	<li>2.1.3 - Initial Setup</li>
+	<li>2.1.4 - Next Steps</li>
+</ul>
+</li>
+<li>2.2 - Windows
+<ul>
+	<li>2.2.1 - Prerequisites</li>
+	<li>2.2.2 - Install Mailismus</li>
+	<li>2.2.3 - Initial Setup</li>
+	<li>2.2.4 - Next Steps</li>
+</ul>
+</li>
+<li>2.3 - SQL Database</li>
+</ul>
+<br/></li>
+
+<li>
+3 - NAF
+<br/> <br/>
+</li>
+
+<li>
+4 - Configuration
+<ul>
+<li>4.1 - System Defs</li>
+<li>4.2 - Message Store
+<ul>
+	<li>4.2.1 - Config</li>
+	<li>4.2.2 - MS Types</li>
+	<li>4.2.2.1 - Maildir-MS</li>
+	<li>4.2.3 - Custom MS</li>
+</ul>
+<li>4.3 - The Queue
+<ul>
+	<li>4.3.1 - Queue Settings</li>
+	<li>4.3.2 - The Spool</li>
+</ul>
+</li>
+<li>4.4 - Submit Task
+<ul>
+	<li>4.4.1 - Function</li>
+	<li>4.4.2 - Task Config</li>
+	<li>4.4.3 - Listener</li>
+	<li>4.4.4 - SMTP Server</li>
+	<li>4.4.5 - Blacklisting</li>
+	<li>4.4.6 - Greylisting</li>
+	<li>4.4.7 - Transcripts</li>
+	<li>4.4.8 - SMTP Authentication</li>
+	<li>4.4.9 - SSL</li>
+</ul>
+</li>
+<li>4.5 - Delivery Task
+<ul>
+	<li>4.5.1 - Function</li>
+	<li>4.5.2 - Task Config</li>
+	<li>4.5.3 - SMTP Client</li>
+	<li>4.5.4 - Relays</li>
+</ul>
+</li>
+<li>4.6 - Reports Task
+<ul>
+	<li>4.6.1 - Function</li>
+	<li>4.6.2 - Task Config</li>
+</ul>
+</li>
+<li>4.7 - IMAP Server
+<ul>
+	<li>4.7.1 - Task Config</li>
+	<li>4.7.2 - Listener</li>
+	<li>4.7.3 - Server</li>
+</ul>
+<li>4.8 - POP Server
+<ul>
+	<li>4.8.1 - Task Config</li>
+	<li>4.8.2 - Listener</li>
+	<li>4.8.3 - Server</li>
+</ul>
+<li>4.9 - POP Retriever
+<ul>
+	<li>4.9.1 - Task Config</li>
+	<li>4.9.2 - Clients</li>
+	<li>4.9.3 - SMTP Mode</li>
+	<li>4.9.4 - SSL</li>
+</ul>
+<li>4.10 - The Directory
+<ul>
+	<li>4.10.1 - Config</li>
+</ul>
+<li>4.11 - Database</li>
+</ul>
+<br/></li>
+
+<li>
+5 - Logging
+<ul>
+<li>5.1 - Trace Logs</li>
+<li>5.2 - Transcripts</li>
+<li>5.3 - Audit Logs</li>
+</ul>
+<br/></li>
+
+<li>
+6 - Anti-Spam Measures
+<ul>
+<li>6.1 - Submit Path</li>
+<li>6.2 - Delivery Path</li>
+</ul>
+<br/></li>
+
+<li>
+7 - Licencing
+<br/> <br/>
+</li>
+
+<li>
+Appendix A - Glossary of Terms
+<br/></li>
+</ul>
+
+</div>
+</BODY>
+</HTML>

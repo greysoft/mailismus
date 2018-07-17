@@ -1,0 +1,55 @@
+<!--
+  Copyright 2013-2018 Yusef Badri - All rights reserved.
+  Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<mailserver>
+	<application>
+		<announcehost>localhost</announcehost>
+	</application>
+	<directory>
+		<plainpass>Y</plainpass>
+		<users>cp:/com/grey/mailismus/mta/smtp/ms_users</users>
+		<domains>cp:/com/grey/mailismus/mta/smtp/ms_domains</domains>
+		<aliases>cp:/com/grey/mailismus/mta/smtp/ms_aliases</aliases>
+	</directory>
+	<message_store>
+		<userpath>%DIRVAR%/ms</userpath>
+		<mailpath>Maildir</mailpath>
+	</message_store>
+	<mta>
+		<queue_utest_smtps>
+			<rootpath>%DIRVAR%/queue_server</rootpath>
+			<spool>
+				<rootpath>%DIRVAR%/spool_server</rootpath>
+			</spool>
+		</queue_utest_smtps>
+		<submit>
+			<listeners>
+				<listener name="UTEST_SMTP_SMARTHOST" port="42901">
+					<server>
+						<validate_sender>N</validate_sender>
+						<delay_badrecip>0</delay_badrecip>
+						<delay_badreq>0</delay_badreq>
+						<transcript>%DIRLOG%/transcripts/server-42901.log</transcript>
+					</server>
+				</listener>
+			</listeners>
+		</submit>
+		<deliver>
+			<relays>
+				<relay address="localhost:42901"/>
+			</relays>
+			<interval_low>50</interval_low>
+			<interval_high>50</interval_high>
+			<delay_start>0</delay_start>
+			<audit>%DIRLOG%/audit/delivered.log</audit>
+			<client>
+				<transcript>%DIRLOG%/transcripts/client.log</transcript>
+			</client>
+		</deliver>
+		<report>
+			<audit enabled="Y">%DIRLOG%/audit/bounces.log</audit>
+			<ndr_copies_folder>%DIRVAR%/bounces</ndr_copies_folder>
+		</report>
+	</mta>
+</mailserver>

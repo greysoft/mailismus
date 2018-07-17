@@ -1,0 +1,368 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<!--
+Copyright 2010-2018 Yusef Badri - All rights reserved.
+Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<HTML>
+<HEAD>
+<TITLE>Mailismus - Admin Guide</TITLE>
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+<link rel="stylesheet" type="text/css" href="mta.css"/>
+</HEAD>
+<BODY>
+
+<div class="topcorner">
+<br/>
+<center>
+<img src="mlogo.png">
+</center>
+</div>
+
+<div class="banner">
+<span class="bannertext">
+Mailismus 2.0.0
+<br/>
+Administration Guide
+</span>
+</div>
+
+<div class="menu">
+<p>
+<a href="index.htm">Contents</a>
+</p>
+<hr class="mline"/>
+<p>
+<a href="mailserver.htm">4&nbsp;-&nbsp;Mail-Server&nbsp;Config</a>
+</p>
+<hr class="mline"/>
+<p class="cursect">
+4.9&nbsp;-&nbsp;POP&nbsp;Retriever
+</p>
+<p>
+<a href="#config">4.9.1&nbsp;-&nbsp;Task&nbsp;Config</a>
+</p>
+<p>
+<a href="#clients">4.9.2&nbsp;-&nbsp;Clients</a>
+</p>
+<p>
+<a href="#smtpmode">4.9.3&nbsp;-&nbsp;SMTP&nbsp;Mode</a>
+</p>
+<p>
+<a href="#ssl">4.9.2&nbsp;-&nbsp;SSL</a>
+</p>
+</div>
+
+<div class="page">
+<table class="chtitle" width="100%">
+<tr><td>
+<center>
+4.9 - POP Retriever
+</center>
+</td></tr>
+</table>
+
+<p>
+This Mailismus component is a specialised POP3 client which acts as a POP Retriever.
+<br/>
+It can download messages from a remote mailbox into either:
+<br/>&bull; A local mailbox, managed by the Mailismus MS.
+<br/>&bull; A local directory, where the messages are saved as simple files.
+<br/>&bull; A Mailismus MTA - the messages are injected into its SMTP server.
+<br/> <br/>
+The POP Retriever is a scheduled batch-mode utility which downloads messages from multiple POP3 mailservers, allowing you to consolidate messages held at multiple ISPs (or other sources) in one place on your local machine.
+<br/>
+As such, it is unique within Mailismus in being a personal utility rather than a server component.
+Even if you are not running any servers (SMTP, IMAP, or POP) you can still make use of this POP3 Retriever.
+<br/>
+Having consolidated all your messages locally however, this utility goes well with either the IMAP or POP3 servers, which can then be used to access the messages using your favourite email client (Thunderbird, Outlook, Eudora, etc).
+<br/> <br/>
+The Retriever requires the Message-Store (see section &sect;4.2) and Directory subsystems to be configured (unless in download-as-file or SMTP-injection mode - see below).
+<br/> <br/>
+As you will note below (see the
+<span class="cfgname">client/recip</span>
+config setting), the POP3 Retriever is configured on a per-POP3-user-account basis.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="config">
+4.9.1 - Task Config
+</a>
+</h2>
+
+<p>
+The POP3 retriever config block consists of some settings that apply to all clients, followed by zero or more client definitions.
+<br/>
+A client represents the client side (local) of a session with a nominated server (remote), so each client is responsible for downloading messages from its associated server.
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;pop3download&gt;
+    &lt;audit rot="monthly"&gt;%DIRLOG%/audit/Y%Y%/pop3download-%DT%.log&lt;/audit&gt;
+    &lt;transcript&gt;%DIRLOG%/transcripts/pop3download-%DT%.log&lt;/transcript&gt;
+    &lt;timeout&gt;4m&lt;/timeout&gt;
+    &lt;delay_start&gt;1m&lt;/delay_start&gt;
+    &lt;clients&gt;
+        &lt;client&gt; ...  &lt;/client&gt;
+        &lt;client&gt; ...  &lt;/client&gt;
+    &lt;/clients&gt;
+&lt;/pop3download&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">audit</span><br/>
+This specifies an audit log, reporting the download of each message.
+<br/>
+It is meant to serve as a formal record of activity, suitable for archiving (as opposed to the more debug-oriented trace logs).
+<br/>
+This config item supports the same attributes as the GreyLog loggers (rotation, buffering, etc - see
+<a href="../nafguide/greylog.htm">GreyLog Guide</a>).
+<br/>
+This config item has no default and auditing will be turned off if it is omitted.
+</p>
+
+<p><span class="cfgtitle">transcript</span><br/>
+This file records a transcript of the POP3 protocol dialogue.
+<br/>
+This config item supports the same attributes as the GreyLog loggers (rotation, buffering, etc - see
+<a href="../nafguide/greylog.htm">GreyLog Guide</a>).
+<br/>
+This setting has no default and transcripts will be turned off if it is omitted.
+</p>
+
+<p><span class="cfgtitle">timeout</span><br/>
+This specifies the response timeout. A a client will abort the session if the server takes longer than this to respond to any command.
+<br/>
+Defaults to 4 minutes.
+</p>
+
+<p><span class="cfgtitle">delay_start</span><br/>
+This specifies the initial interval before running any POP3 clients, on Mailismus startup.
+Defaults to 1 minute.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="clients">
+4.9.2 - Clients
+</a>
+</h2>
+
+<p>
+A client config block is shown below, with largely default values.
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;client id="id1" recip="localuser1" freq="5m" runs="0" preserve="N" capa="N"
+            omitreceivedheader="N"&gt;
+    &lt;downloads_directory&gt;/path/to/directory&lt;/downloads_directory&gt;
+    &lt;server address="pop.gmail.com:110"&gt;
+        &lt;username&gt;myname&lt;/username&gt;
+        &lt;password&gt;mypassword&lt;/password&gt;
+        &lt;authtypes initrsp="N"&gt;USERPASS | SASL_PLAIN&lt;/authtypes&gt;
+    &lt;/server&gt;
+    &lt;ssl&gt; ... &lt;/ssl&gt;
+&lt;/client&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">client/id</span><br/>
+This is a mandatory parameter specifying an arbitrary tag that serves to uniquely identify this client definition.
+</p>
+
+<p><span class="cfgtitle">client/recip</span><br/>
+This is a mandatory parameter specifying a local username (as defined in your Message-Store) and downloaded messages will be written to that user's Inbox.
+<br/>Eg.
+<span class="pathname">/path/to/username/Maildir/new</span>
+</p>
+
+<p><span class="cfgtitle">client/freq</span><br/>
+This specifies how frequently to check for remote messages, and defaults to 5 minutes.
+<br/>
+A value of 0 (zero) means to run just once, and this client will be deactivated after its initial download session.
+</p>
+
+<p><span class="cfgtitle">client/runs</span><br/>
+This specifies how often to run the run this POP3 retrieval, and defaults to 0 (zero), meaning no limit.
+<br/>
+If it is set to a finite value, then it overrides the single run usually implied by
+<span class="cfgname">freq=0</span>
+and the retriever will run that many times, in immediate succession.
+In other words, freq=0 merely means that
+<span class="cfgname">runs</span>
+defaults to 1 rather than 0, but it doesn't constrain it.
+</p>
+
+<p><span class="cfgtitle">client/preserve</span><br/>
+By default, Mailismus deletes messages from the remote server after deleting them, which is the standard behaviour of POP clients.
+<br/>
+If this option is set to Yes, then it will leave the messages on the remote server.
+<br/>
+If omitted, this option defaults to No.
+<br/> <br/>
+Note that when Mailismus connects to a remote POP3 server, it always downloads every message it finds and there's no recognition of new or old messages, so this option could result in you creating many local duplicates of each message.
+<br/>
+Therefore this option would be of most use when combined with
+<span class="cfgname">freq=0</span>,
+ie. a one-time download.
+</p>
+
+<p><span class="cfgtitle">client/omitreceivedheader</span><br/>
+By default, Mailismus adds a
+<span class="protocmd">Received</span>
+trace header to each downloaded message, as it writes it to the local mailbox.
+<br/>
+If this option is set to Yes, then it will not do so.
+<br/>
+If omitted, this option defaults to No.
+</p>
+
+<p><span class="cfgtitle">client/capa</span><br/>
+This option defaults to No, but if set to Yes, it causes Mailismus to issue the POP3
+<span class="protocmd">CAPA</span>
+command immediately on connecting to the remote server, and again after completing a
+<span class="protocmd">STLS</span>
+command (to switch to SSL mode).
+<br/>
+This serves no functional purpose, but in combination with the Transcript logs, it can be used to troubleshoot a POP3 session by letting you examine the remote server's supported capabilities.
+</p>
+
+<p><span class="cfgtitle">downloads_directory</span><br/>
+This is an optional item which is blank by default, but if specified, it means we are in download-as-file mode, and rather than delivering the downloaded messages to a local Inbox, they will instead be saved as discrete text files in the specified directory.
+<br/>
+If the directory path contains the token
+<span class="cfgvalue">%U%</span>
+it will be replaced with a username as specified in the
+<span class="cfgname">client/recip</span>
+setting above, but beyond that, the
+<span class="cfgname">client/recip</span>
+setting has no other significance when we're in download-as-file mode.
+</p>
+
+<p><span class="cfgtitle">server/address</span><br/>
+This is the server address to connect to, and can be specified as either a hostname or a dotted IP address.
+<br/>
+The example config above illustrates how to explicitly specify a TCP port, but it may be omitted, in which case it defaults to 995 for a pure SSL connection, else to 110.
+</p>
+
+<p><span class="cfgtitle">server/username</span><br/>
+<span class="cfgtitle">server/password</span><br/>
+These specify the credentials to use for logging into the remote POP server.
+</p>
+
+<p><span class="cfgtitle">server/authtypes</span><br/>
+This specifies the authentication method(s) to use when logging into the server.
+More than one can be specified, in which case the downloader will try each one in turn, until it succeeds.
+<br/>
+If omitted, this defaults to the sequence shown above, ie. POP3's built-in
+<span class="protocmd">USER</span>
+and
+<span class="protocmd">PASS</span>
+commands, followed by SASL-Plain.
+<br/> <br/>
+The full set of allowed authentication methods is:
+<br/>
+USERPASS, APOP, SASL_PLAIN, SASL_CRAM_MD5, SASL_EXTERNAL
+<br/> <br/>
+SASL-External is only applicable in SSL mode, and you have to supply a client certificate (see the
+<span class="cfgname">ssl</span>
+config section below).
+<br/>
+The
+<span class="cfgname">server/username</span>
+and
+<span class="cfgname">server/password</span>
+config settings will be ignored for this method, and may be omitted, as your certificate alone will serve as your credentials.
+<br/>
+The common expectation is that the remote server will treat your certificate's
+<span class="protocmd">Common-Name</span>
+attribute as a username, but technically it's up to the server how to interpret SASL-External.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="smtpmode">
+4.9.3 - SMTP Mode
+</a>
+</h2>
+
+<p>
+As explained above, the default behaviour of the POP retriever is to write the downloaded messages to the specified recipient's local mailbox, but there is an SMTP-injection mode, where it can instead inject messages directly into the queue of a local Mailismus MTA, from where they will be forwarded as normal.
+<br/>
+This requires the addition of the optional
+<span class="cfgname">smtp</span>
+config section shown below (and you'll also have to set the
+<span class="cfgname">enabled</span>
+attribute to Yes - or omit it, which has the same effect).
+<br/> <br/>
+Unless otherwise described here, all the other config settings continue to behave as described above.
+There is no need to repeat them all.
+<br/> <br/>
+Also note that SMTP-mode does not require a local Message-Store to be configured.
+<br/>
+It does however require the Mailismus MTA to be running within the same Java process, as it writes the message directly into its queue.
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;client recip="localuser1"&gt;
+    &lt;server&gt; ... &lt;/server&gt;
+    &lt;ssl&gt; ... &lt;/ssl&gt;
+    &lt;smtp enabled="N"&gt;
+        &lt;sender&gt;pop3downloader@localhost&lt;/sender&gt;
+    &lt;/smtp&gt;
+&lt;/client&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">client/recip</span><br/>
+Instead of being a local username which identifies a local mailbox, this is now interpreted as a recipient email address.
+<br/>
+If a local Directory is defined (optional), Mailismus checks if this address corresponds to a local user or alias, and if the latter, it expands it into a list of recipient addresses, as defined for that alias (see section &sect;4.10).
+</p>
+
+<p><span class="cfgtitle">smtp/sender</span><br/>
+This config item is required in SMTP mode, and it specifies the SMTP envelope-sender to use.
+<br/>
+Obviously the original SMTP envelope information has been stripped by the time a message reached the remote mailbox from which we downloaded it, but we need to recreate it when reintroducing the message to our SMTP server, hence this setting.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="ssl">
+4.9.4 - SSL
+</a>
+</h2>
+
+<p>
+The optional SSL config block is a generic NAF facility (see NAF Guide, section &sect;8) and the only thing left to add here is the treatment of its
+<span class="cfgname">latent</span>
+and
+<span class="cfgname">mandatory</span>
+attributes in the context of the POP3 Retriever.
+<br/> <br/>
+If the
+<span class="cfgname">latent</span>
+SSL config setting is set to its default value of False, then connections will be established in SSL mode to start with.
+<br/>
+If True, then the Retriever connects in non-SSL mode, and after the remote POP3 server sends its initial greeting, we will issue the
+<span class="protocmd">STLS</span>
+command to switch to SSL mode.
+<br/> <br/>
+The
+<span class="cfgname">mandatory</span>
+SSL config setting is ignored by the Retriever.
+</p>
+
+<br/>&nbsp;<br/>&nbsp;<br/>
+</div>
+</BODY>
+</HTML>

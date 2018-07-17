@@ -1,0 +1,472 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<!--
+Copyright 2010-2018 Yusef Badri - All rights reserved.
+Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<HTML>
+<HEAD>
+<TITLE>Mailismus - Admin Guide</TITLE>
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+<link rel="stylesheet" type="text/css" href="mta.css"/>
+</HEAD>
+<BODY>
+
+<div class="topcorner">
+<br/>
+<center>
+<img src="mlogo.png">
+</center>
+</div>
+
+<div class="banner">
+<span class="bannertext">
+Mailismus 2.0.0
+<br/>
+Administration Guide
+</span>
+</div>
+
+<div class="menu">
+<p>
+<a href="index.htm">Contents</a>
+</p>
+<hr class="mline"/>
+<p class="cursect">
+4&nbsp;-&nbsp;Configuration
+</p>
+<p>
+<a href="#application">4.1&nbsp;-&nbsp;Application&nbsp;Defs</a>
+</p>
+<p>
+<a href="#ms">4.2&nbsp;-&nbsp;Message&nbsp;Store</a>
+</p>
+<p>
+<a href="#queue">4.3&nbsp;-&nbsp;The&nbsp;Queue</a>
+</p>
+<p>
+<a href="#submit">4.4&nbsp;-&nbsp;Submit&nbsp;Task</a>
+</p>
+<p>
+<a href="#deliver">4.5&nbsp;-&nbsp;Delivery&nbsp;Task</a>
+</p>
+<p>
+<a href="#reports">4.6&nbsp;-&nbsp;Reports&nbsp;Task</a>
+</p>
+<p>
+<a href="#imap">4.7&nbsp;-&nbsp;IMAP&nbsp;Server</a>
+</p>
+<p>
+<a href="#pop3s">4.8&nbsp;-&nbsp;POP&nbsp;Server</a>
+</p>
+<p>
+<a href="#pop3c">4.9&nbsp;-&nbsp;POP&nbsp;Retriever</a>
+</p>
+<p>
+<a href="#dtory">4.10&nbsp;-&nbsp;The&nbsp;Directory</a>
+</p>
+<p>
+<a href="#dbase">4.11&nbsp;-&nbsp;Database</a>
+</p>
+</div>
+
+<div class="page">
+<table class="chtitle" width="100%">
+<tr><td>
+<center>
+4 - Configuration
+</center>
+</td></tr>
+</table>
+
+<p>
+The Mailismus config file is
+<span class="pathname">mailismus.xml</span>
+and it is an XML document which is broken into the following top-level sections, enclosed within the root
+<span class="cfgname">&lt;mailserver&gt;</span>
+tag.
+<br/>
+The nested
+<span class="cfgname">&lt;mta&gt;</span>
+config section represents the SMTP message switch, which lies at the heart of Mailismus.
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;mailserver&gt;
+    &lt;application&gt;...&lt;/application&gt;
+    &lt;directory&gt;...&lt;/directory&gt;
+    &lt;message_store&gt;...&lt;/message_store&gt;
+    &lt;mta&gt;
+        &lt;queue&gt;...&lt;/queue&gt;
+        &lt;submit&gt;...&lt;/submit&gt;
+        &lt;deliver&gt;...&lt;/deliver&gt;
+        &lt;report&gt;...&lt;/report&gt;
+    &lt;/mta&gt;
+    &lt;imap&gt;...&lt;/imap&gt;
+    &lt;pop3server&gt;...&lt;/pop3server&gt;
+    &lt;pop3download&gt;...&lt;/pop3download&gt;
+&lt;/mailserver&gt;
+</pre>
+</td></tr>
+</table>
+
+<p>Follow the links in the left-hand menu for a breakdown of each config section.<br/>
+Although Mailismus has a vast array of configuration points, they all default to canonical values such that the minimalist config file it ships with ought to let it function as a vanilla mailserver would reasonably be expected to, with very little tinkering.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="application">
+4.1 - Application Defs
+</a>
+</h2>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;application&gt;
+    &lt;announcehost&gt;mailhost&lt;/announcehost&gt;
+    &lt;database&gt;...&lt;/database&gt;
+&lt;/application&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">announcehost</span><br/>
+This is the hostname announced by Mailismus in various SMTP dialogues, and acts as a global default for more specific config items.<br/>
+In turn, this field defaults to the machine's own hostname, as obtained automatically from the underlying OS.
+<br/>
+If you enter the special value
+<span class="cfgvalue">%SYSNAME%</span>,
+it will be replaced by the automatically obtained hostname of the local machine.
+</p>
+
+<p>
+<span class="cfgtitle">database</span><br/>
+See separate
+<a href="#dbase">database section</a>
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="ms">
+4.2 - Message Store
+</a>
+</h2>
+
+<p>
+The
+<span class="cfgtitle">message_store</span>
+config block defines the Message-Store, which is the means by which Mailismus provides maildrops for local users, ie. it enables Mailismus to function as a destination mailserver.
+<br/>
+It is an optional component, and if not enabled, Mailismus acts as a pure SMTP switch, relaying email messages in and out.
+<br/> <br/>
+See <a href="ms.htm">here</a> for the configuration details.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="queue">
+4.3 - The Queue
+</a>
+</h2>
+
+<p>
+The
+<span class="cfgtitle">mta/queue</span>
+config block controls how messages are stored as they pass through the MTA.
+<br/> <br/>
+See <a href="queue.htm">here</a> for the configuration details.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="submit">
+4.4 - The Submit Task
+</a>
+</h2>
+
+<p>
+The
+<span class="cfgtitle">mta/submit</span>
+config block specifies the Mailismus task which accepts incoming messages into the MTA.
+<br/>
+In other words, this is the SMTP-Server component.
+<br/> <br/>
+This task is a
+<span class="softname">NAFlet</span>
+class represented by
+<span class="compcode">com.grey.mailismus.mta.submit.SubmitTask</span>,
+as can be seen in the sample
+<span class="pathname">naf.xml</span>
+config file distributed with Mailismus.
+<br/> <br/>
+See <a href="submit.htm">here</a> for the configuration details.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="deliver">
+4.5 - The Delivery Task
+</a>
+</h2>
+
+<p>
+The
+<span class="cfgtitle">mta/deliver</span>
+config block specifies the Mailismus MTA task which delivers stored messages onwards to their final (or next-hop) destination.
+<br/>
+In other words, this is the SMTP-Client component.
+<br/> <br/>
+This task is a
+<span class="softname">NAFlet</span>
+class represented by
+<span class="compcode">com.grey.mailismus.mta.deliver.DeliverTask</span>,
+as can be seen in the sample
+<span class="pathname">naf.xml</span>
+config file distributed with Mailismus.
+<br/> <br/>
+See <a href="deliver.htm">here</a> for the configuration details.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="reports">
+4.6 - The Reporting Task
+</a>
+</h2>
+
+<p>
+The
+<span class="cfgtitle">mta/report</span>
+config block specifies the Mailismus MTA task which processes bounced messages and generates SMTP NDRs.
+<br/> <br/>
+This task is a
+<span class="softname">NAFlet</span>
+class represented by
+<span class="compcode">com.grey.mailismus.mta.reporting.ReportsTask</span>,
+as can be seen in the sample
+<span class="pathname">naf.xml</span>
+config file distributed with Mailismus.
+<br/> <br/>
+See <a href="reports.htm">here</a> for the configuration details.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="imap">
+4.7 - IMAP Server
+</a>
+</h2>
+<p>
+The
+<span class="cfgtitle">imap</span>
+config block specifies the Mailismus IMAP server.
+<br/> <br/>
+The IMAP server component is a
+<span class="softname">NAFlet</span>
+class represented by
+<span class="compcode">com.grey.mailismus.imap.server.IMAP4Task</span>,
+as can be seen in the sample
+<span class="pathname">naf.xml</span>
+config file distributed with Mailismus.
+<br/> <br/>
+See <a href="imap.htm">here</a> for the configuration details.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="pop3s">
+4.8 - POP Server
+</a>
+</h2>
+<p>
+The
+<span class="cfgtitle">pop3server</span>
+config block specifies the Mailismus POP3 server.
+<br/> <br/>
+The POP3 server component is a
+<span class="softname">NAFlet</span>
+class represented by
+<span class="compcode">com.grey.mailismus.pop3.server.ServerTask</span>,
+as can be seen in the sample
+<span class="pathname">naf.xml</span>
+config file distributed with Mailismus.
+<br/> <br/>
+See <a href="pop3server.htm">here</a> for the configuration details.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="pop3c">
+4.9 - POP Retriever
+</a>
+</h2>
+<p>
+The
+<span class="cfgtitle">pop3download</span>
+config block specifies the Mailismus POP3 retriever.
+<br/>
+This is not a server-type component at all, but rather a client-side personal utility which can be used even if you're not employing any Mailismus mailserver functionality.
+<br/> <br/>
+The POP3 retriever is a
+<span class="softname">NAFlet</span>
+class represented by
+<span class="compcode">com.grey.mailismus.pop3.client.DownloadTask</span>,
+as can be seen in the sample
+<span class="pathname">naf.xml</span>
+config file distributed with Mailismus.
+<br/> <br/>
+See <a href="pop3download.htm">here</a> for the configuration details.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="dtory">
+4.10 - The Directory
+</a>
+</h2>
+
+<p>
+The
+<span class="cfgtitle">directory</span>
+config block defines the Directory, which is the mechanism by which Mailismus decides which domains are local, which user accounts (ie. mailboxes) exist on them and how to authenticate access to local user accounts.
+<br/> <br/>
+See <a href="directory.htm">here</a> for the configuration details.
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="dbase">
+4.11 - Database
+</a>
+</h2>
+
+<p>
+As specified in &sect;4.1 above, this config block is nested within the top-level
+<span class="cfgname">application</span>
+block, and might look as follows:
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;database enabled="Y"&gt;
+    &lt;drvclass&gt;org.h2.Driver&lt;/drvclass&gt;
+    &lt;connurl&gt;jdbc:h2:file:/%DIRVAR%/dbdata/smtpq;MVCC=TRUE&lt;/connurl&gt;
+&lt;/database&gt;
+</pre>
+</td></tr>
+</table>
+
+<p>
+This optional config block specifies the database engine to use, for any mailserver component that might require a database.
+<br/>
+If absent or marked as not enabled, then no database functionality will be available.
+This means that if any database-dependent components (eg. SMTP-Server greylisting) are specified, they will fail during Mailismus startup.
+<br/>
+NB: The above URL could also be expressed as follows, as it generates the standard path above:
+<span class="cfgvalue">jdbc:h2:file:_FILEPATH_;MVCC=TRUE</span>
+
+<br/> <br/>
+<span class="cfgtitle">drvclass</span><br/>
+Specifies the database driver (effectively the database type) and if absent it's taken from the 
+<span class="cfgname">greynaf.db.driver</span>
+system property.
+<br/>
+If that's also absent, it defaults to H2 (org.h2.Driver).
+<br/>
+The driver classes are listed in the
+<span class="cfgname">connurl</span>
+section below.
+
+<br/> <br/>
+<span class="cfgtitle">connurl</span><br/>
+The JDBC connection string, to connect/login to the database.
+
+<br/> <br/>
+The supported database types are:
+</p>
+<ul>
+<li><span class="softname">HSQLDB</span> (embedded)<br/>
+JDBC Driver: <span class="cfgvalue">org.hsqldb.jdbcDriver</span>
+<br/>
+Default URL: <span class="cfgvalue">jdbc:hsqldb:file:/%DIRVAR%/dbdata/smtpq;shutdown=true;hsqldb.default_table_type=cached</span>
+</li>
+<li><span class="softname">H2</span> (embedded)<br/>
+JDBC Driver: <span class="cfgvalue">org.h2.Driver</span>
+<br/>
+Default URL: <span class="cfgvalue">jdbc:h2:file:/%DIRVAR%/dbdata/smtpq;MVCC=TRUE</span>
+</li>
+<li><span class="softname">Apache Derby</span> (embedded).<br/>
+JDBC Driver: <span class="cfgvalue">org.apache.derby.jdbc.EmbeddedDriver</span>
+<br/>
+Default URL: <span class="cfgvalue">jdbc:derby:file:/%DIRVAR%/dbdata/smtpq;create=true</span>
+<br/>
+Formerly known as
+<span class="softname">IBM Cloudscape</span>,
+Derby has been bundled with the Oracle/Sun JDK since Java 1.6, branded as
+<span class="softname">Java DB</span>.<br/>
+(It may be only the Unix version of the JDK it's bundled with, but either way, the driver JAR is easily obtainable)
+</li>
+<li><span class="softname">Microsoft SQL Server</span> (client/server)<br/>
+JDBC Driver: <span class="cfgvalue">com.microsoft.sqlserver.jdbc.SQLServerDriver</span>
+<br/>
+Sample URL: <span class="cfgvalue">jdbc:sqlserver://hostname;database=dbname;user=myname;password=mypass</span>
+</li>
+<li><span class="softname">PostgreSQL</span> (client/server)<br/>
+JDBC Driver: <span class="cfgvalue">org.postgresql.Driver</span>
+<br/>
+Sample URL: <span class="cfgvalue">jdbc:postgresql://hostname/dbname?user=myname&amp;password=mypass</span>
+</li>
+</ul>
+
+<p>
+You do not have to supply a
+<span class="cfgname">connurl</span>
+setting for the embedded databases, as they are automatically created under
+<span class="pathname">%DIRVAR%/dbdata</span>,
+with the default URLs shown above.
+Note that the URLs specify persistent mode (ie. not in-memory) and the actual examples shown are for the SMTP Queue. Other tables (eg. for Greylisting) are held in their own files, so the
+<span class="cfgvalue">smtpq</span>
+part of the URL would be replaced.
+<br/><br/>
+Since the H2 embedded database is the default, that means this minimal config setting is enough to enable it:
+</p>
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;database/&gt;
+</pre>
+</td></tr>
+</table>
+
+<p>
+Note that any ampersands
+(<span class="cfgvalue">&amp;</span>)
+in the connection-URL will need to be expressed as
+<span class="cfgvalue">&amp;amp;</span>
+when embedded in the XML config, to quote the ampersand.
+
+<br/> <br/>
+In order to use a particular database engine, you obviously have to have its JDBC driver on your classpath, which by default is not the case for any of them.
+<br/>
+You will need to add the driver's JAR to the Mailismus classpath, either via the
+<span class="cfgname">dependjars</span>
+config item in the
+<span class="pathname">naf.xml</span>
+config file (see &sect;2 of NAF Guide), or by means of the
+<span class="cfgname">greynaf.cp</span>
+system property.
+
+<br/> <br/>
+Finally, note that although client/server databases such as Postgresql and MS SQL-Server are supported, they are unsuitable for a production environment, as this would turn database ops into blocking network ops with a vastly higher latency than anything else Mailismus might do, which would defeat the entire design of Mailismus as a non-blocking NAF application.
+
+<br/> <br/>
+See &sect;2.3 for additional info on setting up databases.
+</p>
+
+</div>
+</BODY>
+</HTML>

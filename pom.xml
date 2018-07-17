@@ -1,0 +1,43 @@
+<!--
+  Copyright 2010-2018 Yusef Badri - All rights reserved.
+  Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>com.github.greysoft.build</groupId>
+		<artifactId>grey-build-common</artifactId>
+		<version>2.0.1</version>
+	</parent>
+	<groupId>com.github.greysoft.mailismus</groupId>
+	<artifactId>mailismus-suite</artifactId>
+	<version>${revision}</version>
+	<packaging>pom</packaging>
+	<name>Mailismus Suite</name>
+	<properties>
+		<revision>2.0.0</revision>
+		<grey.version.naf>2.5.0</grey.version.naf>
+		<grey.assemblyname>mailismus</grey.assemblyname>
+	</properties>
+	<modules>
+		<module>server</module>
+		<module>pkg</module>
+	</modules>
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<configuration>
+					<skip>true</skip>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+	<scm>
+		<connection>scm:git:git://github.com/greysoft/mailismus.git</connection>
+		<developerConnection>scm:git:ssh://github.com:greysoft/mailismus.git</developerConnection>
+		<url>https://github.com/greysoft/mailismus/tree/master</url>
+	</scm>
+</project>

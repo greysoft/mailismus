@@ -1,0 +1,91 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<!--
+  Copyright 2013-2018 Yusef Badri - All rights reserved.
+  Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<html>
+	<head>
+		<title>Mailismus - NAFMAN-Web</title>
+		<link rel="stylesheet" type="text/css" href="nafman.css"/>
+		<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+	</head>
+	<body>
+		<div class="pagetitle">
+			Mailismus Web Monitor
+		</div>
+		<br/>
+		Version: _SUBTOKEN_MAILVER_
+		<br/> <br/>
+		_SUBTOKEN_HEADER_
+		<br/>
+		<p>
+			<a href="nafhome" class="buttonlink"><span class="infobutton">NAF Dashboard</span></a>
+			<br/> <br/>
+			The NAF Dashboard displays the state of the underlying Network-Application-Framework environment, and offers a low-level view of the Dispatcher objects that constitute Mailismus, including currently open connections.
+		</p>
+_BEGINTOKEN_MTA_
+		<hr class="sectbreak"/>
+		<p>
+			<span class="subtitle">MTA</span>
+		</p>
+		<p>
+_BEGINTOKEN_QUEUE_
+			<a href="QLIST?st=mtaqlist" title="Show queued messages, ie. in-transit messages which have been received (and accepted) by the MTA, but not yet delivered onwards" class="buttonlink"><span class="infobutton">Show-Queue</span></a>
+			&#160;&#160;&#160;
+			<a href="QCOUNT?st=cmdstatus" title="Show queue totals only" class="buttonlink"><span class="infobutton">Queue-Size</span></a>
+			<br/> <br/>
+_ENDTOKEN_QUEUE_
+			<a href="QSEND?st=cmdstatus" title="Deliver all queued messages now" class="buttonlink"><span class="infobutton">Send-Queue</span></a>
+		</p>
+_BEGINTOKEN_GREYLIST_
+		<p>
+			<br/>
+			<a href="GREYLIST?st=greylist" class="buttonlink"><span class="infobutton">Show-GreyList</span></a>
+			<br/> <br/>
+			Display the current Greylisting status, within the SMTP-Server.
+		</p>
+_ENDTOKEN_GREYLIST_
+		<p>
+			<br/>
+			<a href="MTACOUNTERS?st=cmdstatus" class="buttonlink" title="Show stats for entire MTA"><span class="infobutton">MTA-Stats</span></a>
+			&#160;&#160;&#160;
+			<a href="MTACOUNTERS?st=cmdstatus%26rst=Y" class="buttonlink" title="Show and reset stats for entire MTA"><span class="actbutton">MTA-Stats-with-Reset</span></a>
+			<br/><br/>
+_BEGINTOKEN_MTASTATS_SRV_
+			<a href="MTACOUNTERS?st=cmdstatus%26d=_SUBTOKEN_MTASTATS_SRV_" class="buttonlink" title="Show Receive stats only"><span class="infobutton">MTA-Stats-Server</span></a>
+			&#160;&#160;&#160;
+_ENDTOKEN_MTASTATS_SRV_
+_BEGINTOKEN_MTASTATS_DLV_
+			<a href="MTACOUNTERS?st=cmdstatus%26d=_SUBTOKEN_MTASTATS_DLV_" class="buttonlink" title="Show Delivery stats only"><span class="infobutton">MTA-Stats-Client</span></a>
+			&#160;&#160;&#160;
+_ENDTOKEN_MTASTATS_DLV_
+_BEGINTOKEN_MTASTATS_RPT_
+			<a href="MTACOUNTERS?st=cmdstatus%26d=_SUBTOKEN_MTASTATS_RPT_" class="buttonlink" title="Show Bounce stats only"><span class="infobutton">MTA-Stats-Reports</span></a>
+_ENDTOKEN_MTASTATS_RPT_
+			<br/><br/>
+_BEGINTOKEN_DUMPAUDIT_
+			<a href="_SUBTOKEN_DUMPAUDIT_CMD_?st=plaintext" class="buttonlink" title="_SUBTOKEN_DUMPAUDIT_DESCR_"><span class="infobutton">_SUBTOKEN_DUMPAUDIT_CMD_</span></a>
+_ENDTOKEN_DUMPAUDIT_
+		</p>
+_ENDTOKEN_MTA_
+_BEGINTOKEN_DIRECTORY_
+		<hr class="sectbreak"/>
+		<p>
+			<span class="subtitle">Directory</span>
+		</p>
+		<p>
+			<a href="DIRECTORY_RELOAD?st=cmdstatus" class="buttonlink" title="Reload Directory info"><span class="actbutton">Reload</span></a>
+			<br/> <br/>
+			Reload the Directory, from the data files (see <i>mailismus.xml</i> config file) which define its data.
+		</p>
+		<form method="post" action="DIRECTORY_ALIAS?st=cmdstatus">
+			<br/>
+			<input type="submit" class="infobutton" value="Expand-Alias"
+				title="Check result of alias expansion"/>
+			&#160;&#160;
+			<input type="text" name="key" size="50"/>
+		</form>
+_ENDTOKEN_DIRECTORY_
+		<hr class="sectbreak"/>
+	</body>
+</html>

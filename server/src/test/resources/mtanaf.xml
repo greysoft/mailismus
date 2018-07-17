@@ -1,0 +1,10 @@
+<naf>
+	<baseport>-1</baseport>
+	<dispatchers>
+		<dispatcher name="testmtadispatcher1" nafman="N">
+		</dispatcher>
+	</dispatchers>
+	<iplist>
+		<sourcefile>cp:iplist.txt</sourcefile>
+	</iplist>
+</naf>

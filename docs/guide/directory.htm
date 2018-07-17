@@ -1,0 +1,213 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<!--
+Copyright 2010-2018 Yusef Badri - All rights reserved.
+Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<HTML>
+<HEAD>
+<TITLE>Mailismus - Admin Guide</TITLE>
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+<link rel="stylesheet" type="text/css" href="mta.css"/>
+</HEAD>
+<BODY id="reports">
+
+<div class="topcorner">
+<br/>
+<center>
+<img src="mlogo.png">
+</center>
+</div>
+
+<div class="banner">
+<span class="bannertext">
+Mailismus 2.0.0
+<br/>
+Administration Guide
+</span>
+</div>
+
+<div class="menu">
+<p>
+<a href="index.htm">Contents</a>
+</p>
+<hr class="mline"/>
+<p>
+<a href="mailserver.htm">4&nbsp;-&nbsp;Mail-Server&nbsp;Config</a>
+</p>
+<hr class="mline"/>
+<p class="cursect">
+4.10&nbsp;-&nbsp;Directory
+</p>
+<p>
+<a href="#config">4.10.1&nbsp;-&nbsp;Config</a>
+</p>
+</div>
+
+<div class="page">
+<table class="chtitle" width="100%">
+<tr><td>
+<center>
+4.10 - The Directory
+</center>
+</td></tr>
+</table>
+
+<p>
+The Directory refers to the lookup mechanisms for identifying and authenticating local users and domains.
+<br/>
+In the absence of any Directory data, Mailismus will act as a relay-only SMTP switch, with no local users or mailboxes.
+</p>
+
+<h2>
+<a name="config">
+4.10.1 - Configuration
+</a>
+</h2>
+
+<p>
+The top-level config block looks as follows:
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;directory&gt;
+    &lt;domains&gt;/path/to/domains-file&lt;/domains&gt;
+    &lt;users&gt;/path/to/users-file&lt;/users&gt;
+    &lt;aliases&gt;/path/to/aliases-file&lt;/aliases&gt;
+    &lt;virtualusers&gt;Y&lt;/virtualusers&gt;
+    &lt;plainpass&gt;N&lt;/plainpass&gt;
+&lt;/directory&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">domains</span><br/>
+This is an optional setting which specifies a file that contains a list of domain names, one per line.
+<br/>
+Although this item is optional (its absence meaning that there are no recognised local domains), if it is specified, then the referenced file must exist.
+<br/>
+Each entry is an FQDN (fully qualified domain name) representing a local domain.
+<br/>
+Eg. if you have a local user such as firstname.lastname@mydomain1.com, then one of the lines in this file would be
+<span class="cfgvalue">mydomain1.com</span>
+</p>
+
+<p><span class="cfgtitle">users</span><br/>
+This is an optional setting which specifies a file that contains a list of local usernames, one per line.
+<br/>
+Although this item is optional (its absence meaning that there are no recognised local users), if it is specified, then the referenced file must exist.
+<br/>
+Each line consists of a username, followed by a colon, followed by the password.
+The password may be absent, which means that messages can be delivered to that mailbox, but the user cannot log on to retrieve them.
+<br/>
+A username in this sense is effectively the mailbox part of an email address, so continuing with the above example in the
+<span class="cfgname">domains</span>
+section, one of the lines in this file would be
+<span class="cfgvalue">firstname.lastname</span>
+</p>
+
+<p><span class="cfgtitle">aliases</span><br/>
+This is an optional setting which specifies a file that contains a list of local aliases, one per line.
+<br/>
+Although this item is optional (its absence meaning that no aliases are in effect), if it is specified, then the referenced file must exist.
+<br/>
+Each entry consists of an alias, followed by a colon, followed by a colon-separated list of one or more recipients.
+<br/>
+The alias part can be a simple alias, or it can be a full email address, and the most specific match for a given recipient will be selected, when processing an incoming message.
+<br/>
+The recipients can be either a local username (which MUST exist in the
+<span class="pathname">users</span>
+file) or another fully qualified remote email address.
+
+<p><span class="cfgtitle">virtualusers</span><br/>
+This is an optional field which defaults to Yes, and refers to whether the usernames defined for the Directory (whether defined <i>by</i> the Directory or looked up elsewhere) correspond to actual user accounts on the underlying OS, or are an independent namespace maintained by Mailismus, which serves purely to allocate and identify mailboxes.
+<br/>
+The distinction between real and virtual users is of importance in setting the ownership and permissions of the mailboxes and their messages.
+<br/>
+Mailismus will perform better with virtual users, ie. mailboxes it manages itself and which do not correspond to the OS platform's native mail folders.
+</p>
+
+<p><span class="cfgtitle">plainpass</span><br/>
+This specifies whether user passwords are exposed by the Directory provider, and if so, whether they are stored in plain or hashed form.
+<br/>
+The default is No, meaning they are either not exposed or stored in hashed format.
+</p>
+
+<p>
+<br/>
+The Directory supports the
+<span class="softname">DIRECTORY_RELOAD</span>
+NAFMAN command, which tells it to reload its backend data (ie. the files described above).
+<br/>
+You can enable periodic reloads by scheduling this command at the desired intervals (eg. via
+<span class="softname">Cron</span>),
+using a batch-mode HTTP client such as
+<span class="softname">wget</span>
+<br/>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+<span class="compcode">wget -q HOSTNAME:13000/DIRECTORY_RELOAD?st=cmdstatus</span>
+</p>
+
+<hr/>
+<p>
+To put all the above into practice as an example, if you have:
+<br/>
+&bull; local domains:
+<span class="cfgvalue">mydomain1.com</span>
+and
+<span class="cfgvalue">mydomain2.com</span>
+<br/>
+&bull; local users:
+<span class="cfgvalue">username1</span>
+and
+<span class="cfgvalue">username2</span>
+<br/>
+Then given the following
+<span class="pathname">aliases</span>
+file:
+</p>
+<table class="cfgbox">
+<tr><td>
+<pre>
+info@mydomain1.com : username1
+info : username2
+support: username1 : fred@gmail.com
+</pre>
+</td></tr>
+</table>
+<ul>
+<li>
+Messages addressed to
+<span class="cfgvalue">info@mydomain1.com</span>
+will get delivered to the mailbox of
+<span class="cfgvalue">username1</span>,
+</li><li>
+Messages addressed to
+<span class="cfgvalue">info@mydomain2.com</span>
+(or info@any.other.local.domain) will get delivered to the mailbox of
+<span class="cfgvalue">username2</span>.
+</li><li>
+Messages addressed to
+<span class="cfgvalue">support</span>
+@ any local domain will be delivered to a distribution list consisting of the local mailbox for
+<span class="cfgvalue">username1</span>
+and the remote address
+<span class="cfgvalue">fred@gmail.com</span>
+</li>
+</ul>
+
+<p>
+The special alias
+<span class="cfgvalue">.</span>
+(dot) is referred to as the "sink" alias, and means messages addressed to that recipient will be silently discarded (although it will appear as if they were accepted ok).
+<br/>
+If the sink alias is used, it must be the sole entry on the right hand side.
+
+<br/> <br/>
+For all three Directory files, white space is ignored, as are blank lines or lines beginning with
+<span class="cfgvalue">#</span> (hash sign) which can be used for comments.
+</p>
+
+</div>
+</BODY>
+</HTML>

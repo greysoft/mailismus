@@ -1,0 +1,253 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<!--
+Copyright 2010-2018 Yusef Badri - All rights reserved.
+Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<HTML>
+<HEAD>
+<TITLE>Mailismus - Admin Guide</TITLE>
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
+<link rel="stylesheet" type="text/css" href="mta.css"/>
+</HEAD>
+<BODY>
+
+<div class="topcorner">
+<br/>
+<center>
+<img src="mlogo.png">
+</center>
+</div>
+
+<div class="banner">
+<span class="bannertext">
+Mailismus 2.0.0
+<br/>
+Administration Guide
+</span>
+</div>
+
+<div class="menu">
+<p>
+<a href="index.htm">Contents</a>
+</p>
+<hr class="mline"/>
+<p>
+<a href="mailserver.htm">4&nbsp;-&nbsp;Mail-Server&nbsp;Config</a>
+</p>
+<hr class="mline"/>
+<p class="cursect">
+4.3&nbsp;-&nbsp;Queue
+</p>
+<p>
+<a href="#qconfig">4.3.1&nbsp;-&nbsp;Queue&nbsp;Settings</a>
+</p>
+<p>
+<a href="#spool">4.3.2&nbsp;-&nbsp;The&nbsp;Spool</a>
+</p>
+</div>
+
+<div class="page">
+<table class="chtitle" width="100%">
+<tr><td>
+<center>
+4.3 - The Queue
+</center>
+</td></tr>
+</table>
+
+<p>
+The Queue (often referred to in full as the Queue Manager) is the subsystem that controls the storage of messages which are in transit through the mailserver.
+In other words, this is where messages live in between being submitted into the MTA, and being forwarded on to their next-hop destination - or delivered to a local mailbox, if that is the final destination.
+<br/>
+The queue is of vital importance to the integrity of an MTA, as it contains messages which it has accepted responsibility for, and not yet handed off to the next-hop MTA on their journey.
+At any one time, exactly one MTA holds official responsibility for any particular message.
+<br/><br/>
+The Queue encompasses both the Spool, which is the subsystem that stores the messages proper, and a meta queue that contains control information (SMTP envelope, delivery status, timestamps, etc) about those messages.
+When we talk of the "queue" without further qualification, we generally mean the meta queue.
+</p>
+
+<span class="warning">
+It should go without saying, but for performance reasons the queue and spool should be located on a local filesystem, not one that's been remotely mounted across the network from a fileserver.
+</span>
+
+<h2>
+<a name="qconfig">
+4.3.1 - Queue Settings
+</a>
+</h2>
+
+<p>
+The Queue manager stores control information about in-transit messages as plain disk files.
+These are known as MQC (Mailismus Queue Cluster) files, and have the extension
+<span class="pathname">.mqc</span>.
+<br/>
+Because the meta queue is based on these cluster files (simply meaning each file contains info for a large number messages, clustered together) it is sometimes referred to as the CFQ (clustered-file queue).
+<br/> <br/>
+An MQC file contains a large but variable number of control records for in-transit messages, the exact number depending on the configured cluster-size limit and the size of the control info for each message.
+<br/>
+The format of an MQC file is proprietary and subject to change without notice, but for now anyway, we can say that it is organised as one record per line, with each record representing one recipient per message, ie. if we have one in-transit message with 2 recipients and another with 3 recipients, then the MQC file will contain 5 records to track their progress.
+<br/>
+Although they may appear to be readable text files, MQC files should not be manually edited, as they have a precise format and are sensitive to line endings etc.
+<br/> <br/>
+The config settings are as listed below, illustrated with their default values.
+<br/>
+These values will be in effect even if the &lt;queue&gt; config block is omitted altogether.
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;queue&gt;
+    &lt;rootpath&gt;%DIRVAR%/queue&lt;/rootpath&gt;
+    &lt;maxclustersize&gt;256K&lt;/maxclustersize&gt;
+    &lt;maxmemoryqueue&gt;0&lt;/maxmemoryqueue&gt;
+    &lt;retry_maxtime&gt;72h&lt;/retry_maxtime&gt;
+    &lt;retry_maxtime_reports&gt;24h&lt;/retry_maxtime_reports&gt;
+    &lt;retry_delays&gt;15m | 30m | 2h | 4h&lt;/retry_delays&gt;
+    &lt;spool&gt; ... &lt;/spool&gt;
+&lt;/queue&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">rootpath</span><br/>
+This specifies the root of the directory tree under which the queue stores its control files.
+See the
+<a href="../nafguide/index.htm">NAF Guide</a>
+for the derivation of the
+<span class="cfgvalue">%DIRVAR%</span> token.
+<br/>
+You will note 3 top-level subdirectories under this root:<br/>
+&bull; <span class="pathname">incoming</span>:
+This holds newly submitted messages which we have not yet attempted to deliver.
+<br/>
+&bull; <span class="pathname">deferred</span>:
+This holds messages which we have already attempted to deliver at least once, and failed.
+They will all be at various stages of the retry schedule.
+<br/>
+&bull; <span class="pathname">bounces</span>:
+This holds messages which have failed, and they're waiting for the Mailismus Reporting task to pick them up and generate the NDR.
+<br/>
+Messages are obviously deleted from the system after being successfully delivered, so if a message is successfully delivered at the first attempt, it will never appear anywhere except the Incoming area.
+<br/>
+In a lightly loaded system, messages will only appear fleetingly in the Incoming and Bounces area.
+</p>
+
+<p><span class="cfgtitle">maxclustersize</span><br/>
+The max size of an MQC file is specified in bytes rather than as a number of per-recipient records, and this setting controls that.
+<br/>
+The default is 256,000 bytes.
+</p>
+
+<p><span class="cfgtitle">maxmemoryqueue</span><br/>
+This sets the max size of the memory cache the queue manager will return to a requesting naflet, even if they ask for a larger cache.
+<br/>
+The default is zero, meaning no limit.
+<br/>
+This setting is best understood by referring to the various naflets that build an in-memory cache of queued messages (see Delivery and Reports tasks).
+</p>
+
+<p><span class="cfgtitle">retry_maxtime</span><br/>
+This specifies the max time a failing message may remain in the queue before we give up on retryng it and declare it to be a bounce.
+At that point, Mailismus will generate an NDR (Non Delivery Report) and return it to the message's sender.
+</p>
+
+<p><span class="cfgtitle">retry_maxtime_reports</span><br/>
+Similiar to
+<span class="cfgname">retry_maxtime</span>,
+except this is the time limit applied to NDRs, as opposed to original messages.
+<br/>
+If an NDR expires, it is simply discarded, as it makes no sense to generate NDRs in response to NDRs (and quite possibly means the original email was spam with a faked sender).
+</p>
+
+<p><span class="cfgtitle">retry_delays</span><br/>
+This controls the retry schedule for messages, when we fail to forward them to their next-hop destination.
+<br/>
+You can specify an arbitrary sequence of retry intervals, and the defaults (illustrated above) mean that after the original failure to send a message we will wait 15 minutes before sending it again.
+If that fails, we will wait 30 minutes before the next attempt, then 2 hours and then another 4 hours.
+A retry interval of 4 hours will then continue to apply, until the timeout limit specified in
+<span class="cfgname">retry_maxtime</span>
+(or <span class="cfgname">retry_maxtime_reports</span> in the case of NDRs)
+is reached, at which point message delivery is deemed to have failed and the message is bounced.
+</p>
+
+<p><span class="cfgtitle">spool</span><br/>
+See &sect;4.3.2
+</p>
+
+<hr class="pline"/>
+<h2>
+<a name="spool">
+4.3.2 - Spool
+</a>
+</h2>
+
+<p>
+The spool subsystem (aka the spooler) sits within the queue manager, and is responsible for managing the raw message content, which it stores as one disk file per message, with the extension
+<span class="pathname">.msg</span>.
+<br/>
+The spooler assigns a unique SPID (Spool ID) to each message, and spooled messages have a 1-to-many relationship with records on the meta queue, as multi-recipient messages will result in multiple entries on the meta queue, but are still represented by a single spooled message file.
+<br/> <br/>
+To keep directory sizes down for performance reasons (and for sheer manageability) the spooler partitions its storage area, and allocates message files to one of 32 subdirectories, known as "silos". Incoming messages are evenly distributed among all the silos.
+</p>
+
+<table class="cfgbox">
+<tr><td>
+<pre>
+&lt;spool&gt;
+    &lt;rootpath&gt;%DIRVAR%/spool&lt;/rootpath&gt;
+    &lt;bufsize&gt;16K&lt;/bufsize&gt;
+    &lt;maxspidcache&gt;250000&lt;/maxspidcache&gt;
+    &lt;hardlinks&gt;N&lt;/hardlinks&gt;
+&lt;/spool&gt;
+</pre>
+</td></tr>
+</table>
+
+<p><span class="cfgtitle">rootpath</span><br/>
+This specifies the root of the directory tree under which the Spooler will construct its little hive. See the
+<a href="../nafguide/index.htm">NAF Guide</a>
+for the derivation of the %DIRVAR% token.
+</p>
+
+<p><span class="cfgtitle">bufsize</span><br/>
+This specifies the OS buffer size used when writing the incoming messages to disk.
+Defaults to 16KB.
+</p>
+
+<p><span class="cfgtitle">maxspidcache</span><br/>
+Because one spool file maps to multiple recipients in the meta queue, Mailismus needs a way of keeping track of how many of these recipients remain, so that it can delete the spool file when the last associated recipient has been fully processed.
+<br/>
+It does so by means of an in-memory map known as the SPID cache, which simply relates each SPID to a "reference count", ie. how many recipient records on the meta queue currently refer to this SPID.
+<br/>
+This setting caps the size of the SPID cache and has a default value of 250,000 while a value of zero means no limit.
+250,000 SPID entries should require 2MB of memory on a typical Java VM.
+<br/>
+If the number of spool files exceed this limit, Mailismus will continue to work, but for those excess SPIDs which are not cached in the in-memory map, it will have to scan the meta queue for related records at the end of each delivery batch.
+This may obviously be a relatively expensive disk operation if you have that many in-transit messages, so at this point you may wish to consider the
+<span class="cfgname">hardlinks</span>
+option ...
+</p>
+
+<p><span class="cfgtitle">hardlinks</span><br/>
+This is an alternative to the in-memory reference-counters represented by the
+<span class="cfgname">maxspidcache</span>
+setting and if enabled, Mailismus will create hard links to the initial spool file for each additional recipient.
+<br/>
+This means there is no need to allocate a large chunk of memory for SPID reference-counters, as each individual link will be deleted when its associatd recipient has been processed, and all traces of the message-file will therefore automatically disappear once the final recipient has been processed, without Mailismus having to do any extra book keeping.
+<br/>
+Pros: Doesn't have any memory-allocation requirements and there is no threshold at which performance may suddenly degrade, whereas the in-memory SPID cache can be made arbitrarily huge and still fill up if the queue size is measured in the millions.
+<br/>
+Cons: It does involve some extra disk I/O, so the in-memory SPID cache would theoretically perform better <i>but only so long as the queue size remains within expected bounds</i>.
+<br/>
+It is important to stress that hard links do not represent actual additional files (so there is no extra disk space usage), but merely additional pointer entries within the directory master-file itself, so the extra disk I/O occurs only on that file, which would undoubtedly be cached on a busy mail server. In practice, this overhead is scarcely measurable.
+<br/> <br/>
+The main constraint with hard links, is that they are not supported by every OS and/or filesystem, however all Unix/Linux/MacOS systems do support them, and even apparently the later Windows systems.
+<br/>
+This is the only reason hard links are not enabled by default, but it is easy to check if your system does support them, as Mailismus will abort on start-up if not.
+</p>
+
+<br/> <br/>
+</div>
+</BODY>
+</HTML>

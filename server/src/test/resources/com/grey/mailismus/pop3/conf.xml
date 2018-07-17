@@ -1,0 +1,140 @@
+<!--
+  Copyright 2013-2018 Yusef Badri - All rights reserved.
+  Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+-->
+<mailserver>
+	<directory>
+		<plainpass>Y</plainpass>
+		<users>cp:/com/grey/mailismus/pop3/ms_users</users>
+	</directory>
+	<message_store>
+		<userpath>%DIRVAR%/ms</userpath>
+		<mailpath>Maildir</mailpath>
+	</message_store>
+	<pop3server>
+		<listeners>
+			<listener name="UTEST_POP3S_STD">
+				<server>
+					<authtypes_ssl>sasl_plain</authtypes_ssl>
+					<transcript>%DIRLOG%/transcripts/server-std.log</transcript>
+				</server>
+				<ssl latent="Y" cert="server1key"
+					tspath="cp:trustcerts.jks" kspath="cp:keystore.jks" certpass="server1pass"/>
+			</listener>
+			<listener name="UTEST_POP3S_SSLONLY">
+				<server>
+					<authtypes_ssl>all</authtypes_ssl>
+					<transcript>%DIRLOG%/transcripts/server-ssl.log</transcript>
+				</server>
+				<ssl latent="Y" cert="server1key"
+					tspath="cp:trustcerts.jks" kspath="cp:keystore.jks" certpass="server1pass"/>
+			</listener>
+			<listener name="UTEST_POP3S_CRAMONLY">
+				<server>
+					<authtypes>sasl_cram_md5</authtypes>
+					<transcript>%DIRLOG%/transcripts/server-cramonly.log</transcript>
+				</server>
+			</listener>
+		</listeners>
+	</pop3server>
+	<pop3download>
+		<transcript>%DIRLOG%/transcripts/client.log</transcript>
+		<nosmtp>Y</nosmtp>
+		<delay_start>1</delay_start>
+		<clients>
+			<client id="userpass" recip="user1" freq="0" runs="3" omitreceivedheader="y">
+				<server address="localhost">
+					<username>user2</username>
+					<password>pass2</password>
+					<authtypes>userpass</authtypes>
+				</server>
+			</client>
+			<client id="userpass_badpass" recip="user1" freq="0">
+				<server address="localhost">
+					<username>user2</username>
+					<password>badpassword</password>
+					<authtypes>userpass</authtypes>
+				</server>
+			</client>
+			<client id="apop" recip="user1" freq="0">
+				<server address="localhost">
+					<username>user2</username>
+					<password>pass2</password>
+					<authtypes>apop</authtypes>
+				</server>
+			</client>
+			<client id="apop_capa" recip="user1" freq="0" capa="Y">
+				<server address="localhost">
+					<username>user2</username>
+					<password>pass2</password>
+					<authtypes>apop</authtypes>
+				</server>
+			</client>
+			<client id="sasl_plain" recip="user1" freq="0">
+				<server address="localhost">
+					<username>user2</username>
+					<password>pass2</password>
+					<authtypes>sasl_plain</authtypes>
+				</server>
+			</client>
+			<client id="ssl_sasl_plain" recip="user1" freq="0">
+				<server address="localhost">
+					<username>user2</username>
+					<password>pass2</password>
+					<authtypes>sasl_plain</authtypes>
+				</server>
+				<ssl latent="Y" peercert="server1@localhost"
+					tspath="cp:trustcerts.jks" kspath="cp:keystore.jks" certpass="client1pass"/>
+			</client>
+			<client id="ssl_sasl_plain_initrsp" recip="user1" freq="0" capa="Y">
+				<server address="localhost">
+					<username>user2</username>
+					<password>pass2</password>
+					<authtypes initrsp="y">sasl_plain</authtypes>
+				</server>
+				<ssl latent="Y" peercert="server1@localhost"
+					tspath="cp:trustcerts.jks" kspath="cp:keystore.jks" certpass="client1pass"/>
+			</client>
+			<client id="sasl_crammd5" recip="user1" freq="0">
+				<server address="localhost">
+					<username>user2</username>
+					<password>pass2</password>
+					<authtypes>sasl_cram_md5</authtypes>
+				</server>
+			</client>
+			<client id="sasl_crammd5_initrsp" recip="user1" freq="0">
+				<server address="localhost">
+					<username>user2</username>
+					<password>pass2</password>
+					<authtypes initrsp="y">sasl_cram_md5</authtypes>
+				</server>
+			</client>
+			<client id="sasl_external" recip="user1" freq="0">
+				<server address="localhost">
+					<authtypes>sasl_external</authtypes>
+				</server>
+			</client>
+			<client id="ssl_sasl_external" recip="user1" freq="0">
+				<server address="localhost">
+					<authtypes>sasl_external</authtypes>
+				</server>
+				<ssl latent="Y" cert="client1key" peercert="server1@localhost"
+					tspath="cp:trustcerts.jks" kspath="cp:keystore.jks" certpass="client1pass"/>
+			</client>
+			<client id="ssl_sasl_external_initrsp" recip="user1" freq="0">
+				<server address="localhost">
+					<authtypes initrsp="y">sasl_external</authtypes>
+				</server>
+				<ssl latent="Y" cert="client1key" peercert="server1@localhost"
+					tspath="cp:trustcerts.jks" kspath="cp:keystore.jks" certpass="client1pass"/>
+			</client>
+			<client id="fallback_plain_crammd5" recip="user1" freq="0" omitreceivedheader="y">
+				<server address="localhost">
+					<username>user2</username>
+					<password>pass2</password>
+					<authtypes>sasl_plain | sasl_cram_md5</authtypes>
+				</server>
+			</client>
+		</clients>
+	</pop3download>
+</mailserver>
