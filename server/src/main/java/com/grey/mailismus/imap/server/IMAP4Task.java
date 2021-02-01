@@ -17,7 +17,7 @@ public class IMAP4Task
 		cfgdflts.put(com.grey.naf.reactor.CM_Listener.CFGMAP_FACTCLASS, com.grey.mailismus.imap.server.IMAP4Server.Factory.class);
 		cfgdflts.put(com.grey.naf.reactor.CM_Listener.CFGMAP_PORT, Integer.valueOf(com.grey.mailismus.imap.IMAP4Protocol.TCP_PORT));
 		cfgdflts.put(com.grey.naf.reactor.CM_Listener.CFGMAP_SSLPORT, Integer.valueOf(com.grey.mailismus.imap.IMAP4Protocol.TCP_SSLPORT));
-		listeners = new com.grey.naf.reactor.ListenerSet("IMAP4Task="+naflet_name, getDispatcher(), this, this, "listeners/listener", taskConfig(), cfgdflts);
+		listeners = new com.grey.naf.reactor.ListenerSet("IMAP4Task="+getName(), getDispatcher(), this, this, "listeners/listener", taskConfig(), cfgdflts);
 		if (listeners.configured() != 0) registerDirectoryOps(com.grey.mailismus.nafman.Loader.PREF_DTORY_IMAP4S);
 	}
 

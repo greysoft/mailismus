@@ -20,7 +20,7 @@ Mailismus is distributed under the terms of the GNU Affero General Public Licens
 
 <div class="banner">
 <span class="bannertext">
-Mailismus 2.0.0
+Mailismus ${project.version}
 <br/>
 Administration Guide
 </span>
@@ -119,7 +119,7 @@ This specifies an audit log, reporting the download of each message.
 It is meant to serve as a formal record of activity, suitable for archiving (as opposed to the more debug-oriented trace logs).
 <br/>
 This config item supports the same attributes as the GreyLog loggers (rotation, buffering, etc - see
-<a href="../nafguide/greylog.htm">GreyLog Guide</a>).
+<a href="${grey.naf.devguide}/greylog.htm">GreyLog Guide</a>).
 <br/>
 This config item has no default and auditing will be turned off if it is omitted.
 </p>
@@ -128,7 +128,7 @@ This config item has no default and auditing will be turned off if it is omitted
 This file records a transcript of the POP3 protocol dialogue.
 <br/>
 This config item supports the same attributes as the GreyLog loggers (rotation, buffering, etc - see
-<a href="../nafguide/greylog.htm">GreyLog Guide</a>).
+<a href="${grey.naf.devguide}/greylog.htm">GreyLog Guide</a>).
 <br/>
 This setting has no default and transcripts will be turned off if it is omitted.
 </p>

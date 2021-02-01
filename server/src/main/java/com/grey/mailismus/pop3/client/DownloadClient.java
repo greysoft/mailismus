@@ -101,7 +101,7 @@ public class DownloadClient
 
 			com.grey.base.config.XmlConfig[] smtpcfg = cfg.getSections("clients/client"+XmlConfig.XPATH_ENABLED+"/smtp"+XmlConfig.XPATH_ENABLED);
 			smtp_disabled = (smtpcfg == null || smtpcfg.length == 0);
-			qmgr = (smtp_disabled ? null : QueueFactory.init(dsptch, appConfig, task.naflet_name));
+			qmgr = (smtp_disabled ? null : QueueFactory.init(dsptch, appConfig, task.getName()));
 
 			reqbuf_quit = com.grey.mailismus.Task.constBuffer(POP3Protocol.CMDREQ_QUIT+POP3Protocol.EOL);
 			reqbuf_stat = com.grey.mailismus.Task.constBuffer(POP3Protocol.CMDREQ_STAT+POP3Protocol.EOL);
@@ -155,7 +155,7 @@ public class DownloadClient
 	private byte prevrspbyte; //guards against IOExecReader passing us incomplete lines, if receive buffer too small
 	private int runcnt;
 	private int msgcnt;
-	private byte actionseq;
+	private int actionseq;
 	private byte authstep;
 	private com.grey.naf.reactor.TimerNAF tmr_exit;
 	private com.grey.naf.reactor.TimerNAF tmr_sesstmt;

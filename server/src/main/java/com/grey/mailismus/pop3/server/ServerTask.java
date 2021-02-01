@@ -17,7 +17,7 @@ public final class ServerTask
 		cfgdflts.put(com.grey.naf.reactor.CM_Listener.CFGMAP_FACTCLASS, com.grey.mailismus.pop3.server.POP3Server.Factory.class);
 		cfgdflts.put(com.grey.naf.reactor.CM_Listener.CFGMAP_PORT, Integer.valueOf(com.grey.mailismus.pop3.POP3Protocol.TCP_PORT));
 		cfgdflts.put(com.grey.naf.reactor.CM_Listener.CFGMAP_SSLPORT, Integer.valueOf(com.grey.mailismus.pop3.POP3Protocol.TCP_SSLPORT));
-		listeners = new com.grey.naf.reactor.ListenerSet("ServerTask="+naflet_name, getDispatcher(), this, this, "listeners/listener", taskConfig(), cfgdflts);
+		listeners = new com.grey.naf.reactor.ListenerSet("ServerTask="+getName(), getDispatcher(), this, this, "listeners/listener", taskConfig(), cfgdflts);
 		if (listeners.configured() != 0) registerDirectoryOps(com.grey.mailismus.nafman.Loader.PREF_DTORY_POP3S);
 	}
 

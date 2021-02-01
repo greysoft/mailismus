@@ -20,7 +20,7 @@ Mailismus is distributed under the terms of the GNU Affero General Public Licens
 
 <div class="banner">
 <span class="bannertext">
-Mailismus 2.0.0
+Mailismus ${project.version}
 <br/>
 Administration Guide
 </span>
@@ -133,11 +133,11 @@ That is described here, but before doing this you should work through section &s
 <br/> <br/>
 First create the file
 <span class="pathname">/etc/init.d/mailismus</span>
-by pasting in the content below.
+by pasting in the content below, and make it executable.
 <br/>
 You will have to edit the mta.sh line to specify the actual pathname of your Mailismus installation.
 <br/>
-Depending on whether JAVA_HOME and/or path is already globally defined elsewhere, you should also comment out or edit the
+Depending on whether JAVA_HOME and/or PATH is already defined as needed elsewhere, you also need to comment out or edit the
 <dfn>JAVA_HOME</dfn>
 assignment as appropriate, to enable Mailismus to locate the
 <dfn>java</dfn>
@@ -175,14 +175,14 @@ If you are on a
 <br/>
 <span class="pathname">systemctl enable mailismus</span>
 <br/>
-You could choose to add a systemd config file instead of using the above init.d script before running systemctl, but that is beyond the scope of this guide.
+You could choose to add a native systemd config file instead of using the above init.d script before running systemctl, but that is beyond the scope of this guide.
 The above systemctl command will still work with an init.d script in a backwards-compatible mode, possibly with some harmless warnings that this is not a native service.
 </li>
 
 <li>
-The older
+The pre-Systemd
 <span class="softname">chkconfig</span>
-mechanism is supported on an even larger range of Linux distros, and should still work in a compatible manner on systemd-based ones.
+mechanism is still supported on a large range of Linux distros, and should still work in a compatible manner on systemd-based ones.
 <br/>
 Run this from the Linux shell:
 <span class="pathname">chkconfig mailismus on</span>
@@ -219,11 +219,11 @@ variants.
 
 <p>
 You can now start and stop Mailismus as follows:<br/>
-<span class="pathname">/etc/init.d/mailismus stop</span>
+<span class="pathname">/etc/init.d/mailismus start</span>
 <br/>
 <span class="pathname">/etc/init.d/mailismus stop</span>
 <br/> <br/>
-Alternatively, on a systemd-based system you can also use the following:<br/>
+Alternatively, on a systemd-based system, the following standard commands are preferable:<br/>
 <span class="pathname">systemctl start mailismus</span>
 ... start Mailismus<br/>
 <span class="pathname">systemctl stop mailismus</span>
@@ -346,7 +346,7 @@ In the unlikely event you want to change the default port of 13000, the NAFMAN
 config setting (see section &sect;5 of the NAF Guide) provides the means to do so.
 <br/>
 See section &sect;5 of the
-<a href="../../nafguide/">NAF Guide</a>
+<a href="${grey.naf.devguide}/">NAF Guide</a>
 for more info on NAFMAN.
 <br/> <br/>
 </li>

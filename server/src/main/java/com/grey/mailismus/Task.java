@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2018 Yusef Badri - All rights reserved.
+ * Copyright 2010-2019 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus;
@@ -45,7 +45,7 @@ public class Task
 	protected void startTask() throws java.io.IOException {}
 
 	@Override
-	public CharSequence nafmanHandlerID() {return naflet_name;}
+	public CharSequence nafmanHandlerID() {return getName();}
 
 	public Task(String name, Dispatcher d, XmlConfig cfg, DirectoryFactory df, MessageStoreFactory msf) throws java.io.IOException
 	{
@@ -70,7 +70,7 @@ public class Task
 		} else {
 			ms = null;
 		}
-		getLogger().trace("Naflet="+naflet_name+": Message-Store="+(ms==null?"N":"Y")+"; Directory="+(dtory==null?"N":"Y")
+		getLogger().trace("Naflet="+getName()+": Message-Store="+(ms==null?"N":"Y")+"; Directory="+(dtory==null?"N":"Y")
 							+"; niodirect_const="+NIODIRECT_CONSTBUF);
 	}
 
@@ -109,7 +109,7 @@ public class Task
 				}
 			}
 		} else {
-			getLogger().error("Task="+naflet_name+": Missing case for NAFMAN cmd="+cmd.getCommandDef().code);
+			getLogger().error("Task="+getName()+": Missing case for NAFMAN cmd="+cmd.getCommandDef().code);
 			return null;
 		}
 		return tmpsb;

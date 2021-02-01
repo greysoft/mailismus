@@ -26,9 +26,10 @@ public class FilterManager
 	private final Producer<FilterExecutor> resultsChannel;
 
 	public FilterManager(XmlConfig cfg, Dispatcher dsptch) throws java.io.IOException {
+		threadpool = dsptch.getApplicationContext().getThreadpool();
 		filter_factory = createFilterFactory(cfg, dsptch);
 		resultsChannel = new Producer<>(FilterExecutor.class, dsptch, this);
-		threadpool = dsptch.getApplicationContext().getThreadpool();
+		resultsChannel.start();
 	}
 
 	public void shutdown() {

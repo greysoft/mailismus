@@ -189,7 +189,7 @@ public final class ReportsTask
 			try {
 				processQueue();
 			} catch (Exception ex) {
-				throw new MailismusException("ReportsTask="+naflet_name+" failed to process Queue", ex);
+				throw new MailismusException("ReportsTask="+getName()+" failed to process Queue", ex);
 			}
 			stop(true);
 			return;

@@ -39,10 +39,7 @@
 		<fileSet>
 		 	<directory>${project.parent.basedir}/docs/guide</directory>
 		 	<outputDirectory>docs/AdminGuide</outputDirectory>
-		</fileSet>
-		<fileSet>
-		 	<directory>${project.parent.basedir}/../ossnaf/docs/guide</directory>
-		 	<outputDirectory>docs/nafguide</outputDirectory>
+		 	<filtered>true</filtered>
 		</fileSet>
 	</fileSets>
 	<files>

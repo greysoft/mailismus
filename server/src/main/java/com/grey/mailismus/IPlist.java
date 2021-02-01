@@ -121,6 +121,7 @@ public class IPlist
 			updatesFeed = null;
 		} else {
 			updatesFeed = new Producer<>(HashedSetInt.class, dsptch, this);
+			updatesFeed.start();
 		}
 
 		try {

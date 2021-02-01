@@ -18,7 +18,7 @@ public final class SubmitTask
 		cfgdflts.put(com.grey.naf.reactor.CM_Listener.CFGMAP_FACTCLASS, Server.Factory.class);
 		cfgdflts.put(com.grey.naf.reactor.CM_Listener.CFGMAP_PORT, Integer.valueOf(com.grey.mailismus.mta.Protocol.TCP_PORT));
 		cfgdflts.put(com.grey.naf.reactor.CM_Listener.CFGMAP_SSLPORT, Integer.valueOf(com.grey.mailismus.mta.Protocol.TCP_SSLPORT));
-		listeners = new com.grey.naf.reactor.ListenerSet("SubmitTask="+naflet_name, dsptch, this, this, "listeners/listener", taskConfig(), cfgdflts);
+		listeners = new com.grey.naf.reactor.ListenerSet("SubmitTask="+getName(), dsptch, this, this, "listeners/listener", taskConfig(), cfgdflts);
 		if (listeners.configured() != 0) registerQueueOps(com.grey.mailismus.nafman.Loader.PREF_SHOWQ_SUBMIT);
 	}
 

@@ -1,7 +1,7 @@
 The Mailismus mail-server
-Copyright (C) 2010-2018 Yusef Badri  <yb a.t greyware d.o.t co d.o.t uk>
+Copyright (C) 2010-2019 Yusef Badri  <yb a.t greyware d.o.t co d.o.t uk>
 Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
 
 This product includes the NAF (Network Application Framework) libraries.
-Copyright (C) 2010-2018 Yusef Badri  <yb a.t greyware d.o.t co d.o.t uk>
+Copyright (C) 2010-2019 Yusef Badri  <yb a.t greyware d.o.t co d.o.t uk>
 NAF is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
