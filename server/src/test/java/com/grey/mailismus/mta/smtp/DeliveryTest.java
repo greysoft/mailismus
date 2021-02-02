@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2018 Yusef Badri - All rights reserved.
+ * Copyright 2013-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.smtp;
@@ -81,6 +81,13 @@ public class DeliveryTest
 	@org.junit.BeforeClass
 	public static void beforeClass() throws java.io.IOException
 	{
+		SysProps.setAppEnv("MAILISMUS_TEST_PORT_AUTHOPT", String.valueOf(TSAP.getVacantPort()));
+		SysProps.setAppEnv("MAILISMUS_TEST_PORT_AUTHMDTY", String.valueOf(TSAP.getVacantPort()));
+		SysProps.setAppEnv("MAILISMUS_TEST_PORT_AUTHNONE", String.valueOf(TSAP.getVacantPort()));
+		SysProps.setAppEnv("MAILISMUS_TEST_PORT_SSLMDTY", String.valueOf(TSAP.getVacantPort()));
+		SysProps.setAppEnv("MAILISMUS_TEST_PORT_SMARTHOST", String.valueOf(TSAP.getVacantPort()));
+		System.out.println("DeliverTest App Env = "+SysProps.getAppEnv());
+
 		mockserverDNS = new MockServerDNS(ApplicationContextNAF.create("DeliveryTest-MockServerDNS"));
 		mockserverDNS.start();
 	}

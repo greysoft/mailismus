@@ -1,5 +1,5 @@
 <!--
-  Copyright 2013-2018 Yusef Badri - All rights reserved.
+  Copyright 2013-2021 Yusef Badri - All rights reserved.
   Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
 -->
 <mailserver>
@@ -25,19 +25,19 @@
 		</queue_utest_smtps>
 		<submit>
 			<listeners>
-				<listener name="UTEST_SMTP_SMARTHOST" port="42901">
+				<listener name="UTEST_SMTP_SMARTHOST" port="${MAILISMUS_TEST_PORT_SMARTHOST}">
 					<server>
 						<validate_sender>N</validate_sender>
 						<delay_badrecip>0</delay_badrecip>
 						<delay_badreq>0</delay_badreq>
-						<transcript>%DIRLOG%/transcripts/server-42901.log</transcript>
+						<transcript>%DIRLOG%/transcripts/server-smarthost.log</transcript>
 					</server>
 				</listener>
 			</listeners>
 		</submit>
 		<deliver>
 			<relays>
-				<relay address="localhost:42901"/>
+				<relay address="localhost:${MAILISMUS_TEST_PORT_SMARTHOST}"/>
 			</relays>
 			<interval_low>50</interval_low>
 			<interval_high>50</interval_high>
