@@ -13,10 +13,10 @@
 	</formats>
 	<fileSets>
 		<fileSet>
-		 	<directory>${project.build.directory}/dependency</directory>
+		 	<directory>${project.build.directory}/../../server/target</directory>
 		 	<outputDirectory>lib</outputDirectory>
 		 	<includes>
-		 		<include>*.jar</include>
+		 		<include>mailismus-*.jar</include>
 		 	</includes>
 		</fileSet>
 		<fileSet>

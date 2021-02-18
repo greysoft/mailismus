@@ -43,6 +43,6 @@
 	<scm>
 		<connection>scm:git:git://github.com/greysoft/mailismus.git</connection>
 		<developerConnection>scm:git:ssh://github.com:greysoft/mailismus.git</developerConnection>
-		<url>https://github.com/greysoft/mailismus/tree/master</url>
+		<url>https://github.com/greysoft/mailismus</url>
 	</scm>
 </project>
