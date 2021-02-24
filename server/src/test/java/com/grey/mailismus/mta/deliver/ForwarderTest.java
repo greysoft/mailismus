@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 Yusef Badri - All rights reserved.
+ * Copyright 2015-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.deliver;
@@ -13,7 +13,6 @@ import com.grey.base.utils.DynLoader;
 import com.grey.base.collections.HashedSetInt;
 import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.NAFConfig;
-import com.grey.naf.DispatcherDef;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.TimerNAF;
 import com.grey.mailismus.AppConfig;
@@ -104,9 +103,11 @@ public class ForwarderTest
 				+"<dnsresolver>"
 				+"<interceptor host=\"127.0.0.1\" port=\""+mockserver.getPort()+"\"/>"
 				+"</dnsresolver></naf>";
-		DispatcherDef def = new DispatcherDef("utest_fwd_"+testname);
-		def.hasDNS = true;
-		def.surviveHandlers = false;
+		com.grey.naf.DispatcherDef def = new com.grey.naf.DispatcherDef.Builder()
+				.withName("utest_fwd_"+testname)
+				.withDNS(true)
+				.withSurviveHandlers(false)
+				.build();
 		NAFConfig nafcfg = NAFConfig.synthesise(nafxml);
 		ApplicationContextNAF appctx = ApplicationContextNAF.create(null, nafcfg);
 		dsptch = Dispatcher.create(appctx, def, logger);

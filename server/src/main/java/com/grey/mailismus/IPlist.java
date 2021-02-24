@@ -142,7 +142,7 @@ public class IPlist
 				pstmt_exists = null;
 				pstmt_size = null;
 			}
-			log.trace("Doing initial load of IPlist="+listname+" - Dispatcher="+(dsptch==null?"null":dsptch.name));
+			log.trace("Doing initial load of IPlist="+listname+" - Dispatcher="+(dsptch==null?"null":dsptch.getName()));
 			acquire(load(0));
 		} catch (java.sql.SQLException ex) {
 			throw new java.io.IOException("Failed to load IP list="+listname, ex);

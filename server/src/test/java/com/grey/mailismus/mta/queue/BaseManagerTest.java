@@ -30,7 +30,7 @@ public class BaseManagerTest
 	private Manager qmgr;
 
 	public BaseManagerTest() throws Exception {
-		dsptch = Dispatcher.create(appctx, new DispatcherDef("qmgrbasetest"), logger);
+		dsptch = Dispatcher.create(appctx, new DispatcherDef.Builder().withName("qmgrbasetest").build(), logger);
 	}
 
 	@org.junit.After

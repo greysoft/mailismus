@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2018 Yusef Badri - All rights reserved.
+ * Copyright 2010-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus;
@@ -36,7 +36,8 @@ public final class Audit
 		if (xpath != null) cfg = cfg.getSection(xpath);
 		if (!cfg.exists()) return null;
 		Parameters params = new Parameters(cfg);
-		if (params.pthnam == null || params.pthnam.length() == 0) return null;
+		String pthnam = params.getPathname();
+		if (pthnam == null || pthnam.length() == 0) return null;
 		return new Audit(name, dsptch, params);
 	}
 
@@ -45,8 +46,12 @@ public final class Audit
 		dsptch = d;
 		String id = name;
 		name = "audit-"+name;
-		if (dsptch != null) name += "-" + dsptch.name;
-		params.mode = Parameters.MODE_AUDIT;
+		if (dsptch != null) name += "-" + dsptch.getName();
+		params = new Parameters.Builder(params)
+				.withQuietMode(true)
+				.withTID(false)
+				.withPID(false)
+				.build();
 		audlog = Factory.getLogger(params, name);
 		if (dsptch != null) {
 			if (dsptch.getAgent() != null) {

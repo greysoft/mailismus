@@ -367,14 +367,15 @@ public class DeliveryTest
 
 		// create a disposable Dispatcher first, just to identify and clean up the working directories that will be used
 		com.grey.logging.Logger logger = com.grey.logging.Factory.getLogger("no-such-logger");
-		dsptch = Dispatcher.create(appctx, new DispatcherDef(), logger);
+		dsptch = Dispatcher.create(appctx, new DispatcherDef.Builder().build(), logger);
 		FileOps.deleteDirectory(nafcfg.path_var);
 		FileOps.deleteDirectory(nafcfg.path_tmp);
 		FileOps.deleteDirectory(nafcfg.path_logs);
 		// now create the real Dispatcher
-		DispatcherDef def = new DispatcherDef();
-		def.hasDNS = true;
-		def.surviveHandlers = false;
+		DispatcherDef def = new DispatcherDef.Builder()
+				.withDNS(true)
+				.withSurviveHandlers(false)
+				.build();
 		dsptch = Dispatcher.create(appctx, def, logger);
 		AppConfig appcfg = AppConfig.get(nafcfg.getPath(pthnam_appcfg, null), dsptch);
 

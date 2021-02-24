@@ -91,7 +91,7 @@ public final class HomePage
 	{
 		Task task = loader.getTask(clss);
 		if (task == null) return;
-		sb.append("<li>").append(txt).append(" (Dispatcher is ").append(task.getDispatcher().name).append(")</li>");
+		sb.append("<li>").append(txt).append(" (Dispatcher is ").append(task.getDispatcher().getName()).append(")</li>");
 	}
 
 	private String renderStatsButton(Class<? extends Task> clss, String token, Loader loader, String txt)
@@ -99,7 +99,7 @@ public final class HomePage
 		Task task = loader.getTask(clss);
 		if (task == null) return removeSection(token, txt);
 		txt = includeSection(token, txt);
-		return replaceToken(token, task.getDispatcher().name, txt);
+		return replaceToken(token, task.getDispatcher().getName(), txt);
 	}
 
 	private String renderAuditButtons(NafManRegistry reg, String filetxt)

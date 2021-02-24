@@ -376,14 +376,15 @@ public class IMAP4ServerTest
 	private void startServer() throws java.io.IOException
 	{
 		// create a disposable Dispatcher first, just to identify and clean up the working directories that will be used
-		dsptch = Dispatcher.create(appctx, new com.grey.naf.DispatcherDef(), com.grey.logging.Factory.getLogger("no-such-logger"));
+		dsptch = Dispatcher.create(appctx, new com.grey.naf.DispatcherDef.Builder().build(), com.grey.logging.Factory.getLogger("no-such-logger"));
 		NAFConfig nafcfg = dsptch.getApplicationContext().getConfig();
 		FileOps.deleteDirectory(nafcfg.path_var);
 		FileOps.deleteDirectory(nafcfg.path_tmp);
 		FileOps.deleteDirectory(nafcfg.path_logs);
 		// now create the real Dispatcher
-		com.grey.naf.DispatcherDef def = new com.grey.naf.DispatcherDef();
-		def.surviveHandlers = false;
+		com.grey.naf.DispatcherDef def = new com.grey.naf.DispatcherDef.Builder()
+				.withSurviveHandlers(false)
+				.build();
 		dsptch = Dispatcher.create(appctx, def, com.grey.logging.Factory.getLogger("no-such-logger"));
 
 		// set up the IMAP server

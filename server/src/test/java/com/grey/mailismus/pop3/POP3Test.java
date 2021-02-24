@@ -143,14 +143,15 @@ public class POP3Test
 			throws java.io.IOException, java.security.GeneralSecurityException
 	{
 		// create a disposable Dispatcher first, just to identify and clean up the working directories that will be used
-		dsptch = Dispatcher.create(appctx, new DispatcherDef(), com.grey.logging.Factory.getLogger("no-such-logger"));
+		dsptch = Dispatcher.create(appctx, new DispatcherDef.Builder().build(), com.grey.logging.Factory.getLogger("no-such-logger"));
 		NAFConfig nafcfg = dsptch.getApplicationContext().getConfig();
 		FileOps.deleteDirectory(nafcfg.path_var);
 		FileOps.deleteDirectory(nafcfg.path_tmp);
 		FileOps.deleteDirectory(nafcfg.path_logs);
 		// now create the real Dispatcher
-		DispatcherDef def = new DispatcherDef();
-		def.surviveHandlers = false;
+		com.grey.naf.DispatcherDef def = new com.grey.naf.DispatcherDef.Builder()
+				.withSurviveHandlers(false)
+				.build();
 		dsptch = Dispatcher.create(appctx, def, com.grey.logging.Factory.getLogger("no-such-logger"));
 
 		// set up the POP3 server

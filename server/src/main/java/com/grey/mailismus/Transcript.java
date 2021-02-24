@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2018 Yusef Badri - All rights reserved.
+ * Copyright 2010-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus;
@@ -31,7 +31,7 @@ public final class Transcript
 	private final StringBuilder sbmsg = new StringBuilder();
 	private byte[] wrbuf = new byte[1024];  //will grow as necessary
 
-	public String templatePath() {return logparams.pthnam;}
+	public String templatePath() {return logparams.getPathname();}
 	public String getActivePath() {return fh_active == null ? null : fh_active.getAbsolutePath();}
 
 	public static Transcript create(com.grey.naf.reactor.Dispatcher dsptch, com.grey.base.config.XmlConfig cfg, String xpath)
@@ -39,8 +39,8 @@ public final class Transcript
 		if (xpath != null) cfg = cfg.getSection(xpath+com.grey.base.config.XmlConfig.XPATH_ENABLED);
 		if (!cfg.exists()) return null;
 		com.grey.logging.Parameters params = new com.grey.logging.Parameters(cfg);
-		params.reconcile();
-		if (params.pthnam == null || params.pthnam.length() == 0) return null;
+		String pthnam = params.getPathname();
+		if (pthnam == null || pthnam.length() == 0) return null;
 		return new Transcript(dsptch, params);
 	}
 
@@ -52,7 +52,7 @@ public final class Transcript
 		dtcal = TimeOps.getCalendar(null);
 		if (dsptch != null) {
 			dsptch.getFlusher().register(this);
-			dsptch.getLogger().info("Created "+dsptch.name+" Transcript-Logger: "+logparams);
+			dsptch.getLogger().info("Created "+dsptch.getName()+" Transcript-Logger: "+logparams);
 		}
 	}
 
@@ -60,7 +60,7 @@ public final class Transcript
 	private void open(long systime) throws java.io.IOException
 	{
 		String oldpath = getActivePath();
-		String newpath = ScheduledTime.embedTimestamp(logparams.rotfreq, dtcal, logparams.pthnam, null);
+		String newpath = ScheduledTime.embedTimestamp(logparams.getRotFreq(), dtcal, templatePath(), null);
 		if (newpath.equals(oldpath)) {
 			//can't rotate till pathname advances to next state
 			return;
@@ -75,20 +75,20 @@ public final class Transcript
 		}
 		close(0);
 
-		if (logparams.rotfreq != ScheduledTime.FREQ.NEVER) {
-			systime_rot = ScheduledTime.getNextTime(logparams.rotfreq, dtcal);	
+		if (logparams.getRotFreq() != ScheduledTime.FREQ.NEVER) {
+			systime_rot = ScheduledTime.getNextTime(logparams.getRotFreq(), dtcal);	
 		}
 		fh_active = new java.io.File(newpath);
 		java.io.File dirh = fh_active.getParentFile();
 		if (dirh != null) FileOps.ensureDirExists(dirh);
 		java.io.FileOutputStream fstrm = new java.io.FileOutputStream(fh_active, true);
-		strm = new java.io.BufferedOutputStream(fstrm, logparams.bufsiz);
+		strm = new java.io.BufferedOutputStream(fstrm, logparams.getBufSize());
 
 		sb.setLength(0);
 		if (oldpath != null) {
 			sb.append("Rollover from ").append(oldpath);
 		} else {
-			sb.append("Opening transcript - ").append(logparams.pthnam);
+			sb.append("Opening transcript - ").append(templatePath());
 		}
 		sb.append(" at ").append(dtnow).append("\n\n");
 		write(sb);
@@ -222,7 +222,7 @@ public final class Transcript
 		try {
 			if (strm == null
 					|| (systime_rot != 0 && systime > systime_rot)
-					|| (fh_active != null && logparams.maxsize != 0 && fh_active.length() >= logparams.maxsize)) {
+					|| (fh_active != null && logparams.getMaxSize() != 0 && fh_active.length() >= logparams.getMaxSize())) {
 				open(systime);
 			}
 		} catch (Throwable ex) {
@@ -245,7 +245,7 @@ public final class Transcript
 	{
 		try {
 			strm.write(arr, off, len);
-			if (logparams.flush_interval == 0) strm.flush();
+			if (logparams.getFlushInterval() == 0) strm.flush();
 		} catch (Throwable ex) {
 			warning("Transcript Write failed on "+templatePath()+" - "+com.grey.base.ExceptionUtils.summary(ex));
 		}

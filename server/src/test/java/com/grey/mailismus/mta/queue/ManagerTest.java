@@ -65,8 +65,9 @@ public abstract class ManagerTest
 		qcfgxml = qcfgxml.replace("xclass", getQueueClass().getName());
 		String qcfgxml_extra = getQueueConfig();
 		if (qcfgxml_extra != null) qcfgxml = qcfgxml.replace("</queue>", qcfgxml_extra+"</queue>");
+		String dname = "qmgrtest-"+getQueueClass().getName();
 		ApplicationContextNAF appctx = ApplicationContextNAF.create(null);
-		DispatcherDef def = new DispatcherDef("qmgrtest-"+getQueueClass().getName());
+		DispatcherDef def = new DispatcherDef.Builder().withName(dname).build();
 		dsptch = Dispatcher.create(appctx, def, logger);
 		appcfg = createAppConfig(dsptch, hasDatabase());
 		qmgr = createManager(qcfgxml, "utest");
