@@ -10,10 +10,10 @@ import com.grey.base.utils.IP;
 import com.grey.base.collections.HashedMap;
 import com.grey.base.collections.HashedMapIntKey;
 import com.grey.naf.reactor.Dispatcher;
-import com.grey.naf.dns.ResolverDNS;
-import com.grey.naf.dns.ResourceData;
 import com.grey.naf.ApplicationContextNAF;
-import com.grey.naf.dns.PacketDNS;
+import com.grey.naf.dns.resolver.PacketDNS;
+import com.grey.naf.dns.resolver.ResolverDNS;
+import com.grey.naf.dns.resolver.ResourceData;
 
 public class MockServerDNS
 	implements com.grey.naf.dns.server.ServerDNS.DNSQuestionResolver

@@ -25,7 +25,7 @@ import com.grey.logging.Logger.LEVEL;
 public final class Server
 	extends com.grey.naf.reactor.CM_Server
 	implements com.grey.naf.reactor.TimerNAF.Handler,
-		com.grey.naf.dns.ResolverDNS.Client,
+		com.grey.naf.dns.resolver.ResolverDNS.Client,
 		com.grey.naf.nafman.NafManCommand.Handler
 {
 	private static final boolean REQUIRE_CRLF = SysProps.get("grey.mta.smtpserver.needcrlf", true);
@@ -1536,7 +1536,7 @@ public final class Server
 
 			if (validate) {
 				// short-circuit the battery of checks below
-				return addressRejected(com.grey.naf.dns.ResolverAnswer.STATUS.BADNAME);
+				return addressRejected(com.grey.naf.dns.resolver.ResolverAnswer.STATUS.BADNAME);
 			}
 		}
 
@@ -1544,12 +1544,12 @@ public final class Server
 			// Determine whether it's one of our served domains - if so, it's automatically valid.
 			if (!shared.qmgr.verifyAddress(addrinfo.full)) {
 				// whatever the other checks, we have to run email addresses by the Queue as well, and it didn't like this one
-				return addressRejected(com.grey.naf.dns.ResolverAnswer.STATUS.BADNAME);
+				return addressRejected(com.grey.naf.dns.resolver.ResolverAnswer.STATUS.BADNAME);
 			}
 			addrinfo.decompose();
 
 			if (addrinfo.mailbox.length() == 0 || addrinfo.domain.length() == 0) {
-				return addressRejected(com.grey.naf.dns.ResolverAnswer.STATUS.BADNAME);
+				return addressRejected(com.grey.naf.dns.resolver.ResolverAnswer.STATUS.BADNAME);
 			}
 			boolean is_valid = false; //True means positively known to be valid, False merely means we don't know yet
 
@@ -1600,7 +1600,7 @@ public final class Server
 							}
 						}
 						if (!shared.dtory.isLocalUser(addrinfo.mailbox)) {
-							return addressRejected(com.grey.naf.dns.ResolverAnswer.STATUS.NODOMAIN);
+							return addressRejected(com.grey.naf.dns.resolver.ResolverAnswer.STATUS.NODOMAIN);
 						}
 						if (shared.localdelivery) {
 							addrinfo.stripDomain(); //reduce to local form (no domain part)
@@ -1702,7 +1702,7 @@ public final class Server
 		return addressHandled(ADDR_STATUS.OK, rsp, 0, null);
 	}
 
-	private ADDR_STATUS addressRejected(com.grey.naf.dns.ResolverAnswer.STATUS status, java.nio.ByteBuffer rsp) throws java.io.IOException
+	private ADDR_STATUS addressRejected(com.grey.naf.dns.resolver.ResolverAnswer.STATUS status, java.nio.ByteBuffer rsp) throws java.io.IOException
 	{
 		LEVEL lvl = LEVEL.TRC;
 		PROTO_EVENT evt = null;
@@ -1730,7 +1730,7 @@ public final class Server
 		return addressHandled(ADDR_STATUS.REJECT, rsp, delay, evt);
 	}
 
-	private ADDR_STATUS addressRejected(com.grey.naf.dns.ResolverAnswer.STATUS status) throws java.io.IOException
+	private ADDR_STATUS addressRejected(com.grey.naf.dns.resolver.ResolverAnswer.STATUS status) throws java.io.IOException
 	{
 		return addressRejected(status, null);
 	}
@@ -1748,7 +1748,7 @@ public final class Server
 	private ADDR_STATUS execDNS(ValidationSettings validation, com.grey.base.utils.EmailAddress addr)
 			throws java.io.IOException
 	{
-		com.grey.naf.dns.ResolverAnswer answer;
+		com.grey.naf.dns.resolver.ResolverAnswer answer;
 
 		if (dnsEvent == PROTO_EVENT.E_HELO || dnsEvent == PROTO_EVENT.E_EHLO) {
 			if (dnsPhase == ValidationSettings.HOSTDIR.BACKWARD) {
@@ -1767,13 +1767,13 @@ public final class Server
 		return evaluateDNS(answer, validation);
 	}
 
-	private ADDR_STATUS evaluateDNS(com.grey.naf.dns.ResolverAnswer answer, ValidationSettings validation)
+	private ADDR_STATUS evaluateDNS(com.grey.naf.dns.resolver.ResolverAnswer answer, ValidationSettings validation)
 			throws java.io.IOException
 	{
-		boolean timeout = (answer.result == com.grey.naf.dns.ResolverAnswer.STATUS.TIMEOUT);
-		com.grey.naf.dns.ResolverAnswer.STATUS status = (timeout && validation.allowTimeout ? com.grey.naf.dns.ResolverAnswer.STATUS.OK : answer.result);
+		boolean timeout = (answer.result == com.grey.naf.dns.resolver.ResolverAnswer.STATUS.TIMEOUT);
+		com.grey.naf.dns.resolver.ResolverAnswer.STATUS status = (timeout && validation.allowTimeout ? com.grey.naf.dns.resolver.ResolverAnswer.STATUS.OK : answer.result);
 
-		if (status == com.grey.naf.dns.ResolverAnswer.STATUS.OK) {
+		if (status == com.grey.naf.dns.resolver.ResolverAnswer.STATUS.OK) {
 			boolean rejected = false;
 			if ((dnsEvent == PROTO_EVENT.E_HELO || dnsEvent == PROTO_EVENT.E_EHLO)
 						&& !conncfg.validHELO.syntaxOnly
@@ -1795,7 +1795,7 @@ public final class Server
 			if (!rejected) return addressAccepted(null, null);
 		}
 
-		if (status == com.grey.naf.dns.ResolverAnswer.STATUS.ERROR || status == com.grey.naf.dns.ResolverAnswer.STATUS.TIMEOUT) {
+		if (status == com.grey.naf.dns.resolver.ResolverAnswer.STATUS.ERROR || status == com.grey.naf.dns.resolver.ResolverAnswer.STATUS.TIMEOUT) {
 			// we have been unable to complete the required validation, through no fault of the remote SMTP client
 			shared.tmpsb.setLength(0);
 			shared.tmpsb.append("DNS failure=").append(status).append(" on ").append(dnsEvent).append('=').append(dnsAddress);
@@ -1808,7 +1808,7 @@ public final class Server
 	}
 
 	@Override
-	public void dnsResolved(Dispatcher d, com.grey.naf.dns.ResolverAnswer answer, Object cbdata)
+	public void dnsResolved(Dispatcher d, com.grey.naf.dns.resolver.ResolverAnswer answer, Object cbdata)
 	{
 		thisEntered++;
 		clearFlag(S2_DNSWAIT);

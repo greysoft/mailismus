@@ -17,7 +17,7 @@ import com.grey.logging.Logger.LEVEL;
 final class Client
 	extends com.grey.naf.reactor.CM_Client
 	implements Delivery.MessageSender,
-		com.grey.naf.dns.ResolverDNS.Client,
+		com.grey.naf.dns.resolver.ResolverDNS.Client,
 		com.grey.naf.EntityReaper, //only the prototype Client acts as reaper (for the active Clients)
 		com.grey.naf.reactor.TimerNAF.Handler
 {
@@ -250,7 +250,7 @@ final class Client
 	private final Delivery.MessageParams msgparams = new Delivery.MessageParams();
 	private final SharedFields shared;
 	private final com.grey.base.utils.TSAP remote_tsap_buf;
-	private final java.util.ArrayList<com.grey.naf.dns.ResourceData> dnsInfo = new java.util.ArrayList<com.grey.naf.dns.ResourceData>();
+	private final java.util.ArrayList<com.grey.naf.dns.resolver.ResourceData> dnsInfo = new java.util.ArrayList<com.grey.naf.dns.resolver.ResourceData>();
 	private ConnectionConfig conncfg; //config to apply to current connection
 	private Relay active_relay;
 	private com.grey.base.utils.TSAP remote_tsap;
@@ -423,7 +423,7 @@ final class Client
 		mxptr = 0;
 		dnsInfo.clear();
 		setFlag(S2_DNSWAIT);
-		com.grey.naf.dns.ResolverAnswer answer;
+		com.grey.naf.dns.resolver.ResolverAnswer answer;
 		if (as_host) {
 			answer = getDispatcher().getResolverDNS().resolveHostname(msgparams.getDestination(), this, null, 0);
 		} else {
@@ -433,7 +433,7 @@ final class Client
 	}
 
 	@Override
-	public void dnsResolved(com.grey.naf.reactor.Dispatcher d, com.grey.naf.dns.ResolverAnswer answer, Object callerparam)
+	public void dnsResolved(com.grey.naf.reactor.Dispatcher d, com.grey.naf.dns.resolver.ResolverAnswer answer, Object callerparam)
 	{
 		try {
 			handleDnsResult(answer);
@@ -443,21 +443,21 @@ final class Client
 		}
 	}
 
-	private void handleDnsResult(com.grey.naf.dns.ResolverAnswer answer) throws java.net.UnknownHostException
+	private void handleDnsResult(com.grey.naf.dns.resolver.ResolverAnswer answer) throws java.net.UnknownHostException
 	{
 		clearFlag(S2_DNSWAIT);
 		int statuscode = 0;
 		CharSequence diagnostic = null;
 
 		if (shared.fallback_mx_a) {
-			if (answer.result == com.grey.naf.dns.ResolverAnswer.STATUS.NODOMAIN
-					&& answer.qtype == com.grey.naf.dns.ResolverDNS.QTYPE_MX) {
+			if (answer.result == com.grey.naf.dns.resolver.ResolverAnswer.STATUS.NODOMAIN
+					&& answer.qtype == com.grey.naf.dns.resolver.ResolverDNS.QTYPE_MX) {
 				try {
 					dnsLookup(true);
 					return;
 				} catch (Exception ex) {
 					getLogger().log(LEVEL.ERR, ex, false, pfx_log+" failed on DNS-A lookup");
-					answer.result = com.grey.naf.dns.ResolverAnswer.STATUS.BADNAME;
+					answer.result = com.grey.naf.dns.resolver.ResolverAnswer.STATUS.BADNAME;
 				}
 			}
 		}
@@ -465,7 +465,7 @@ final class Client
 		switch (answer.result)
 		{
 		case OK:
-			if (answer.qtype == com.grey.naf.dns.ResolverDNS.QTYPE_MX) {
+			if (answer.qtype == com.grey.naf.dns.resolver.ResolverDNS.QTYPE_MX) {
 				for (int idx = 0; idx != answer.size(); idx++) {
 					dnsInfo.add(answer.getMX(idx));
 				}

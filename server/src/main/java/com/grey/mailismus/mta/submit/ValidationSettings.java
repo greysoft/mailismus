@@ -47,9 +47,9 @@ class ValidationSettings
 		allowDottedIP = (direction == HOSTDIR.FORWARD ? allow_dottedIP : false);
 
 		int flags = 0;
-		if (syntaxOnly) flags |= com.grey.naf.dns.ResolverDNS.FLAG_SYNTAXONLY;
-		if (fqdn) flags |= com.grey.naf.dns.ResolverDNS.FLAG_MUSTHAVEDOTS;
-		if (!allowDottedIP) flags |= com.grey.naf.dns.ResolverDNS.FLAG_NODOTTEDIP;
+		if (syntaxOnly) flags |= com.grey.naf.dns.resolver.ResolverDNS.FLAG_SYNTAXONLY;
+		if (fqdn) flags |= com.grey.naf.dns.resolver.ResolverDNS.FLAG_MUSTHAVEDOTS;
+		if (!allowDottedIP) flags |= com.grey.naf.dns.resolver.ResolverDNS.FLAG_NODOTTEDIP;
 		dnsflags = flags;
 	}
 
