@@ -368,9 +368,9 @@ public class DeliveryTest
 		// create a disposable Dispatcher first, just to identify and clean up the working directories that will be used
 		com.grey.logging.Logger logger = com.grey.logging.Factory.getLogger("no-such-logger");
 		dsptch = Dispatcher.create(appctx, new DispatcherDef.Builder().build(), logger);
-		FileOps.deleteDirectory(nafcfg.path_var);
-		FileOps.deleteDirectory(nafcfg.path_tmp);
-		FileOps.deleteDirectory(nafcfg.path_logs);
+		FileOps.deleteDirectory(nafcfg.getPathVar());
+		FileOps.deleteDirectory(nafcfg.getPathTemp());
+		FileOps.deleteDirectory(nafcfg.getPathLogs());
 		// now create the real Dispatcher
 		DispatcherDef def = new DispatcherDef.Builder()
 				.withDNS(true)
@@ -468,8 +468,8 @@ public class DeliveryTest
 		org.junit.Assert.assertTrue(stopped);
 
 		//verify Audit logs
-		String audit_ok = FileOps.readAsText(nafcfg.path_logs+"/audit/delivered.log", null);
-		String audit_permerr = FileOps.readAsText(nafcfg.path_logs+"/audit/bounces.log", null);
+		String audit_ok = FileOps.readAsText(nafcfg.getPathLogs()+"/audit/delivered.log", null);
+		String audit_permerr = FileOps.readAsText(nafcfg.getPathLogs()+"/audit/bounces.log", null);
 		if (audit_ok == null) audit_ok = "";
 		if (audit_permerr == null) audit_permerr = "";
 		String errmsg = "";
@@ -501,13 +501,13 @@ public class DeliveryTest
 		}
 		int actual_ok = StringOps.count(audit_ok, "\n");
 		int actual_permerr = StringOps.count(audit_permerr, "\n");
-		int actual_spoolcnt = FileOps.countFiles(new java.io.File(nafcfg.path_var+"/spool"), true);
-		int srv_actual_spoolcnt = FileOps.countFiles(new java.io.File(nafcfg.path_var+"/spool_server"), true);
-		int actual_bouncecnt = FileOps.countFiles(new java.io.File(nafcfg.path_var+"/bounces"), false);
+		int actual_spoolcnt = FileOps.countFiles(new java.io.File(nafcfg.getPathVar()+"/spool"), true);
+		int srv_actual_spoolcnt = FileOps.countFiles(new java.io.File(nafcfg.getPathVar()+"/spool_server"), true);
+		int actual_bouncecnt = FileOps.countFiles(new java.io.File(nafcfg.getPathVar()+"/bounces"), false);
 		// adjust spool counts for non-message files
-		int diagcnt = FileOps.countFiles(new java.io.File(nafcfg.path_var+"/spool/ndrdiag"), true);
+		int diagcnt = FileOps.countFiles(new java.io.File(nafcfg.getPathVar()+"/spool/ndrdiag"), true);
 		actual_spoolcnt -= diagcnt;
-		diagcnt = FileOps.countFiles(new java.io.File(nafcfg.path_var+"/spool_server/ndrdiag"), true);
+		diagcnt = FileOps.countFiles(new java.io.File(nafcfg.getPathVar()+"/spool_server/ndrdiag"), true);
 		srv_actual_spoolcnt -= diagcnt;
 
 		int actual_temperr = qmgr.qsize(com.grey.mailismus.mta.queue.Manager.SHOWFLAG_TEMPERR);
@@ -518,15 +518,15 @@ public class DeliveryTest
 		if (srv_actual_submitcnt != -1) org.junit.Assert.assertEquals(server_submitcnt, srv_actual_submitcnt);
 
 		if (qmgr.getClass().equals(com.grey.mailismus.mta.queue.queue_providers.filesystem.FilesysQueue.class)) {
-			actual_temperr = FileOps.countFiles(new java.io.File(nafcfg.path_var+"/queue/deferred"), true);
-			actual_ndrcnt = FileOps.countFiles(new java.io.File(nafcfg.path_var+"/queue/incoming"), true);
-			srv_actual_submitcnt = FileOps.countFiles(new java.io.File(nafcfg.path_var+"/queue_server/incoming"), true);
+			actual_temperr = FileOps.countFiles(new java.io.File(nafcfg.getPathVar()+"/queue/deferred"), true);
+			actual_ndrcnt = FileOps.countFiles(new java.io.File(nafcfg.getPathVar()+"/queue/incoming"), true);
+			srv_actual_submitcnt = FileOps.countFiles(new java.io.File(nafcfg.getPathVar()+"/queue_server/incoming"), true);
 			org.junit.Assert.assertEquals(expected_temperr, actual_temperr);
 			org.junit.Assert.assertEquals(expected_bouncecnt, actual_ndrcnt);
 			org.junit.Assert.assertEquals(server_submitcnt, srv_actual_submitcnt);
 		}
 		if (ctask.getMS().getClass().equals(com.grey.mailismus.ms.maildir.MaildirStore.class)) {
-			int actual_localcnt = FileOps.countFiles(new java.io.File(nafcfg.path_var+"/ms"), true);
+			int actual_localcnt = FileOps.countFiles(new java.io.File(nafcfg.getPathVar()+"/ms"), true);
 			int expect_localcnt = 0;
 			for (int idx = 0; idx != expect_fwdstats.length; idx++) {expect_localcnt += (expect_fwdstats[idx].stats.localcnt - expect_fwdstats[idx].stats.localfailcnt);}
 			org.junit.Assert.assertEquals(expect_localcnt, actual_localcnt);

@@ -46,11 +46,11 @@ public class GreylistTest
 		org.junit.Assume.assumeTrue(TestSupport.HAVE_DBDRIVERS);
 		String cfgpath = TestSupport.getResourcePath("/mtanaf.xml", getClass());
 		NAFConfig nafcfg = NAFConfig.load(cfgpath);
-		FileOps.deleteDirectory(nafcfg.path_var);
+		FileOps.deleteDirectory(nafcfg.getPathVar());
 		ApplicationContextNAF appctx = ApplicationContextNAF.create(null, nafcfg);
 		Dispatcher dsptch = Dispatcher.createConfigured(appctx, "testmtadispatcher1", logger);
 
-		String pthnam = dsptch.getApplicationContext().getConfig().path_var+"/"+WHITELIST_FILE;
+		String pthnam = dsptch.getApplicationContext().getConfig().getPathVar()+"/"+WHITELIST_FILE;
 		java.io.File fh = new java.io.File(pthnam);
 		FileOps.writeTextFile(fh, WHITELIST_IP, false);
 

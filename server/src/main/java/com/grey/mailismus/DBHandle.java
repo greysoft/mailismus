@@ -55,7 +55,7 @@ public class DBHandle
 		public Type(XmlConfig cfg, NAFConfig nafcfg, com.grey.logging.Logger log) throws java.io.IOException
 		{
 			String drvclass = SysProps.get(SYSPROP_DBDRIVER, DFLT_DRVCLASS);
-			String urlpath = (nafcfg == null ? SysProps.TMPDIR+"/mta" : nafcfg.path_var);
+			String urlpath = (nafcfg == null ? SysProps.TMPDIR+"/mta" : nafcfg.getPathVar());
 			urlpath += "/dbdata/"+TOKEN_CONNSTR_NAME;  //generic URL that works for all embedded databases
 			String template_url = null;
 

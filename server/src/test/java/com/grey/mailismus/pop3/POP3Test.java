@@ -145,9 +145,9 @@ public class POP3Test
 		// create a disposable Dispatcher first, just to identify and clean up the working directories that will be used
 		dsptch = Dispatcher.create(appctx, new DispatcherDef.Builder().build(), com.grey.logging.Factory.getLogger("no-such-logger"));
 		NAFConfig nafcfg = dsptch.getApplicationContext().getConfig();
-		FileOps.deleteDirectory(nafcfg.path_var);
-		FileOps.deleteDirectory(nafcfg.path_tmp);
-		FileOps.deleteDirectory(nafcfg.path_logs);
+		FileOps.deleteDirectory(nafcfg.getPathVar());
+		FileOps.deleteDirectory(nafcfg.getPathTemp());
+		FileOps.deleteDirectory(nafcfg.getPathLogs());
 		// now create the real Dispatcher
 		com.grey.naf.DispatcherDef def = new com.grey.naf.DispatcherDef.Builder()
 				.withSurviveHandlers(false)
@@ -173,7 +173,7 @@ public class POP3Test
 		// set up any messages to be downloaded by the POP client - inject into Server's MS
 		int msgsizes = 0;
 		if (messages != null) {
-			String workdir = nafcfg.path_tmp+"/utest/upload";
+			String workdir = nafcfg.getPathTemp()+"/utest/upload";
 			FileOps.ensureDirExists(workdir);
 			for (int idx = 0; idx != messages.length; idx++) {
 				java.io.File fh = new java.io.File(workdir+"/x");

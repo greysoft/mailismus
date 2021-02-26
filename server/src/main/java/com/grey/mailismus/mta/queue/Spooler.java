@@ -69,7 +69,7 @@ public final class Spooler
 		spidbuilder.setLength(EXTSPIDSIZE);
 
 		NAFConfig nafcfg = appctx.getConfig();
-		String rootpath = nafcfg.getPath(cfg, "rootpath", null, false, nafcfg.path_var+"/spool", null);
+		String rootpath = nafcfg.getPath(cfg, "rootpath", null, false, nafcfg.getPathVar()+"/spool", null);
 		int loadfactor = cfg.getInt("silofactor", false, 5);
 		bufsiz_submit = (int)cfg.getSize("bufsize", "16K");
 		isHardLinked = cfg.getBool("hardlinks", false);

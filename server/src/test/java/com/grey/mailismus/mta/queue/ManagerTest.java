@@ -690,7 +690,7 @@ public abstract class ManagerTest
 
 	private void verifyExport(int spid, int qid, long expectsize) throws java.io.IOException
 	{
-		String exportpath = dsptch.getApplicationContext().getConfig().path_var+"/exports";
+		String exportpath = dsptch.getApplicationContext().getConfig().getPathVar()+"/exports";
 		java.nio.file.Path fh = qmgr.exportMessage(spid, qid, exportpath);
 		String pthnam = fh.toAbsolutePath().toString();
 		exportpath = java.nio.file.Paths.get(exportpath).toAbsolutePath().toString();
@@ -751,7 +751,7 @@ public abstract class ManagerTest
 		}
 		String dbcfg = (withDB ? "<database/>" : "");
 		String cfgtxt = "<mailserver><application>"+dbcfg+"</application></mailserver>";
-		String cfgfile =  dsptch.getApplicationContext().getConfig().path_tmp+"/mailismus-conf.xml";
+		String cfgfile =  dsptch.getApplicationContext().getConfig().getPathTemp()+"/mailismus-conf.xml";
 		FileOps.writeTextFile(cfgfile, cfgtxt);
 		return AppConfig.get(cfgfile, dsptch);
 	}

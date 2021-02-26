@@ -131,7 +131,7 @@ final class SharedFields
 		long timeval = cfg.getTime("newmailfreq", TimeOps.parseMilliTime("20s"));
 		interval_newmail = Math.max(timeval, minval);
 
-		String pthnam_msgflags = cfg.getValue("keywords_map", true, dsptch.getApplicationContext().getConfig().path_var+"/imap/imapkeywords");
+		String pthnam_msgflags = cfg.getValue("keywords_map", true, dsptch.getApplicationContext().getConfig().getPathVar()+"/imap/imapkeywords");
 		boolean dynkwords = cfg.getBool("keywords_dyn", true);
 		msgFlags = new MessageFlags(pthnam_msgflags, dynkwords);
 
@@ -211,7 +211,7 @@ final class SharedFields
 		imap4rsp_bye_timeout = com.grey.mailismus.Task.constBuffer(IMAP4Protocol.STATUS_UNTAGGED+IMAP4Protocol.STATUS_BYE+" idle timeout"+IMAP4Protocol.EOL);
 		imap4rsp_contd_ready = com.grey.mailismus.Task.constBuffer(IMAP4Protocol.STATUS_CONTD+"Ready"+IMAP4Protocol.EOL);
 
-		String pthnam = dsptch.getApplicationContext().getConfig().path_tmp+"/imap4server";
+		String pthnam = dsptch.getApplicationContext().getConfig().getPathTemp()+"/imap4server";
 		stagingDir = new java.io.File(pthnam);
 	}
 

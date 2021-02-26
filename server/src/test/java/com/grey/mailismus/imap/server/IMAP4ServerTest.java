@@ -314,7 +314,7 @@ public class IMAP4ServerTest
 
 	private void testOddMessages() throws java.io.IOException, java.net.URISyntaxException
 	{
-		String pthnam = dsptch.getApplicationContext().getConfig().path_tmp+"/badmsg1";
+		String pthnam = dsptch.getApplicationContext().getConfig().getPathTemp()+"/badmsg1";
 		java.io.File fh = new java.io.File(pthnam);
 		int exists_cnt = 1;
 		int recent_cnt = 0;
@@ -378,9 +378,9 @@ public class IMAP4ServerTest
 		// create a disposable Dispatcher first, just to identify and clean up the working directories that will be used
 		dsptch = Dispatcher.create(appctx, new com.grey.naf.DispatcherDef.Builder().build(), com.grey.logging.Factory.getLogger("no-such-logger"));
 		NAFConfig nafcfg = dsptch.getApplicationContext().getConfig();
-		FileOps.deleteDirectory(nafcfg.path_var);
-		FileOps.deleteDirectory(nafcfg.path_tmp);
-		FileOps.deleteDirectory(nafcfg.path_logs);
+		FileOps.deleteDirectory(nafcfg.getPathVar());
+		FileOps.deleteDirectory(nafcfg.getPathTemp());
+		FileOps.deleteDirectory(nafcfg.getPathLogs());
 		// now create the real Dispatcher
 		com.grey.naf.DispatcherDef def = new com.grey.naf.DispatcherDef.Builder()
 				.withSurviveHandlers(false)

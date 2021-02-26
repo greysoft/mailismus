@@ -108,7 +108,7 @@ public final class MaildirStore
 		if (!virtual_users) dsptch.getLogger().info("MS-Maildir: chmod tree ["+chmod_tree+"] - msgfile="+chmod_msgfile);
 
 		//make sure the Maildir suffix chars are acceptable for this platform
-		java.io.File fh1 = new java.io.File(d.getApplicationContext().getConfig().path_tmp+"/ms_"+Thread.currentThread().getId()+".test"+FLAGS_MARKER+"x");
+		java.io.File fh1 = new java.io.File(d.getApplicationContext().getConfig().getPathTemp()+"/ms_"+Thread.currentThread().getId()+".test"+FLAGS_MARKER+"x");
 		java.io.File fh2 = new java.io.File(fh1.getParentFile(), fh1.getName()+"y");
 		FileOps.deleteFile(fh1);
 		FileOps.deleteFile(fh2);

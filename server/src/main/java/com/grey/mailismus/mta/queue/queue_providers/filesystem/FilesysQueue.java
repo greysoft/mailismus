@@ -60,7 +60,7 @@ public final class FilesysQueue
 	{
 		super(d, qcfg, name);
 		NAFConfig nafcfg = dsptch.getApplicationContext().getConfig();
-		String queuepath = nafcfg.getPath(qcfg, "rootpath", null, false, nafcfg.path_var+"/queue", null);
+		String queuepath = nafcfg.getPath(qcfg, "rootpath", null, false, nafcfg.getPathVar()+"/queue", null);
 		maxDeferredIgnore = qcfg.getTime("deferred_maxignore", "5m");
 		maxFilesList = qcfg.getInt("maxfileslist", false, 0);
 		retryGranularity = Math.max(TimeOps.MSECS_PER_SECOND, qcfg.getTime("retry_granularity", "1m")); //minimum is 1 sec

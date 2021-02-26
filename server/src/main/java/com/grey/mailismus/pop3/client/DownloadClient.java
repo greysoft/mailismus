@@ -108,7 +108,7 @@ public class DownloadClient
 			reqbuf_stls = com.grey.mailismus.Task.constBuffer(POP3Protocol.CMDREQ_STLS+POP3Protocol.EOL);
 			reqbuf_capa = com.grey.mailismus.Task.constBuffer(POP3Protocol.CMDREQ_CAPA+POP3Protocol.EOL);
 
-			String pthnam = dsptch.getApplicationContext().getConfig().path_tmp+"/pop3/downloadclient";
+			String pthnam = dsptch.getApplicationContext().getConfig().getPathTemp()+"/pop3/downloadclient";
 			stagingDir = new java.io.File(pthnam);
 
 			String pfx = "POP3-Clients: ";

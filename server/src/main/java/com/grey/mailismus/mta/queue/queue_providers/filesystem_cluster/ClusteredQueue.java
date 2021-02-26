@@ -69,7 +69,7 @@ public final class ClusteredQueue
 	{
 		super(d, qcfg, name);
 		NAFConfig nafcfg = dsptch.getApplicationContext().getConfig();
-		String queuepath = nafcfg.getPath(qcfg, "rootpath", null, false, nafcfg.path_var+"/queue", null);
+		String queuepath = nafcfg.getPath(qcfg, "rootpath", null, false, nafcfg.getPathVar()+"/queue", null);
 		maxClusterSize = (int)qcfg.getSize("maxclustersize", "256K");
 		maxDeferredIgnore = qcfg.getTime("deferred_maxignore", "5m");
 		maxFilesList = qcfg.getInt("maxfileslist", false, 1000); //filenames limit should be under 30K
