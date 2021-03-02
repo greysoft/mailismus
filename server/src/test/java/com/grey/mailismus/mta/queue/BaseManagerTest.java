@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 Yusef Badri - All rights reserved.
+ * Copyright 2016-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.queue;
@@ -31,6 +31,7 @@ public class BaseManagerTest
 
 	public BaseManagerTest() throws Exception {
 		dsptch = Dispatcher.create(appctx, new DispatcherDef.Builder().withName("qmgrbasetest").build(), logger);
+		FileOps.ensureDirExists(dsptch.getApplicationContext().getConfig().getPathTemp());
 	}
 
 	@org.junit.After

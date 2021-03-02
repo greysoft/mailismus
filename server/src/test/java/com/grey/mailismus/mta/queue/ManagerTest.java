@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 Yusef Badri - All rights reserved.
+ * Copyright 2011-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.queue;
@@ -69,6 +69,7 @@ public abstract class ManagerTest
 		ApplicationContextNAF appctx = ApplicationContextNAF.create(null);
 		DispatcherDef def = new DispatcherDef.Builder().withName(dname).build();
 		dsptch = Dispatcher.create(appctx, def, logger);
+		FileOps.ensureDirExists(dsptch.getApplicationContext().getConfig().getPathTemp());
 		appcfg = createAppConfig(dsptch, hasDatabase());
 		qmgr = createManager(qcfgxml, "utest");
 		org.junit.Assert.assertEquals(getQueueClass(), qmgr.getClass());

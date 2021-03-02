@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2018 Yusef Badri - All rights reserved.
+ * Copyright 2012-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.ms.maildir;
@@ -108,6 +108,7 @@ public final class MaildirStore
 		if (!virtual_users) dsptch.getLogger().info("MS-Maildir: chmod tree ["+chmod_tree+"] - msgfile="+chmod_msgfile);
 
 		//make sure the Maildir suffix chars are acceptable for this platform
+		FileOps.ensureDirExists(d.getApplicationContext().getConfig().getPathTemp());
 		java.io.File fh1 = new java.io.File(d.getApplicationContext().getConfig().getPathTemp()+"/ms_"+Thread.currentThread().getId()+".test"+FLAGS_MARKER+"x");
 		java.io.File fh2 = new java.io.File(fh1.getParentFile(), fh1.getName()+"y");
 		FileOps.deleteFile(fh1);
