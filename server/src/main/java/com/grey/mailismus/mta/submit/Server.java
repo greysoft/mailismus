@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2018 Yusef Badri - All rights reserved.
+ * Copyright 2010-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.submit;
@@ -150,8 +150,9 @@ public final class Server
 	{
 		private final Server prototype;
 
-		public Factory(CM_Listener l, XmlConfig cfg) throws java.io.IOException {
-			prototype = new Server(l, cfg);
+		public Factory(CM_Listener l, Object cfg) throws java.io.IOException {
+			com.grey.base.config.XmlConfig xmlcfg = (com.grey.base.config.XmlConfig)cfg;
+			prototype = new Server(l, xmlcfg);
 		}
 
 		@Override

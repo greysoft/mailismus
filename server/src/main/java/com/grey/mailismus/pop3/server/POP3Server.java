@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2018 Yusef Badri - All rights reserved.
+ * Copyright 2012-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.pop3.server;
@@ -226,9 +226,10 @@ public final class POP3Server
 	{
 		private final POP3Server prototype;
 
-		public Factory(com.grey.naf.reactor.CM_Listener l, com.grey.base.config.XmlConfig cfg)
+		public Factory(com.grey.naf.reactor.CM_Listener l, Object cfg)
 				throws java.security.GeneralSecurityException {
-			prototype = new POP3Server(l, cfg);
+			com.grey.base.config.XmlConfig xmlcfg = (com.grey.base.config.XmlConfig)cfg;
+			prototype = new POP3Server(l, xmlcfg);
 		}
 
 		@Override

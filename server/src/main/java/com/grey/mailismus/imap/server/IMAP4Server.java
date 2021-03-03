@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2018 Yusef Badri - All rights reserved.
+ * Copyright 2013-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.imap.server;
@@ -35,9 +35,10 @@ public final class IMAP4Server
 	{
 		private final IMAP4Server prototype;
 
-		public Factory(com.grey.naf.reactor.CM_Listener l, com.grey.base.config.XmlConfig cfg)
+		public Factory(com.grey.naf.reactor.CM_Listener l, Object cfg)
 			throws java.io.IOException {
-			prototype = new IMAP4Server(l, cfg);
+			com.grey.base.config.XmlConfig xmlcfg = (com.grey.base.config.XmlConfig)cfg;
+			prototype = new IMAP4Server(l, xmlcfg);
 		}
 
 		@Override
