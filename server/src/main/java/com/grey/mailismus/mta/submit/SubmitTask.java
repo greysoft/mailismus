@@ -1,24 +1,28 @@
 /*
- * Copyright 2010-2018 Yusef Badri - All rights reserved.
+ * Copyright 2010-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.submit;
+
+import com.grey.base.config.XmlConfig;
+import com.grey.naf.reactor.Dispatcher;
+import com.grey.naf.reactor.ListenerSet;
+import com.grey.naf.reactor.config.ConcurrentListenerConfig;
 
 public final class SubmitTask
 	extends com.grey.mailismus.mta.MTA_Task
 	implements com.grey.naf.EntityReaper
 {
-	private final com.grey.naf.reactor.ListenerSet listeners;
+	private final ListenerSet listeners;
 
-	public SubmitTask(String name, com.grey.naf.reactor.Dispatcher dsptch, com.grey.base.config.XmlConfig cfg)
+	public SubmitTask(String name, Dispatcher dsptch, XmlConfig cfg)
 			throws java.io.IOException
 	{
 		super(name, dsptch, cfg, DFLT_FACT_DTORY, null, DFLT_FACT_QUEUE);
-		java.util.Map<String,Object> cfgdflts = new java.util.HashMap<>();
-		cfgdflts.put(com.grey.naf.reactor.CM_Listener.CFGMAP_FACTCLASS, Server.Factory.class);
-		cfgdflts.put(com.grey.naf.reactor.CM_Listener.CFGMAP_PORT, Integer.valueOf(com.grey.mailismus.mta.Protocol.TCP_PORT));
-		cfgdflts.put(com.grey.naf.reactor.CM_Listener.CFGMAP_SSLPORT, Integer.valueOf(com.grey.mailismus.mta.Protocol.TCP_SSLPORT));
-		listeners = new com.grey.naf.reactor.ListenerSet("SubmitTask="+getName(), dsptch, this, this, "listeners/listener", taskConfig(), cfgdflts);
+		String grpname = "SubmitTask="+getName();
+		ConcurrentListenerConfig[] lcfg = ListenerSet.makeConfig(grpname, dsptch, "listeners/listener", taskConfig(),
+				com.grey.mailismus.mta.Protocol.TCP_PORT, com.grey.mailismus.mta.Protocol.TCP_SSLPORT, Server.Factory.class);
+		listeners = new ListenerSet(grpname, dsptch, this, this, lcfg);
 		if (listeners.configured() != 0) registerQueueOps(com.grey.mailismus.nafman.Loader.PREF_SHOWQ_SUBMIT);
 	}
 
@@ -41,7 +45,7 @@ public final class SubmitTask
 	@Override
 	public void entityStopped(Object obj)
 	{
-		com.grey.naf.reactor.ListenerSet.class.cast(obj); //make sure it's the expected type
+		ListenerSet.class.cast(obj); //make sure it's the expected type
 		nafletStopped();
 	}
 }

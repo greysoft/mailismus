@@ -500,14 +500,14 @@ public final class Server
 				saslmechs_ext = null;
 			} else {
 				com.grey.base.sasl.ServerFactory fact = new com.grey.base.sasl.ServerFactory(com.grey.base.sasl.SaslEntity.MECH.PLAIN, saslauth, true);
-				saslmechs_plain = new com.grey.base.collections.ObjectWell<com.grey.base.sasl.PlainServer>(null, fact, "SMTP_Plain-"+lstnr.name, 0, 0, 1);
+				saslmechs_plain = new com.grey.base.collections.ObjectWell<com.grey.base.sasl.PlainServer>(null, fact, "SMTP_Plain-"+lstnr.getName(), 0, 0, 1);
 				fact = new com.grey.base.sasl.ServerFactory(com.grey.base.sasl.SaslEntity.MECH.CRAM_MD5, saslauth, true);
-				saslmechs_cmd5 = new com.grey.base.collections.ObjectWell<com.grey.base.sasl.CramMD5Server>(null, fact, "SMTP_CramMD5-"+lstnr.name, 0, 0, 1);
+				saslmechs_cmd5 = new com.grey.base.collections.ObjectWell<com.grey.base.sasl.CramMD5Server>(null, fact, "SMTP_CramMD5-"+lstnr.getName(), 0, 0, 1);
 				fact = new com.grey.base.sasl.ServerFactory(com.grey.base.sasl.SaslEntity.MECH.EXTERNAL, saslauth, true);
-				saslmechs_ext = new com.grey.base.collections.ObjectWell<com.grey.base.sasl.ExternalServer>(null, fact, "SMTP_External-"+lstnr.name, 0, 0, 1);
+				saslmechs_ext = new com.grey.base.collections.ObjectWell<com.grey.base.sasl.ExternalServer>(null, fact, "SMTP_External-"+lstnr.getName(), 0, 0, 1);
 			}
-			addrbufcache = new com.grey.base.collections.ObjectWell<com.grey.base.utils.EmailAddress>(com.grey.base.utils.EmailAddress.class, "SmtpServer-"+lstnr.name);
-			bcwell = new com.grey.base.collections.ObjectWell<com.grey.base.utils.ByteChars>(com.grey.base.utils.ByteChars.class, "SmtpServer-"+lstnr.name);
+			addrbufcache = new com.grey.base.collections.ObjectWell<com.grey.base.utils.EmailAddress>(com.grey.base.utils.EmailAddress.class, "SmtpServer-"+lstnr.getName());
+			bcwell = new com.grey.base.collections.ObjectWell<com.grey.base.utils.ByteChars>(com.grey.base.utils.ByteChars.class, "SmtpServer-"+lstnr.getName());
 		}
 
 		// Required to be generally unique, but not with a 100% guarantee of not reusung the IDs of a prev Mailismus process.
@@ -577,7 +577,7 @@ public final class Server
 	private boolean isFlagSet(byte f) {return ((state2 & f) != 0);}
 
 	@Override
-	public CharSequence nafmanHandlerID() {return getListener().name;}
+	public CharSequence nafmanHandlerID() {return getListener().getName();}
 
 
 	// Prototype constructor.

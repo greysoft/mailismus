@@ -17,7 +17,7 @@ import com.grey.mailismus.mta.deliver.DeliverTask;
 import com.grey.mailismus.mta.reporting.ReportsTask;
 import com.grey.mailismus.mta.submit.SubmitTask;
 import com.grey.mailismus.pop3.client.DownloadTask;
-import com.grey.mailismus.pop3.server.ServerTask;
+import com.grey.mailismus.pop3.server.POP3Task;
 
 public final class HomePage
 	implements NafManRegistry.DefResource.DataGenerator
@@ -81,7 +81,7 @@ public final class HomePage
 		renderHeaderTask(DeliverTask.class, "MTA - SMTP-Client", loader, sb);
 		renderHeaderTask(ReportsTask.class, "MTA - Report-Generator", loader, sb);
 		renderHeaderTask(IMAP4Task.class, "IMAP Server", loader, sb);
-		renderHeaderTask(ServerTask.class, "POP Server", loader, sb);
+		renderHeaderTask(POP3Task.class, "POP Server", loader, sb);
 		renderHeaderTask(DownloadTask.class, "POP Downloader", loader, sb);
 		sb.append("</ul>");
 		return replaceToken(token, sb.toString(), filetxt);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2018 Yusef Badri - All rights reserved.
+ * Copyright 2013-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.pop3;
@@ -12,11 +12,12 @@ import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.DispatcherDef;
 import com.grey.naf.NAFConfig;
 import com.grey.naf.reactor.Dispatcher;
-import com.grey.naf.reactor.CM_Listener;
 import com.grey.naf.reactor.ListenerSet;
+import com.grey.naf.reactor.config.ConcurrentListenerConfig;
 import com.grey.mailismus.Task;
 import com.grey.mailismus.pop3.client.DownloadClient;
 import com.grey.mailismus.pop3.client.DownloadTask;
+import com.grey.mailismus.pop3.server.POP3Server;
 
 public class POP3Test
 	implements com.grey.naf.reactor.TimerNAF.Handler
@@ -158,9 +159,9 @@ public class POP3Test
 		XmlConfig cfg = XmlConfig.makeSection(nafxml_server, "x");
 		com.grey.mailismus.Task stask = new com.grey.mailismus.Task("utest_pop3s", dsptch, cfg, Task.DFLT_FACT_DTORY, Task.DFLT_FACT_MS);
 		if (dotstuffing) DynLoader.setField(stask.getMS(), "dotstuffing", true);
-		java.util.Map<String,Object> cfgdflts = new java.util.HashMap<String,Object>();
-		cfgdflts.put(CM_Listener.CFGMAP_FACTCLASS, com.grey.mailismus.pop3.server.POP3Server.Factory.class);
-		ListenerSet lstnrs = new ListenerSet("utest_pop3s_listeners", dsptch, stask, null, "listeners/listener", stask.taskConfig(), cfgdflts);
+		String grpname = "utest_pop3s_listeners";
+		ConcurrentListenerConfig[] lcfg = ListenerSet.makeConfig(grpname, dsptch, "listeners/listener", stask.taskConfig(), 0, 0, POP3Server.Factory.class);
+		ListenerSet lstnrs = new ListenerSet(grpname, dsptch, stask, null, lcfg);
 		int srvport = (connectfail ? 0 : lstnrs.getListener(sid).getPort());
 
 		// set up the POP3 client
