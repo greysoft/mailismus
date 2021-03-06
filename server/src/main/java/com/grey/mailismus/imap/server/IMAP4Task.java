@@ -20,8 +20,8 @@ public class IMAP4Task
 	{
 		super(name, d, cfg, DFLT_FACT_DTORY, DFLT_FACT_MS);
 		String grpname = "IMAP4Task="+getName();
-		ConcurrentListenerConfig[] lcfg = ListenerSet.makeConfig(grpname, getDispatcher(), "listeners/listener", taskConfig(),
-				IMAP4Protocol.TCP_PORT, IMAP4Protocol.TCP_SSLPORT, IMAP4Server.Factory.class);
+		ConcurrentListenerConfig[] lcfg = ConcurrentListenerConfig.buildMultiConfig(grpname, getDispatcher(), "listeners/listener", taskConfig(),
+				IMAP4Protocol.TCP_PORT, IMAP4Protocol.TCP_SSLPORT, IMAP4Server.Factory.class, null);
 		listeners = new ListenerSet(grpname, getDispatcher(), this, this, lcfg);
 		if (listeners.configured() != 0) registerDirectoryOps(com.grey.mailismus.nafman.Loader.PREF_DTORY_IMAP4S);
 	}

@@ -160,7 +160,7 @@ public class POP3Test
 		com.grey.mailismus.Task stask = new com.grey.mailismus.Task("utest_pop3s", dsptch, cfg, Task.DFLT_FACT_DTORY, Task.DFLT_FACT_MS);
 		if (dotstuffing) DynLoader.setField(stask.getMS(), "dotstuffing", true);
 		String grpname = "utest_pop3s_listeners";
-		ConcurrentListenerConfig[] lcfg = ListenerSet.makeConfig(grpname, dsptch, "listeners/listener", stask.taskConfig(), 0, 0, POP3Server.Factory.class);
+		ConcurrentListenerConfig[] lcfg = ConcurrentListenerConfig.buildMultiConfig(grpname, dsptch, "listeners/listener", stask.taskConfig(), 0, 0, POP3Server.Factory.class, null);
 		ListenerSet lstnrs = new ListenerSet(grpname, dsptch, stask, null, lcfg);
 		int srvport = (connectfail ? 0 : lstnrs.getListener(sid).getPort());
 

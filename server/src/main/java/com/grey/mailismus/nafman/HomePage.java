@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2018 Yusef Badri - All rights reserved.
+ * Copyright 2013-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.nafman;
@@ -42,7 +42,7 @@ public final class HomePage
 
 	//this method will only get called in the NAFMAN-Primary thread, so no MT issues
 	@Override
-	public byte[] generateResourceData(NafManRegistry.DefResource def, Dispatcher d)
+	public byte[] generateResourceData(Dispatcher d)
 		throws java.io.IOException
 	{
 		if (rspdata != null) return rspdata;
