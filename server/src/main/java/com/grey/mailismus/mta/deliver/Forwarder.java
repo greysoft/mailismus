@@ -192,8 +192,8 @@ public final class Forwarder
 				+", Error="+TimeOps.expandMilliTime(interval_err)
 				+" - Start-Delay="+TimeOps.expandMilliTime(delay_start));
 
-		if (dsptch.getAgent() != null) {
-			com.grey.naf.nafman.NafManRegistry reg = dsptch.getAgent().getRegistry();
+		if (dsptch.getNafManAgent() != null) {
+			com.grey.naf.nafman.NafManRegistry reg = dsptch.getNafManAgent().getRegistry();
 			reg.registerHandler(com.grey.mailismus.nafman.Loader.CMD_COUNTERS, 0, this, dsptch);
 			reg.registerHandler(com.grey.mailismus.nafman.Loader.CMD_SENDQ, 0, this, dsptch);
 		}

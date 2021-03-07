@@ -199,7 +199,7 @@ public final class IMAP4Server
 		cmdSearch = null;
 		String stem = "IMAP-Server";
 		pfx_log = stem+"/E"+getCMID();
-		String pfx = stem+(getSSLConfig() == null || getSSLConfig().latent ? "" : "/SSL")+": ";
+		String pfx = stem+(getSSLConfig() == null || getSSLConfig().isLatent() ? "" : "/SSL")+": ";
 		Task task = Task.class.cast(getListener().getController());
 		shared = new SharedFields(cfg, getDispatcher(), task, this, getSSLConfig(), pfx);
 		String txt = (shared.authtypes_ssl.size() == 0 ? null : shared.authtypes_ssl.size()+"/"+shared.authtypes_ssl);

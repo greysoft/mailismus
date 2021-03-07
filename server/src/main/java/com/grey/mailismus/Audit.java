@@ -54,9 +54,9 @@ public final class Audit
 				.build();
 		audlog = Factory.getLogger(params, name);
 		if (dsptch != null) {
-			if (dsptch.getAgent() != null) {
+			if (dsptch.getNafManAgent() != null) {
 				String rsrc = NafManRegistry.RSRC_PLAINTEXT;
-				NafManRegistry reg = dsptch.getAgent().getRegistry();
+				NafManRegistry reg = dsptch.getNafManAgent().getRegistry();
 				reg.registerDynamicCommand(Loader.CMDSTEM_DUMPAUDIT+id, this, dsptch, "Mailismus-Audit", rsrc, true, "Display audit log for "+id);
 			}
 			dsptch.getFlusher().register(audlog);

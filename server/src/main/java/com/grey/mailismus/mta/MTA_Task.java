@@ -34,8 +34,8 @@ public class MTA_Task
 
 	public void registerQueueOps(int pref)
 	{
-		if (getDispatcher().getAgent() == null) return;
-		NafManRegistry reg = getDispatcher().getAgent().getRegistry();
+		if (getDispatcher().getNafManAgent() == null) return;
+		NafManRegistry reg = getDispatcher().getNafManAgent().getRegistry();
 		if (getQueue() != null && getQueue().supportsShow()) {
 			reg.registerHandler(Loader.CMD_LISTQ, pref, this, getDispatcher());
 		}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2018 Yusef Badri - All rights reserved.
+ * Copyright 2010-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.deliver;
@@ -9,6 +9,7 @@ import com.grey.mailismus.Task;
 import com.grey.mailismus.errors.MailismusConfigException;
 import com.grey.mailismus.errors.MailismusException;
 import com.grey.mailismus.mta.Protocol;
+import com.grey.naf.SSLConfig;
 import com.grey.base.utils.FileOps;
 import com.grey.base.utils.ByteArrayRef;
 import com.grey.base.utils.EmailAddress;
@@ -70,8 +71,7 @@ final class Client
 		final java.nio.ByteBuffer reqbuf_ehlo;
 
 		public ConnectionConfig(int id, com.grey.base.config.XmlConfig cfg, SharedFields common, ConnectionConfig dflts,
-				com.grey.naf.reactor.Dispatcher dsptch, String logpfx)
-				throws java.net.UnknownHostException, java.io.IOException, java.security.GeneralSecurityException
+				com.grey.naf.reactor.Dispatcher dsptch, String logpfx) throws java.io.IOException
 		{
 			String label = logpfx+"remotenets #"+id+" connection config";
 			if (id == 0) {
@@ -90,7 +90,14 @@ final class Client
 			awaitQUIT = (sendQUIT ? cfg.getBool("waitQUIT", dflts==null ? true : dflts.awaitQUIT) : false);
 
 			com.grey.base.config.XmlConfig sslcfg = cfg.getSection("anonssl");
-			anonssl = com.grey.naf.SSLConfig.create(sslcfg, dsptch.getApplicationContext().getConfig(), null, true);
+			if (sslcfg == null || !sslcfg.exists()) {
+				anonssl = null;
+			} else {
+				anonssl = new SSLConfig.Builder()
+						.withIsClient(true)
+						.withXmlConfig(sslcfg, dsptch.getApplicationContext().getConfig())
+						.build();
+			}
 
 			// ESMTP settings
 			int _max_pipe = cfg.getInt("maxpipeline", false, dflts==null ? 25 : dflts.max_pipe);
@@ -123,7 +130,7 @@ final class Client
 			dsptch.getLogger().info(pfx+"Announce="+announcehost
 					+ "; sayHELO="+sayHELO+"; fallbackHELO="+fallbackHELO
 					+ "; sendQUIT="+sendQUIT + "; waitQUIT="+awaitQUIT);
-			if (anonssl != null) anonssl.declare(pfx, dsptch.getLogger());
+			if (anonssl != null) dsptch.getLogger().info(pfx+anonssl);
 			dsptch.getLogger().info(pfx+"timeout="+com.grey.base.utils.TimeOps.expandMilliTime(tmtprotocol)
 					+"; mindatarate="+commafmt.format(minrate_data)+" bps"
 					+"; pipelining-max="+max_pipe);
@@ -173,7 +180,7 @@ final class Client
 
 		public SharedFields(com.grey.base.config.XmlConfig cfg, com.grey.naf.reactor.Dispatcher dsptch,
 				Delivery.Controller ctl, Client proto, String logpfx, int maxconns)
-			throws java.net.UnknownHostException, java.io.IOException, java.security.GeneralSecurityException
+			throws java.io.IOException, java.security.GeneralSecurityException
 		{
 			prototype_client = proto;
 			controller = ctl;
@@ -976,7 +983,7 @@ final class Client
 				if (isFlagSet(S2_SERVER_STLS)) {
 					return issueAction(PROTO_ACTION.A_STLS, PROTO_STATE.S_STLS);
 				}
-				if (activessl.mdty) {
+				if (activessl.isMandatory()) {
 					return issueDisconnect(Protocol.REPLYCODE_NOSSL, "Server doesn't support required SSL mode", FAILMSG_NOSSL);
 				}
 			}

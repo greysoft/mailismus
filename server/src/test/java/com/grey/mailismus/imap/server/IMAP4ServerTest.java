@@ -44,8 +44,7 @@ public class IMAP4ServerTest
 	private int reqnum;
 
 	@org.junit.Test
-	public void testSuite() throws java.io.IOException,
-		java.net.URISyntaxException, java.security.GeneralSecurityException
+	public void testSuite() throws Exception
 	{
 		startServer();
 		// do some tests which create independent connections

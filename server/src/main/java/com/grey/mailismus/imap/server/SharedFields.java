@@ -173,7 +173,7 @@ final class SharedFields
 		java.util.ArrayList<IMAP4Protocol.AUTHTYPE> atypeslst = new java.util.ArrayList<IMAP4Protocol.AUTHTYPE>(java.util.Arrays.asList(IMAP4Protocol.AUTHTYPE.values()));
 		if (!dtory.supportsPasswordLookup()) atypeslst.remove(IMAP4Protocol.AUTHTYPE.SASL_CRAM_MD5);
 		authtypes_enabled = configureAuthTypes("authtypes", cfg, true, atypeslst, null, dtory.supportsPasswordLookup(), logpfx);
-		if (sslcfg == null || (sslcfg.latent && !sslcfg.mdty)) {
+		if (sslcfg == null || (sslcfg.isLatent() && !sslcfg.isMandatory())) {
 			if (sslcfg == null) {
 				atypeslst.remove(IMAP4Protocol.AUTHTYPE.LOGIN);
 				atypeslst.remove(IMAP4Protocol.AUTHTYPE.SASL_PLAIN);

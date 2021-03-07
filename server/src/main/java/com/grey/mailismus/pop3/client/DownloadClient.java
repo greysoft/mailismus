@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2018 Yusef Badri - All rights reserved.
+ * Copyright 2012-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.pop3.client;
@@ -14,6 +14,7 @@ import com.grey.base.utils.IP;
 import com.grey.base.config.XmlConfig;
 import com.grey.mailismus.Task;
 import com.grey.mailismus.pop3.POP3Protocol;
+import com.grey.naf.SSLConfig;
 import com.grey.mailismus.mta.queue.QueueFactory;
 import com.grey.mailismus.errors.MailismusConfigException;
 import com.grey.mailismus.errors.MailismusException;
@@ -184,8 +185,7 @@ public class DownloadClient
 	protected com.grey.naf.SSLConfig getSSLConfig() {return sslconfig;}
 
 	public DownloadClient(com.grey.naf.reactor.Dispatcher d, DownloadClient.Common commondefs, XmlConfig cfg,
-							String id, int srvport, boolean record_results)
-			throws java.io.IOException, java.security.GeneralSecurityException
+							String id, int srvport, boolean record_results) throws java.io.IOException
 	{
 		super(d, commondefs.bufspec, commondefs.bufspec);
 		common = commondefs;
@@ -214,9 +214,17 @@ public class DownloadClient
 		remotepass = new com.grey.base.utils.ByteChars(servercfg.getValue("password", false, ""));
 		// construct SSL config, which potentially depends on server details
 		XmlConfig sslcfg = cfg.getSection("ssl");
-		sslconfig = com.grey.naf.SSLConfig.create(sslcfg, getDispatcher().getApplicationContext().getConfig(), srvname, true);
+		if (sslcfg == null || !sslcfg.exists()) {
+			sslconfig = null;
+		} else {
+			sslconfig = new SSLConfig.Builder()
+					.withPeerCertName(srvname)
+					.withIsClient(true)
+					.withXmlConfig(sslcfg, getDispatcher().getApplicationContext().getConfig())
+					.build();
+		}
 		// and finalise the server address, which depends on our SSL mode
-		srvaddr = com.grey.base.utils.TSAP.build(srvname, sslconfig == null || sslconfig.latent ? POP3Protocol.TCP_PORT : POP3Protocol.TCP_SSLPORT, true);
+		srvaddr = com.grey.base.utils.TSAP.build(srvname, sslconfig == null || sslconfig.isLatent() ? POP3Protocol.TCP_PORT : POP3Protocol.TCP_SSLPORT, true);
 		if (srvport != 0) srvaddr.set(srvaddr.ip, srvport, true);
 
 		String dlm = "|";
@@ -287,7 +295,7 @@ public class DownloadClient
 				+"; runs="+(maxruns==0?"unlimited":maxruns)
 				+"; auth="+authtypes.length+"/"+authlst+"/initrsp="+isConfig(CFG_SASLINITRSP));
 		if (isConfig(CFG_SMTPMODE)) getLogger().info(pfx_log+": SMTP "+smtp_sender+" => "+smtp_recips);
-		if (sslconfig != null) sslconfig.declare(pfx_log+": ", getLogger());
+		if (sslconfig != null) getLogger().info(pfx_log+": "+sslconfig);
 		getLogger().info(pfx_log+": preserve-messages="+isConfig(CFG_PRESERVEMSGS)
 				+"; omit-rcvhdr="+isConfig(CFG_OMITRCVHDR));
 	}

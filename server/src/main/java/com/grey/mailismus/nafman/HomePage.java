@@ -48,7 +48,7 @@ public final class HomePage
 		if (rspdata != null) return rspdata;
 		java.net.URL url = DynLoader.getResource("home.htm", getClass());
 		if (url == null) return null;
-		NafManRegistry reg = d.getAgent().getRegistry();
+		NafManRegistry reg = d.getNafManAgent().getRegistry();
 		Loader loader = Loader.get(d.getApplicationContext());
 
 		java.io.InputStream strm = url.openStream();

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2018 Yusef Badri - All rights reserved.
+ * Copyright 2012-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.deliver;
@@ -9,6 +9,7 @@ import com.grey.base.utils.EmailAddress;
 import com.grey.base.utils.IP;
 import com.grey.base.utils.TSAP;
 import com.grey.mailismus.errors.MailismusConfigException;
+import com.grey.naf.SSLConfig;
 
 /*
  * This class specifies the connection details for a remote SMTP server we use as a relay for specific domains.
@@ -108,10 +109,14 @@ public final class Relay
 		}
 
 		com.grey.base.config.XmlConfig sslcfg = cfg.getSection("ssl");
-		try {
-			sslconfig = com.grey.naf.SSLConfig.create(sslcfg, nafcfg, ipspec, true);
-		} catch (java.security.GeneralSecurityException ex) {
-			throw new MailismusConfigException("Failed to configure SSL for relay="+tsap, ex);
+		if (sslcfg == null || !sslcfg.exists()) {
+			sslconfig = null;
+		} else {
+			sslconfig = new SSLConfig.Builder()
+					.withPeerCertName(ipspec)
+					.withIsClient(true)
+					.withXmlConfig(sslcfg, nafcfg)
+					.build();
 		}
 
 		String txt = "SMTP-"+(interceptor ? "Interceptor"+(dns_only?"/DNS":"") : "Relay")+"=";
@@ -130,7 +135,7 @@ public final class Relay
 			if (auth_enabled) {
 				log.info(indent+"Authenticate with override="+auth_override+"/initrsp="+auth_initrsp+(auth_compat?"/compat="+true:""));
 			}
-			if (sslconfig != null) sslconfig.declare(indent, log);
+			if (sslconfig != null) log.info(indent+sslconfig);
 		}
 	}
 }

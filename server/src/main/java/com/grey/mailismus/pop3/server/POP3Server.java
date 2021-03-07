@@ -144,7 +144,7 @@ public final class POP3Server
 				authtypes_enabled.remove(POP3Protocol.AUTHTYPE.SASL_CRAM_MD5);
 				authtypes_enabled.remove(POP3Protocol.AUTHTYPE.APOP);
 			}
-			if (sslcfg == null || (sslcfg.latent && !sslcfg.mdty)) {
+			if (sslcfg == null || (sslcfg.isLatent() && !sslcfg.isMandatory())) {
 				POP3Protocol.AUTHTYPE[] sslonly = new POP3Protocol.AUTHTYPE[]{POP3Protocol.AUTHTYPE.SASL_EXTERNAL, POP3Protocol.AUTHTYPE.SASL_PLAIN};
 				if (sslcfg == null) sslonly[1] = null;
 				authtypes_ssl = configureAuthTypes("authtypes_ssl", cfg, false, sslonly, authtypes_enabled, logpfx);
@@ -268,7 +268,7 @@ public final class POP3Server
 		super(l, null, null);
 		String stem = "POP3-Server";
 		pfx_log = stem+"/E"+getCMID();
-		String pfx = stem+(getSSLConfig() == null || getSSLConfig().latent ? "" : "/SSL")+": ";
+		String pfx = stem+(getSSLConfig() == null || getSSLConfig().isLatent() ? "" : "/SSL")+": ";
 		shared = new SharedFields(cfg, getDispatcher(), com.grey.mailismus.Task.class.cast(getListener().getController()), this, getSSLConfig(), pfx);
 		apopToken = null;
 		String txt = (shared.authtypes_ssl.size() == 0 ? null : shared.authtypes_ssl.size()+"/"+shared.authtypes_ssl);

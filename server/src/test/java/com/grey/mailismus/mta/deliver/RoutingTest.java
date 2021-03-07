@@ -94,8 +94,8 @@ public class RoutingTest
 		org.junit.Assert.assertEquals(IP.IP_LOCALHOST, rly.tsap.ip);
 		org.junit.Assert.assertEquals(Protocol.TCP_PORT, rly.tsap.port);
 		org.junit.Assert.assertNotNull(rly.sslconfig);
-		org.junit.Assert.assertFalse(rly.sslconfig.latent);
-		org.junit.Assert.assertFalse(rly.sslconfig.mdty);
+		org.junit.Assert.assertFalse(rly.sslconfig.isLatent());
+		org.junit.Assert.assertFalse(rly.sslconfig.isMandatory());
 		org.junit.Assert.assertNull(rly.senders);
 	}
 

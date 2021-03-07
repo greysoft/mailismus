@@ -232,7 +232,7 @@ public final class Server
 			ext_8bitmime = cfg.getBool("ext8BITMIME", dfltcfg==null ? false : dfltcfg.ext_8bitmime);
 			ext_pipeline = cfg.getBool("extPIPELINING", dfltcfg==null ? true : dfltcfg.ext_pipeline);
 			ext_size = cfg.getBool("extSIZE", dfltcfg==null ? true : dfltcfg.ext_size);
-			ext_stls = cfg.getBool("extSTARTTLS", dfltcfg==null ? sslcfg != null && sslcfg.latent : dfltcfg.ext_stls);
+			ext_stls = cfg.getBool("extSTARTTLS", dfltcfg==null ? sslcfg != null && sslcfg.isLatent() : dfltcfg.ext_stls);
 
 			if (common.dtory == null) {
 				authtypes_enabled = new java.util.HashSet<com.grey.base.sasl.SaslEntity.MECH>();
@@ -240,7 +240,7 @@ public final class Server
 				authtypes_enabled = configureAuthTypes("authtypes", cfg, dfltcfg == null?null:dfltcfg.authtypes_enabled, null, logpfx);
 				if (!common.dtory.supportsPasswordLookup()) authtypes_enabled.remove(com.grey.base.sasl.SaslEntity.MECH.CRAM_MD5);
 			}
-			if (sslcfg == null || (sslcfg.latent && !sslcfg.mdty)) {
+			if (sslcfg == null || (sslcfg.isLatent() && !sslcfg.isMandatory())) {
 				java.util.HashSet<com.grey.base.sasl.SaslEntity.MECH> sslonly =
 								(dfltcfg == null || dfltcfg.authtypes_enabled.size() == 0 ? null : dfltcfg.authtypes_ssl);
 				if (sslonly == null) {
@@ -590,7 +590,7 @@ public final class Server
 		super(l, null, null);
 		String stem = "SMTP-Server";
 		pfx_log = stem+"/E"+getCMID();
-		String pfx = stem+(getSSLConfig() == null || getSSLConfig().latent ? "" : "/SSL")+": ";
+		String pfx = stem+(getSSLConfig() == null || getSSLConfig().isLatent() ? "" : "/SSL")+": ";
 		MTA_Task task = MTA_Task.class.cast(getListener().getController());
 		shared = new SharedFields(cfg, getDispatcher(), task, this, getListener(), getSSLConfig(), pfx);
 		com.grey.logging.Logger log = getLogger();
@@ -612,8 +612,8 @@ public final class Server
 				+"; require-CRLF="+REQUIRE_CRLF);
 		getLogger().info(pfx+"Declare self as '"+shared.appConfig.getProductName());
 
-		if (getDispatcher().getAgent() != null) {
-			com.grey.naf.nafman.NafManRegistry reg = getDispatcher().getAgent().getRegistry();
+		if (getDispatcher().getNafManAgent() != null) {
+			com.grey.naf.nafman.NafManRegistry reg = getDispatcher().getNafManAgent().getRegistry();
 			task.registerDirectoryOps(com.grey.mailismus.nafman.Loader.PREF_DTORY_SMTPS);
 			reg.registerHandler(com.grey.mailismus.nafman.Loader.CMD_COUNTERS, 0, this, getDispatcher());
 			if (shared.greylst != null) {
@@ -1236,7 +1236,7 @@ public final class Server
 
 		case E_MAILFROM:
 			// start of new message
-			if (!usingSSL() && getSSLConfig() != null && getSSLConfig().mdty) {
+			if (!usingSSL() && getSSLConfig() != null && getSSLConfig().isMandatory()) {
 				transitionState(PROTO_STATE.S_IDLE);
 				transmit(shared.smtprsp_needssl);
 				break;

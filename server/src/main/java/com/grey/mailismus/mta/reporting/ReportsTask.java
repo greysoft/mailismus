@@ -176,8 +176,8 @@ public final class ReportsTask
 				+", High="+TimeOps.expandMilliTime(interval_high)
 				+", Error="+TimeOps.expandMilliTime(interval_err));
 
-		if (getDispatcher().getAgent() != null) {
-			com.grey.naf.nafman.NafManRegistry reg = getDispatcher().getAgent().getRegistry();
+		if (getDispatcher().getNafManAgent() != null) {
+			com.grey.naf.nafman.NafManRegistry reg = getDispatcher().getNafManAgent().getRegistry();
 			reg.registerHandler(com.grey.mailismus.nafman.Loader.CMD_COUNTERS, 0, this, getDispatcher());
 		}
 	}

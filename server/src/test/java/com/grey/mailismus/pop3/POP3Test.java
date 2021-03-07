@@ -47,7 +47,7 @@ public class POP3Test
 	private boolean dsptch_failed;
 
 	@org.junit.Test
-	public void testLogin_UserPass() throws java.io.IOException, java.security.GeneralSecurityException
+	public void testLogin_UserPass() throws Exception
 	{
 		DownloadClient.Results results = runtest("userpass", SRVID_STD);
 		org.junit.Assert.assertTrue(results.completed_ok);
@@ -64,7 +64,7 @@ public class POP3Test
 	}
 
 	@org.junit.Test
-	public void testLogin_APOP() throws java.io.IOException, java.security.GeneralSecurityException
+	public void testLogin_APOP() throws Exception
 	{
 		DownloadClient.Results results = runtest("apop", SRVID_STD);
 		org.junit.Assert.assertTrue(results.completed_ok);
@@ -74,7 +74,7 @@ public class POP3Test
 	}
 
 	@org.junit.Test
-	public void testLogin_SaslPlain() throws java.io.IOException, java.security.GeneralSecurityException
+	public void testLogin_SaslPlain() throws Exception
 	{
 		DownloadClient.Results results = runtest("ssl_sasl_plain", SRVID_STD);
 		org.junit.Assert.assertTrue(results.completed_ok);
@@ -90,7 +90,7 @@ public class POP3Test
 	}
 
 	@org.junit.Test
-	public void testLogin_SaslCramMD5() throws java.io.IOException, java.security.GeneralSecurityException
+	public void testLogin_SaslCramMD5() throws Exception
 	{
 		DownloadClient.Results results = runtest("sasl_crammd5", SRVID_STD);
 		org.junit.Assert.assertTrue(results.completed_ok);
@@ -100,7 +100,7 @@ public class POP3Test
 	}
 
 	@org.junit.Test
-	public void testLogin_SaslExternal() throws java.io.IOException, java.security.GeneralSecurityException
+	public void testLogin_SaslExternal() throws Exception
 	{
 		DownloadClient.Results results = runtest("ssl_sasl_external", SRVID_STD);
 		org.junit.Assert.assertTrue(results.completed_ok);
@@ -113,7 +113,7 @@ public class POP3Test
 	}
 
 	@org.junit.Test
-	public void testDownload() throws java.io.IOException, java.security.GeneralSecurityException
+	public void testDownload() throws Exception
 	{
 		String[] msgs = new String[]{"Message-ID: msgid1\r\nFrom: from1\r\nSender: sender1\r\nMessage 1\r\n",
 				"Message 2\r\nLine 2\r\n..Line 3\r\n...Line 4\r\n",
@@ -125,7 +125,7 @@ public class POP3Test
 	}
 
 	@org.junit.Test
-	public void testLogin_fallback() throws java.io.IOException, java.security.GeneralSecurityException
+	public void testLogin_fallback() throws Exception
 	{
 		String[] msgs = new String[]{"Message 1\n",
 			"Message 2\n"};
@@ -134,7 +134,7 @@ public class POP3Test
 	}
 
 	@org.junit.Test
-	public void testLogin_connectfail() throws java.io.IOException, java.security.GeneralSecurityException
+	public void testLogin_connectfail() throws Exception
 	{
 		DownloadClient.Results results = runtest("userpass", SRVID_STD, null, false, true);
 		org.junit.Assert.assertFalse(results.completed_ok);

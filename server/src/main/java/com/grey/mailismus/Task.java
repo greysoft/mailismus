@@ -82,8 +82,8 @@ public class Task
 
 	public void registerDirectoryOps(int pref)
 	{
-		if (getDirectory() == null || getDispatcher().getAgent() == null) return;
-		NafManRegistry reg = getDispatcher().getAgent().getRegistry();
+		if (getDirectory() == null || getDispatcher().getNafManAgent() == null) return;
+		NafManRegistry reg = getDispatcher().getNafManAgent().getRegistry();
 		reg.registerHandler(Loader.CMD_DTORY_RELOAD, pref, this, getDispatcher());
 		reg.registerHandler(Loader.CMD_DTORY_ALIAS, pref, this, getDispatcher());
 	}
