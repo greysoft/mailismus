@@ -14,6 +14,7 @@ import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.dns.resolver.PacketDNS;
 import com.grey.naf.dns.resolver.ResolverDNS;
 import com.grey.naf.dns.resolver.ResourceData;
+import com.grey.naf.dns.server.DnsServerConfig;
 
 public class MockServerDNS
 	implements com.grey.naf.dns.server.ServerDNS.DNSQuestionResolver
@@ -34,7 +35,10 @@ public class MockServerDNS
 				.withSurviveHandlers(false)
 				.build();
 		Dispatcher dsptch = Dispatcher.create(appctx, def, logger); //pass in null logger to get logging output
-		srvr = new com.grey.naf.dns.server.ServerDNS(this, dsptch, "127.0.0.1", 0);
+
+		DnsServerConfig.Builder bldr = new DnsServerConfig.Builder();
+		bldr.getListenerConfig().withPort(0).withInterface("127.0.0.1");
+		srvr = new com.grey.naf.dns.server.ServerDNS(dsptch, this, bldr.build());
 	}
 
 	public void start() throws java.io.IOException {
