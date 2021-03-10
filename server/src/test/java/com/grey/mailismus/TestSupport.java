@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2018 Yusef Badri - All rights reserved.
+ * Copyright 2012-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus;
@@ -8,7 +8,9 @@ import com.grey.base.config.SysProps;
 import com.grey.base.utils.DynLoader;
 import com.grey.base.utils.FileOps;
 import com.grey.base.ExceptionUtils;
+import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.NAFConfig;
+import com.grey.naf.nafman.NafManConfig;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.mailismus.errors.MailismusConfigException;
 
@@ -22,8 +24,7 @@ public class TestSupport
 	public static boolean HAVE_DBDRIVERS = true; //true means we may have the drivers, false means we definitely don't
 	private static DBHandle.Type setup_dbtype;
 
-	public static String initPaths(Class<?> clss)
-	{
+	public static String initPaths(Class<?> clss) {
 		String rootpath = SysProps.TMPDIR+"/utest/mailismus/"+clss.getPackage().getName()+"/"+clss.getSimpleName();
 		SysProps.set(NAFConfig.SYSPROP_DIRPATH_ROOT, rootpath);
 		SysProps.set(NAFConfig.SYSPROP_DIRPATH_CONF, null);
@@ -38,15 +39,28 @@ public class TestSupport
 		return rootpath;
 	}
 
-	public static void setTime(Dispatcher d, long millisecs)
-	{
+	public static ApplicationContextNAF createApplicationContext(String name, String cfgpath, boolean withNafman) {
+		NAFConfig nafcfg = new NAFConfig.Builder().withConfigFile(cfgpath).build();
+		return createApplicationContext(name, nafcfg, withNafman);
+	}
+
+	public static ApplicationContextNAF createApplicationContext(String name, boolean withNafman) {
+		NAFConfig nafcfg = new NAFConfig.Builder().withBasePort(NAFConfig.RSVPORT_ANON).build();
+		return createApplicationContext(name, nafcfg, withNafman);
+	}
+
+	public static ApplicationContextNAF createApplicationContext(String name, NAFConfig nafcfg, boolean withNafman) {
+		NafManConfig nafmanConfig = (withNafman ? new NafManConfig.Builder(nafcfg).build() : null);
+		return ApplicationContextNAF.create(name, nafcfg, nafmanConfig);
+	}
+
+	public static void setTime(Dispatcher d, long millisecs) {
 		DynLoader.setField(d, "systime_msecs", millisecs);
 	}
 
 	// NB: The concept of mapping a resource URL to a File is inherently flawed, but this utility works
 	// beecause the resources we're looking up are in the same build tree.
-	public static String getResourcePath(String path, Class<?> clss) throws java.io.IOException, java.net.URISyntaxException
-	{
+	public static String getResourcePath(String path, Class<?> clss) throws java.io.IOException, java.net.URISyntaxException {
 		java.net.URL url = DynLoader.getResource(path, clss);
 		if (url == null) return null;
 		return new java.io.File(url.toURI()).getCanonicalPath();

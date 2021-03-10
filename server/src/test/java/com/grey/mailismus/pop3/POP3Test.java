@@ -15,6 +15,7 @@ import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.ListenerSet;
 import com.grey.naf.reactor.config.ConcurrentListenerConfig;
 import com.grey.mailismus.Task;
+import com.grey.mailismus.TestSupport;
 import com.grey.mailismus.pop3.client.DownloadClient;
 import com.grey.mailismus.pop3.client.DownloadTask;
 import com.grey.mailismus.pop3.server.POP3Server;
@@ -42,7 +43,7 @@ public class POP3Test
 
 	private static final String SIZEPFX = "Size=";
 
-	private static final ApplicationContextNAF appctx = ApplicationContextNAF.create("POP3Test");
+	private static final ApplicationContextNAF appctx = TestSupport.createApplicationContext("POP3Test", true);
 	private Dispatcher dsptch;
 	private boolean dsptch_failed;
 
@@ -160,7 +161,7 @@ public class POP3Test
 		com.grey.mailismus.Task stask = new com.grey.mailismus.Task("utest_pop3s", dsptch, cfg, Task.DFLT_FACT_DTORY, Task.DFLT_FACT_MS);
 		if (dotstuffing) DynLoader.setField(stask.getMS(), "dotstuffing", true);
 		String grpname = "utest_pop3s_listeners";
-		ConcurrentListenerConfig[] lcfg = ConcurrentListenerConfig.buildMultiConfig(grpname, dsptch, "listeners/listener", stask.taskConfig(), 0, 0, POP3Server.Factory.class, null);
+		ConcurrentListenerConfig[] lcfg = ConcurrentListenerConfig.buildMultiConfig(grpname, appctx.getConfig(), "listeners/listener", stask.taskConfig(), 0, 0, POP3Server.Factory.class, null);
 		ListenerSet lstnrs = new ListenerSet(grpname, dsptch, stask, null, lcfg);
 		int srvport = (connectfail ? 0 : lstnrs.getListener(sid).getPort());
 

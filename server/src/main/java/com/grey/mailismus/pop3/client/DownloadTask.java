@@ -1,10 +1,11 @@
 /*
- * Copyright 2012-2018 Yusef Badri - All rights reserved.
+ * Copyright 2012-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.pop3.client;
 
 import com.grey.base.utils.TimeOps;
+import com.grey.logging.Logger;
 import com.grey.base.config.XmlConfig;
 import com.grey.mailismus.errors.MailismusConfigException;
 
@@ -19,6 +20,7 @@ public class DownloadTask
 									= new com.grey.base.collections.HashedSet<com.grey.naf.reactor.TimerNAF>();
 	private final DownloadClient.Common clientDefs;
 	private final com.grey.naf.EntityReaper observer;
+	private final Logger logger;
 	private boolean inShutdown;
 
 	public DownloadTask(String name, com.grey.naf.reactor.Dispatcher d, XmlConfig cfg)
@@ -32,11 +34,12 @@ public class DownloadTask
 			throws java.io.IOException, java.security.GeneralSecurityException
 	{
 		super(name, d, cfg, DFLT_FACT_DTORY, DFLT_FACT_MS);
+		logger = d.getLogger();
 		observer = r;
 		com.grey.base.config.XmlConfig taskcfg = taskConfig();
 		XmlConfig[] clientcfg = taskcfg.getSections("clients/client"+XmlConfig.XPATH_ENABLED);
 		if (clientcfg == null) {
-			getLogger().warn("POP3-Download: No clients defined");
+			logger.warn("POP3-Download: No clients defined");
 			clientDefs = null;
 			abortOnStartup();
 			return;
@@ -54,7 +57,7 @@ public class DownloadTask
 			DownloadClient client = new DownloadClient(getDispatcher(), clientDefs, clientcfg[idx], id, srvport, observer != null);
 			scheduleClient(client, delay);
 		}
-		getLogger().info("POP3-Download: Scheduled clients="+idset.size()+" with delay="+TimeOps.expandMilliTime(delay));
+		logger.info("POP3-Download: Scheduled clients="+idset.size()+" with delay="+TimeOps.expandMilliTime(delay));
 		registerDirectoryOps(com.grey.mailismus.nafman.Loader.PREF_DTORY_POP3C);
 	}
 
@@ -71,7 +74,7 @@ public class DownloadTask
 		for (int idx = 0; idx != timers.size(); idx++) {
 			timers.get(idx).cancel();
 		}
-		getLogger().info("POP3-Download: Stopped clients="+clients.size()+", Timers="+timers.size());
+		logger.info("POP3-Download: Stopped clients="+clients.size()+", Timers="+timers.size());
 		if (done) stopped();
 		return done;
 	}
@@ -79,7 +82,7 @@ public class DownloadTask
 	private void stopped()
 	{
 		if (clientDefs != null) clientDefs.stop(getDispatcher());
-		getLogger().info("POP3-Download: Shutdown completed");
+		logger.info("POP3-Download: Shutdown completed");
 	}
 
 	@Override
@@ -95,10 +98,10 @@ public class DownloadTask
 		if (!active) return;
 
 		if (client.getRunCount() == client.maxruns) {
-			getLogger().info("POP3-Download: Halting client="+client.client_id+" as it has completed configured runs="+client.maxruns);
+			logger.info("POP3-Download: Halting client="+client.client_id+" as it has completed configured runs="+client.maxruns);
 			if (activeTimers.size() == 0) {
 				//... and we have no remaining scheduled clients, so we're done
-				getLogger().info("POP3-Download: Halting as no scheduled clients remain");
+				logger.info("POP3-Download: Halting as no scheduled clients remain");
 				stop();
 			}
 			return;

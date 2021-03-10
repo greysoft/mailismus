@@ -154,7 +154,7 @@ public class RoutingTest
 	}
 
 	private static Routing parseRouting(String cfgxml, boolean slaverelay, boolean havedflt, boolean intercept) throws java.io.IOException {
-		NAFConfig nafcfg = NAFConfig.load(new NAFConfig.Defs(NAFConfig.RSVPORT_ANON));
+		NAFConfig nafcfg = new NAFConfig.Builder().withBasePort(NAFConfig.RSVPORT_ANON).build();
 		XmlConfig cfg = XmlConfig.makeSection(cfgxml, "relays");
 		Routing rt = new Routing(cfg, nafcfg, null);
 		org.junit.Assert.assertEquals(slaverelay, rt.modeSlaveRelay());

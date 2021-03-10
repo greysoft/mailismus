@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2018 Yusef Badri - All rights reserved.
+ * Copyright 2010-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.reporting;
@@ -8,6 +8,7 @@ import com.grey.base.utils.ByteChars;
 import com.grey.base.utils.FileOps;
 import com.grey.base.utils.StringOps;
 import com.grey.base.utils.TimeOps;
+import com.grey.logging.Logger;
 import com.grey.logging.Logger.LEVEL;
 import com.grey.mailismus.mta.Protocol;
 import com.grey.mailismus.errors.MailismusConfigException;
@@ -54,6 +55,7 @@ public final class ReportsTask
 	private final com.grey.mailismus.mta.queue.Manager qmgr;
 	private final com.grey.mailismus.mta.queue.Cache qcache;
 	private final com.grey.mailismus.Audit audit;
+	private final Logger logger;
 
 	private com.grey.naf.reactor.TimerNAF tmr_qpoll;
 	private com.grey.naf.reactor.TimerNAF tmr_housekeep;
@@ -75,7 +77,7 @@ public final class ReportsTask
 	private final java.util.ArrayList<com.grey.base.utils.EmailAddress> tmpbclist = new java.util.ArrayList<com.grey.base.utils.EmailAddress>();
 	private final StringBuilder extspidbuf = new StringBuilder();
 	private final StringBuilder tmpsb = new StringBuilder();
-	private ByteChars tmpbuf_failmsg = new ByteChars();
+	private final ByteChars tmpbuf_failmsg = new ByteChars();
 
 	// not much we can do here - our only Dispatcher entry point (Timer handler) doesn't even throw
 	@Override
@@ -91,6 +93,7 @@ public final class ReportsTask
 			throws java.io.IOException
 	{
 		super(name, d, cfg, null, null, DFLT_FACT_QUEUE);
+		logger = d.getLogger();
 		qmgr = getQueue();
 		one_shot = once;
 		com.grey.base.config.XmlConfig taskcfg = taskConfig();
@@ -141,7 +144,7 @@ public final class ReportsTask
 			if (redirect_sink && archiveDirectory == null && additionalRecipients.size() == 0) {
 				// this combination of settings disables NDRs, whatever else the config says
 				if (ndrgen) {
-					getLogger().warn("NDR-Generation is implicitly disabled - No recipients or archive-folder specified");
+					logger.warn("NDR-Generation is implicitly disabled - No recipients or archive-folder specified");
 					ndrgen = false;
 				}
 			}
@@ -166,13 +169,13 @@ public final class ReportsTask
 		ndr_dsn_msg = new com.grey.base.utils.ByteChars(templates.ndr_dsnpart_hdr);
 		msgfilebuf = new byte[attachmsg_bufsiz];
 
-		getLogger().info("ReportsTask: generateNDRS="+generate_ndr+", redirect="+(redirect_sink?"SINK":redirectRecip)
+		logger.info("ReportsTask: generateNDRS="+generate_ndr+", redirect="+(redirect_sink?"SINK":redirectRecip)
 				+", attachmsg="+attachmsg_max+"/"+attachmsg_bufsiz);
-		if (archiveDirectory != null) getLogger().info("ReportsTask: Archive folder="+archiveDirectory);
-		if (additionalRecipients.size() != 0) getLogger().info("ReportsTask: Additional recips="+additionalRecipients.size()+" - "+additionalRecipients);
-		getLogger().info("ReportsTask: announce="+mtarep_str+", From="+addrfrom+", Subject: "+subj);
-		getLogger().info("ReportsTask: queuecache="+qcache.capacity()+"/"+cachesize);
-		getLogger().info("ReportsTask Intervals: Low="+TimeOps.expandMilliTime(interval_low)
+		if (archiveDirectory != null) logger.info("ReportsTask: Archive folder="+archiveDirectory);
+		if (additionalRecipients.size() != 0) logger.info("ReportsTask: Additional recips="+additionalRecipients.size()+" - "+additionalRecipients);
+		logger.info("ReportsTask: announce="+mtarep_str+", From="+addrfrom+", Subject: "+subj);
+		logger.info("ReportsTask: queuecache="+qcache.capacity()+"/"+cachesize);
+		logger.info("ReportsTask Intervals: Low="+TimeOps.expandMilliTime(interval_low)
 				+", High="+TimeOps.expandMilliTime(interval_high)
 				+", Error="+TimeOps.expandMilliTime(interval_err));
 
@@ -235,7 +238,7 @@ public final class ReportsTask
 			try {
 				qmgr.housekeep();
 			} catch (Exception ex) {
-				getLogger().warn("ReportsTask: Queue housekeeping failed - "+ex);
+				logger.warn("ReportsTask: Queue housekeeping failed - "+ex);
 			}
 			tmr_housekeep = getDispatcher().setTimer(interval_housekeep, TMRTYPE_HOUSEKEEP, this);
 			break;
@@ -256,7 +259,7 @@ public final class ReportsTask
 			}
 		} catch (Throwable ex) {
 			interval = interval_err;
-			getLogger().log(LEVEL.ERR, ex, true, "ReportsTask: Failed to process queue");
+			logger.log(LEVEL.ERR, ex, true, "ReportsTask: Failed to process queue");
 		}
 		return interval;
 	}
@@ -268,7 +271,7 @@ public final class ReportsTask
 		int bouncecnt = qcache.size();
 		if (bouncecnt == 0) return false;
 		qcache.sort();
-		getLogger().trace("ReportsTask: QMGR Loaded Bounces="+bouncecnt);
+		logger.trace("ReportsTask: QMGR Loaded Bounces="+bouncecnt);
 
 		dtcal.setTimeInMillis(getDispatcher().getSystemTime());
 		tmpsb.setLength(0);
@@ -295,7 +298,7 @@ public final class ReportsTask
 				action = "Discarding bounced Msg";
 				java.nio.file.Path fh = qmgr.getDiagnosticFile(recip.spid, recip.qid);
 				Exception ex = FileOps.deleteFile(fh);
-				if (ex != null) getLogger().info("ReportsTask: Failed to discard failure-reason="+fh.getFileName()+" for "+recip+" - "+ex);
+				if (ex != null) logger.info("ReportsTask: Failed to discard failure-reason="+fh.getFileName()+" for "+recip+" - "+ex);
 			} else {
 				// accumulate entries with same spool message
 				if (slot1 == -1) {
@@ -321,7 +324,7 @@ public final class ReportsTask
 			issueReport(slot1, bouncecnt - 1);
 			reportscnt++;
 		}
-		getLogger().info("ReportsTask: Issued reports="+reportscnt);
+		logger.info("ReportsTask: Issued reports="+reportscnt);
 
 		// flush the queue cache
 		qmgr.bouncesProcessed(qcache);
@@ -340,7 +343,7 @@ public final class ReportsTask
 		try {
 			msgh = generateNDR(bounced_spid, extspidbuf, slot1, slotlast);
 		} catch (Throwable ex) {
-			getLogger().log(LEVEL.ERR, ex, true, "ReportsTask: Failed to submit NDR for SPID="+Integer.toHexString(bounced_spid)+" to recips="+(slotlast-slot1+1));
+			logger.log(LEVEL.ERR, ex, true, "ReportsTask: Failed to submit NDR for SPID="+Integer.toHexString(bounced_spid)+" to recips="+(slotlast-slot1+1));
 			return;
 		}
 		int spid = msgh.spid;
@@ -360,7 +363,7 @@ public final class ReportsTask
 				try {
 					qmgr.exportMessage(spid, qid1, archiveDirectory);
 				} catch (Throwable ex) {
-					getLogger().log(LEVEL.ERR, ex, true, "ReportsTask: Failed to export NDR="+qmgr.externalSPID(msgh.spid)+" to "+archiveDirectory);
+					logger.log(LEVEL.ERR, ex, true, "ReportsTask: Failed to export NDR="+qmgr.externalSPID(msgh.spid)+" to "+archiveDirectory);
 				}
 			}
 		} else {
@@ -475,7 +478,7 @@ public final class ReportsTask
 		try {
 			msgstrm = java.nio.file.Files.newInputStream(msgfile, FileOps.OPENOPTS_NONE);
 		} catch (Exception ex) {
-			getLogger().log(LEVEL.TRC, ex, false, "ReportsTask: Failed to open spool file="+msgfile);
+			logger.log(LEVEL.TRC, ex, false, "ReportsTask: Failed to open spool file="+msgfile);
 			return;
 		}
 
@@ -507,13 +510,13 @@ public final class ReportsTask
 			try {
 				FileOps.read(fh.toFile(), -1, tmpbuf_failmsg);
 			} catch (Exception ex) {
-				getLogger().log(LEVEL.WARN, ex, true, "ReportsTask: Failed to process failure-reason="+fh.getFileName()+" for "+recip);
+				logger.log(LEVEL.WARN, ex, true, "ReportsTask: Failed to process failure-reason="+fh.getFileName()+" for "+recip);
 				tmpbuf_failmsg.clear();
 			} finally {
 				try {
 					java.nio.file.Files.delete(fh);
 				} catch (Exception ex) {
-					getLogger().log(LEVEL.WARN, ex, false, "ReportsTask: Failed to discard failure-reason="+fh.getFileName()+" for "+recip);
+					logger.log(LEVEL.WARN, ex, false, "ReportsTask: Failed to discard failure-reason="+fh.getFileName()+" for "+recip);
 				}
 			}
 		}

@@ -66,7 +66,7 @@ public abstract class ManagerTest
 		String qcfgxml_extra = getQueueConfig();
 		if (qcfgxml_extra != null) qcfgxml = qcfgxml.replace("</queue>", qcfgxml_extra+"</queue>");
 		String dname = "qmgrtest-"+getQueueClass().getName();
-		ApplicationContextNAF appctx = ApplicationContextNAF.create(null);
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true);
 		DispatcherDef def = new DispatcherDef.Builder().withName(dname).build();
 		dsptch = Dispatcher.create(appctx, def, logger);
 		FileOps.ensureDirExists(dsptch.getApplicationContext().getConfig().getPathTemp());

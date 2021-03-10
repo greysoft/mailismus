@@ -20,7 +20,7 @@ public final class SubmitTask
 	{
 		super(name, dsptch, cfg, DFLT_FACT_DTORY, null, DFLT_FACT_QUEUE);
 		String grpname = "SubmitTask="+getName();
-		ConcurrentListenerConfig[] lcfg = ConcurrentListenerConfig.buildMultiConfig(grpname, dsptch, "listeners/listener", taskConfig(),
+		ConcurrentListenerConfig[] lcfg = ConcurrentListenerConfig.buildMultiConfig(grpname, dsptch.getApplicationContext().getConfig(), "listeners/listener", taskConfig(),
 				com.grey.mailismus.mta.Protocol.TCP_PORT, com.grey.mailismus.mta.Protocol.TCP_SSLPORT, Server.Factory.class, null);
 		listeners = new ListenerSet(grpname, dsptch, this, this, lcfg);
 		if (listeners.configured() != 0) registerQueueOps(com.grey.mailismus.nafman.Loader.PREF_SHOWQ_SUBMIT);

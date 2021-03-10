@@ -16,7 +16,7 @@ public class MaildirStoreTest
 {
 	private static final String workdir = TestSupport.initPaths(MaildirStoreTest.class)+"/work";
 	private static final com.grey.logging.Logger logger = com.grey.logging.Factory.getLoggerNoEx("");
-	private static final ApplicationContextNAF appctx = ApplicationContextNAF.create(null);
+	private static final ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true);
 
 	private final String mscfgxml = "<message_store>"
 			+"<directory>"

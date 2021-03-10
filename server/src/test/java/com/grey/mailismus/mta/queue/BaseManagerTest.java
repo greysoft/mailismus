@@ -24,7 +24,7 @@ public class BaseManagerTest
 {
 	private static final Logger logger = com.grey.logging.Factory.getLoggerNoEx("qmgrbasetest");
 	private final String testrootpath = TestSupport.initPaths(getClass());
-	private final ApplicationContextNAF appctx = ApplicationContextNAF.create(null);
+	private final ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true);
 
 	private final Dispatcher dsptch;
 	private Manager qmgr;

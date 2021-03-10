@@ -13,6 +13,7 @@ import com.grey.base.utils.TimeOps;
 import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.NAFConfig;
 import com.grey.naf.reactor.Dispatcher;
+import com.grey.mailismus.TestSupport;
 import com.grey.mailismus.imap.IMAP4Protocol;
 
 public class IMAP4ServerTest
@@ -33,7 +34,7 @@ public class IMAP4ServerTest
 
 	private static final String UNTAG_NOCHECK = "_JUNIT_NOASSERT_"; //untagged response is present, but not to be checked
 
-	private static final ApplicationContextNAF appctx = ApplicationContextNAF.create("IMAP4ServerTest");
+	private static final ApplicationContextNAF appctx = TestSupport.createApplicationContext("IMAP4ServerTest", true);
 	private Dispatcher dsptch;
 	private IMAP4Task srvtask;
 	private TSAP srvaddr;

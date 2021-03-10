@@ -19,7 +19,7 @@ public class App
 	public static void main(String[] args) throws Exception
 	{
 		App app = new App(args);
-		app.exec("Mailismus", true);
+		app.execute("Mailismus");
 	}
 
 	private static class OptsHandler
@@ -57,13 +57,13 @@ public class App
 	}
 
 	@Override
-	protected void appExec(ApplicationContextNAF appctx, int param1, Logger bootlog) throws Exception {
+	protected void appExecute(ApplicationContextNAF appctx, int param1, Logger bootlog) throws Exception {
 		if (options.plaintxt != null) {
 			ByteChars plain = new ByteChars(options.plaintxt);
 			char[] digest = DirectoryImpl.passwordHash(plain);
 			System.out.println("Hashed to ["+new String(digest)+"]");
 		} else {
-			super.appExec(appctx, param1, bootlog);
+			super.appExecute(appctx, param1, bootlog);
 		}
 	}
 

@@ -88,7 +88,8 @@ public class DeliveryTest
 		SysProps.setAppEnv("MAILISMUS_TEST_PORT_SMARTHOST", String.valueOf(TSAP.getVacantPort()));
 		System.out.println("DeliverTest App Env = "+SysProps.getAppEnv());
 
-		mockserverDNS = new MockServerDNS(ApplicationContextNAF.create("DeliveryTest-MockServerDNS"));
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext("DeliveryTest-MockServerDNS", true);
+		mockserverDNS = new MockServerDNS(appctx);
 		mockserverDNS.start();
 	}
 
@@ -362,8 +363,9 @@ public class DeliveryTest
 		String nafxml_client = "<x><configfile root=\"mailserver/mta/deliver\">"+pthnam_appcfg+"</configfile></x>";
 		String nafxml_reports = "<x><configfile root=\"mailserver/mta/report\">"+pthnam_appcfg+"</configfile></x>";
 
-		NAFConfig nafcfg = NAFConfig.synthesise(nafxml);
-		ApplicationContextNAF appctx = ApplicationContextNAF.create(null, nafcfg);
+		XmlConfig xmlcfg = XmlConfig.makeSection(nafxml, "/naf");
+		NAFConfig nafcfg = new NAFConfig.Builder().withXmlConfig(xmlcfg).build();
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, nafcfg, true);
 
 		// create a disposable Dispatcher first, just to identify and clean up the working directories that will be used
 		com.grey.logging.Logger logger = com.grey.logging.Factory.getLogger("no-such-logger");

@@ -24,9 +24,8 @@ public class SpoolerTest
 	public SpoolerTest() throws Exception
 	{
 		String cfgpath = TestSupport.getResourcePath("/mtanaf.xml", getClass());
-		com.grey.naf.NAFConfig nafcfg = com.grey.naf.NAFConfig.load(cfgpath);
-		ApplicationContextNAF appctx = ApplicationContextNAF.create(null, nafcfg);
-		FileOps.deleteDirectory(nafcfg.getPathVar());
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true);
+		FileOps.deleteDirectory(appctx.getConfig().getPathVar());
 		spool = new Spooler(appctx, XmlConfig.getSection(cfgpath, "naf"), logger, "utest");
 		java.nio.file.Path pth = (java.nio.file.Path) DynLoader.getField(spool, "dhroot");
 		dhroot = pth.toFile();

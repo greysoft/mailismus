@@ -10,6 +10,7 @@ import com.grey.base.utils.TimeOps;
 import com.grey.base.utils.FileOps;
 import com.grey.base.utils.IP;
 import com.grey.naf.ApplicationContextNAF;
+import com.grey.naf.DispatcherDef;
 import com.grey.naf.NAFConfig;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.mailismus.DBHandle;
@@ -45,10 +46,11 @@ public class GreylistTest
 	{
 		org.junit.Assume.assumeTrue(TestSupport.HAVE_DBDRIVERS);
 		String cfgpath = TestSupport.getResourcePath("/mtanaf.xml", getClass());
-		NAFConfig nafcfg = NAFConfig.load(cfgpath);
-		FileOps.deleteDirectory(nafcfg.getPathVar());
-		ApplicationContextNAF appctx = ApplicationContextNAF.create(null, nafcfg);
-		Dispatcher dsptch = Dispatcher.createConfigured(appctx, "testmtadispatcher1", logger);
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true);
+		FileOps.deleteDirectory(appctx.getConfig().getPathVar());
+		XmlConfig dcfg = appctx.getConfig().getDispatcher("testmtadispatcher1");
+		DispatcherDef def = new DispatcherDef.Builder(dcfg).build();
+		Dispatcher dsptch = Dispatcher.create(appctx, def, logger);
 
 		String pthnam = dsptch.getApplicationContext().getConfig().getPathVar()+"/"+WHITELIST_FILE;
 		java.io.File fh = new java.io.File(pthnam);

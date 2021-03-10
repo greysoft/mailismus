@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2019 Yusef Badri - All rights reserved.
+ * Copyright 2010-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus;
@@ -10,6 +10,7 @@ import com.grey.base.config.SysProps;
 import com.grey.base.config.XmlConfig;
 import com.grey.base.utils.ByteChars;
 import com.grey.base.utils.NIOBuffers;
+import com.grey.logging.Logger;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.nafman.NafManRegistry;
 import com.grey.naf.nafman.NafManCommand;
@@ -50,12 +51,13 @@ public class Task
 	public Task(String name, Dispatcher d, XmlConfig cfg, DirectoryFactory df, MessageStoreFactory msf) throws java.io.IOException
 	{
 		super(name, d, cfg);
+		Logger logger = d.getLogger();
 		appcfg = AppConfig.get(taskConfigFile(), d);
 		Loader.get(d.getApplicationContext()).register(this);
 
 		if (df != null) {
 			dtory = df.create(getDispatcher(), appcfg.getConfigDirectory());
-			if (dtory == null) getLogger().info("Directory not configured for "+name+"="+this);
+			if (dtory == null) logger.info("Directory not configured for "+name+"="+this);
 		} else {
 			dtory = null;
 		}
@@ -63,14 +65,14 @@ public class Task
 		if (msf != null) {
 			ms = msf.create(getDispatcher(), appcfg.getConfigMS(), dtory);
 			if (ms == null) {
-				getLogger().info("Message-Store not configured for "+name+"="+this);
+				logger.info("Message-Store not configured for "+name+"="+this);
 			} else {
 				if (ms.directory() != dtory) throw new MailismusConfigException("Message-Store Directory mismatch - "+ms.directory()+" vs "+dtory);
 			}
 		} else {
 			ms = null;
 		}
-		getLogger().trace("Naflet="+getName()+": Message-Store="+(ms==null?"N":"Y")+"; Directory="+(dtory==null?"N":"Y")
+		logger.trace("Naflet="+getName()+": Message-Store="+(ms==null?"N":"Y")+"; Directory="+(dtory==null?"N":"Y")
 							+"; niodirect_const="+NIODIRECT_CONSTBUF);
 	}
 
@@ -109,7 +111,7 @@ public class Task
 				}
 			}
 		} else {
-			getLogger().error("Task="+getName()+": Missing case for NAFMAN cmd="+cmd.getCommandDef().code);
+			getDispatcher().getLogger().error("Task="+getName()+": Missing case for NAFMAN cmd="+cmd.getCommandDef().code);
 			return null;
 		}
 		return tmpsb;

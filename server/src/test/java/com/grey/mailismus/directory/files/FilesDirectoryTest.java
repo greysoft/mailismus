@@ -35,7 +35,7 @@ public class FilesDirectoryTest
 			+" role1 : locuser2 : somebody@elsewhere.com\n"
 			+" role2 : role1 : somebody2@elsewhere.com";
 
-	private final ApplicationContextNAF appctx = ApplicationContextNAF.create(null);
+	private final ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true);
 	private com.grey.naf.reactor.Dispatcher dsptch;
 	private String pthnam_users;
 	private String pthnam_aliases;

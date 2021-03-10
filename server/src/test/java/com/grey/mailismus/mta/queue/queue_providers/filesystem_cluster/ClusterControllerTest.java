@@ -20,7 +20,7 @@ public class ClusterControllerTest
 {
 	protected static final com.grey.logging.Logger logger = com.grey.logging.Factory.getLoggerNoEx("cctltest");
 	private final String rootpath = TestSupport.initPaths(getClass());
-	private final ApplicationContextNAF appctx = ApplicationContextNAF.create(null);
+	private final ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true);
 	private final ClusterController cctl;
 	private final ConcurrentHashMap<?,?> cmap;
 

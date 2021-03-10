@@ -16,6 +16,7 @@ import com.grey.naf.NAFConfig;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.TimerNAF;
 import com.grey.mailismus.AppConfig;
+import com.grey.mailismus.TestSupport;
 import com.grey.mailismus.mta.Protocol;
 import com.grey.mailismus.mta.queue.MessageRecip;
 import com.grey.mailismus.mta.deliver.Delivery;
@@ -87,7 +88,8 @@ public class ForwarderTest
 
 	@org.junit.BeforeClass
 	public static void beforeClass() throws java.io.IOException {
-		mockserver = new MockServerDNS(ApplicationContextNAF.create(null));
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true);
+		mockserver = new MockServerDNS(appctx);
 		mockserver.start();
 	}
 
@@ -108,8 +110,9 @@ public class ForwarderTest
 				.withDNS(true)
 				.withSurviveHandlers(false)
 				.build();
-		NAFConfig nafcfg = NAFConfig.synthesise(nafxml);
-		ApplicationContextNAF appctx = ApplicationContextNAF.create(null, nafcfg);
+		XmlConfig xmlcfg = XmlConfig.makeSection(nafxml, "/naf");
+		NAFConfig nafcfg = new NAFConfig.Builder().withXmlConfig(xmlcfg).build();
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, nafcfg, true);
 		dsptch = Dispatcher.create(appctx, def, logger);
 		dsptch.registerReaper(this);
 	}
