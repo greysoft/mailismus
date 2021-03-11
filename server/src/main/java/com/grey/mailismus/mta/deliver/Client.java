@@ -10,6 +10,7 @@ import com.grey.mailismus.errors.MailismusConfigException;
 import com.grey.mailismus.errors.MailismusException;
 import com.grey.mailismus.mta.Protocol;
 import com.grey.naf.SSLConfig;
+import com.grey.naf.dns.resolver.ResolverDNS;
 import com.grey.base.utils.FileOps;
 import com.grey.base.utils.ByteArrayRef;
 import com.grey.base.utils.EmailAddress;
@@ -257,6 +258,7 @@ final class Client
 	private final Delivery.MessageParams msgparams = new Delivery.MessageParams();
 	private final SharedFields shared;
 	private final com.grey.base.utils.TSAP remote_tsap_buf;
+	private final ResolverDNS resolver;
 	private final java.util.ArrayList<com.grey.naf.dns.resolver.ResourceData> dnsInfo = new java.util.ArrayList<com.grey.naf.dns.resolver.ResourceData>();
 	private ConnectionConfig conncfg; //config to apply to current connection
 	private Relay active_relay;
@@ -305,6 +307,7 @@ final class Client
 		} catch (java.security.GeneralSecurityException ex) {
 			throw new MailismusConfigException("Failed to create shared config", ex);
 		}
+		resolver = d.getResolverDNS();
 		remote_tsap_buf = null;
 	}
 
@@ -313,6 +316,7 @@ final class Client
 	{
 		super(proto.getDispatcher(), proto.shared.bufspec, proto.shared.bufspec);
 		shared = proto.shared;
+		resolver = proto.resolver;
 		setLogPrefix();
 		//will need to build addresses at connect time if we don't have a default relay
 		remote_tsap_buf = (shared.routing.haveDefaultRelay() ? null : new com.grey.base.utils.TSAP());
@@ -432,9 +436,9 @@ final class Client
 		setFlag(S2_DNSWAIT);
 		com.grey.naf.dns.resolver.ResolverAnswer answer;
 		if (as_host) {
-			answer = getDispatcher().getResolverDNS().resolveHostname(msgparams.getDestination(), this, null, 0);
+			answer = resolver.resolveHostname(msgparams.getDestination(), this, null, 0);
 		} else {
-			answer = getDispatcher().getResolverDNS().resolveMailDomain(msgparams.getDestination(), this, null, 0);
+			answer = resolver.resolveMailDomain(msgparams.getDestination(), this, null, 0);
 		}
 		if (answer != null) dnsResolved(getDispatcher(), answer, null);
 	}
@@ -731,7 +735,7 @@ final class Client
 
 		if (isFlagSet(S2_DNSWAIT)) {
 			try {
-				getDispatcher().getResolverDNS().cancel(this);
+				resolver.cancel(this);
 			} catch (Exception ex) {
 				getLogger().log(LEVEL.INFO, ex, false, pfx_log+" failed to cancel DNS ops");
 			}

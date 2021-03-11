@@ -12,6 +12,7 @@ import com.grey.mailismus.mta.deliver.Routing;
 import com.grey.mailismus.mta.submit.filter.FilterManager;
 import com.grey.mailismus.mta.submit.filter.FilterExecutor;
 import com.grey.mailismus.errors.MailismusConfigException;
+import com.grey.naf.dns.resolver.ResolverDNS;
 import com.grey.naf.reactor.CM_Listener;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.base.config.SysProps;
@@ -537,6 +538,7 @@ public final class Server
 	}
 
 	private final SharedFields shared;
+	private final ResolverDNS resolver;
 	private final java.util.ArrayList<com.grey.base.utils.EmailAddress> msgrecips
 			= new java.util.ArrayList<com.grey.base.utils.EmailAddress>(); //valid, resolved recipients
 	private final java.util.ArrayList<com.grey.base.utils.ByteChars> rawrecips
@@ -591,9 +593,10 @@ public final class Server
 		String stem = "SMTP-Server";
 		pfx_log = stem+"/E"+getCMID();
 		String pfx = stem+(getSSLConfig() == null || getSSLConfig().isLatent() ? "" : "/SSL")+": ";
+		com.grey.logging.Logger log = getLogger();
 		MTA_Task task = MTA_Task.class.cast(getListener().getController());
 		shared = new SharedFields(cfg, getDispatcher(), task, this, getListener(), getSSLConfig(), pfx);
-		com.grey.logging.Logger log = getLogger();
+		resolver = getDispatcher().getResolverDNS();
 
 		if (shared.relay_clients != null) {
 			String txt = pfx+"Relay clients="+shared.relay_clients.length+" [";
@@ -626,6 +629,7 @@ public final class Server
 	{
 		super(proto.getListener(), proto.shared.netbufs, proto.shared.netbufs);
 		shared = proto.shared;
+		resolver = proto.resolver;
 		setLogPrefix();
 	}
 
@@ -1011,7 +1015,7 @@ public final class Server
 
 		if (isFlagSet(S2_DNSWAIT)) {
 			try {
-				getDispatcher().getResolverDNS().cancel(this);
+				resolver.cancel(this);
 			} catch (Exception ex) {
 				getLogger().log(LEVEL.ERR, ex, true, pfx_log+" failed to cancel DNS ops");
 			}
@@ -1753,12 +1757,12 @@ public final class Server
 
 		if (dnsEvent == PROTO_EVENT.E_HELO || dnsEvent == PROTO_EVENT.E_EHLO) {
 			if (dnsPhase == ValidationSettings.HOSTDIR.BACKWARD) {
-				answer = getDispatcher().getResolverDNS().resolveIP(remote_tsap.ip, this, validation, validation.dnsflags);
+				answer = resolver.resolveIP(remote_tsap.ip, this, validation, validation.dnsflags);
 			} else {
-				answer = getDispatcher().getResolverDNS().resolveHostname(addr.full, this, validation, validation.dnsflags);
+				answer = resolver.resolveHostname(addr.full, this, validation, validation.dnsflags);
 			}
 		} else {
-			answer = getDispatcher().getResolverDNS().resolveMailDomain(addr.domain, this, validation, validation.dnsflags);
+			answer = resolver.resolveMailDomain(addr.domain, this, validation, validation.dnsflags);
 		}
 
 		if (answer == null) {
