@@ -69,7 +69,7 @@ public class IPlistTest
 		String cfgpath = TestSupport.getResourcePath("/mtanaf.xml", getClass());
 		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true);
 		XmlConfig dcfg = appctx.getConfig().getDispatcher(dname);
-		DispatcherDef def = new DispatcherDef.Builder(dcfg).build();
+		DispatcherDef def = new DispatcherDef.Builder().withXmlConfig(dcfg).build();
 		Dispatcher dsptch = Dispatcher.create(appctx, def, logger);
 		boolean ok = false;
 		IPlist iplist = null;
@@ -132,7 +132,7 @@ public class IPlistTest
 		String cfgpath = TestSupport.getResourcePath("/mtanaf.xml", getClass());
 		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true);
 		XmlConfig dcfg = appctx.getConfig().getDispatcher(dname);
-		DispatcherDef def = new DispatcherDef.Builder(dcfg).build();
+		DispatcherDef def = new DispatcherDef.Builder().withXmlConfig(dcfg).build();
 		Dispatcher dsptch = Dispatcher.create(appctx, def, logger);
 		boolean ok = false;
 		IPlist iplist = null;
