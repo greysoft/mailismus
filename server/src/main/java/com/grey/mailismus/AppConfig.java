@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Yusef Badri - All rights reserved.
+ * Copyright 2018-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 /*
@@ -12,6 +12,7 @@ package com.grey.mailismus;
 
 import com.grey.base.config.XmlConfig;
 import com.grey.naf.ApplicationContextNAF;
+import com.grey.naf.errors.NAFConfigException;
 import com.grey.naf.reactor.Dispatcher;
 
 public final class AppConfig
@@ -36,7 +37,13 @@ public final class AppConfig
 
 	public static AppConfig get(String cfgpath, Dispatcher d) {
 		ApplicationContextNAF appctx = d.getApplicationContext();
-		return appctx.getNamedItem(AppConfig.class.getName(), (c) -> new AppConfig(cfgpath, d));
+		return appctx.getNamedItem(AppConfig.class.getName(), () -> {
+			try {
+				return new AppConfig(cfgpath, d);
+			} catch (Exception ex) {
+				throw new NAFConfigException("Failed to create AppConfig with Dispatcher="+d.getName(), ex);
+			}
+		});
 	}
 
 	private AppConfig(String cfgpath, Dispatcher dsptch) throws java.io.IOException

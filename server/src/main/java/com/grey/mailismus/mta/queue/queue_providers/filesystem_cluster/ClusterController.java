@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2018 Yusef Badri - All rights reserved.
+ * Copyright 2015-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.queue.queue_providers.filesystem_cluster;
@@ -25,7 +25,7 @@ class ClusterController
 	public static ClusterController getController(ApplicationContextNAF appctx, java.nio.file.Path qroot, TimerNAF.TimeProvider t,
 			com.grey.logging.Logger l)
 	{
-		ConcurrentHashMap<java.nio.file.Path, ClusterController> controllers = appctx.getNamedItem(ClusterController.class.getName()+"-cctl", (c) -> new ConcurrentHashMap<>());
+		ConcurrentHashMap<java.nio.file.Path, ClusterController> controllers = appctx.getNamedItem(ClusterController.class.getName()+"-cctl", () -> new ConcurrentHashMap<>());
 		ClusterController ctl = controllers.get(qroot);
 		if (ctl == null) {
 			ctl = new ClusterController(t, l);

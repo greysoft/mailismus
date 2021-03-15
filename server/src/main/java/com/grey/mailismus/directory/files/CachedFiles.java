@@ -1,11 +1,12 @@
 /*
- * Copyright 2012-2018 Yusef Badri - All rights reserved.
+ * Copyright 2012-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.directory.files;
 
 import com.grey.base.utils.FileOps;
 import com.grey.naf.NAFConfig;
+import com.grey.naf.errors.NAFConfigException;
 import com.grey.base.collections.HashedSet;
 import com.grey.base.collections.HashedMap;
 import com.grey.base.utils.ByteChars;
@@ -31,11 +32,16 @@ public final class CachedFiles
 	public static synchronized CachedFiles get(com.grey.naf.reactor.Dispatcher d, com.grey.base.config.XmlConfig cfg)
 			throws java.io.IOException
 	{
-		return d.getApplicationContext().getNamedItem(CachedFiles.class.getName(), (c) -> new CachedFiles(d, cfg));
+		return d.getApplicationContext().getNamedItem(CachedFiles.class.getName(), () -> {
+			try {
+				return new CachedFiles(d, cfg);
+			} catch (Exception ex) {
+				throw new NAFConfigException("Failed to create CachedFiles with Dispatcher="+d.getName(), ex);
+			}
+		});
 	}
 
-	private CachedFiles(com.grey.naf.reactor.Dispatcher d, com.grey.base.config.XmlConfig cfg)
-		throws java.io.IOException
+	private CachedFiles(com.grey.naf.reactor.Dispatcher d, com.grey.base.config.XmlConfig cfg) throws java.io.IOException
 	{
 		dsptch = d;
 		NAFConfig nafcfg = dsptch.getApplicationContext().getConfig();

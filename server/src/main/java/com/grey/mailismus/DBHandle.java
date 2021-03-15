@@ -162,7 +162,7 @@ public class DBHandle
 		this.log = log;
 		nafcfg = appctx.getConfig();
 		connurl_base = dbtype.connurl.replace(TOKEN_CONNSTR_NAME, name);
-		liveconns = appctx.getNamedItem(getClass().getName()+"-liveconns", (c) -> new HashedSet<>());
+		liveconns = appctx.getNamedItem(getClass().getName()+"-liveconns", () -> new HashedSet<>());
 
 		boolean acmt = SysProps.get(SYSPROP_AUTOCOMMIT,false);
 		if (cfg != null) acmt = cfg.getBool("db_autocommit", acmt);

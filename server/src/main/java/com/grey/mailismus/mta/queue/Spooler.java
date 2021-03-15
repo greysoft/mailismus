@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2018 Yusef Badri - All rights reserved.
+ * Copyright 2010-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.queue;
@@ -89,7 +89,7 @@ public final class Spooler
 		if (max_spidrefs == -1) {
 			spids_refcnt = null;
 		} else {
-			ConcurrentHashMap<java.nio.file.Path,HashedMapIntInt> refcounts = appctx.getNamedItem(getClass().getName()+"-refcnt", (c) -> new ConcurrentHashMap<>());
+			ConcurrentHashMap<java.nio.file.Path,HashedMapIntInt> refcounts = appctx.getNamedItem(getClass().getName()+"-refcnt", () -> new ConcurrentHashMap<>());
 			HashedMapIntInt map = refcounts.get(dhroot);
 			if (map == null) {
 				map = new HashedMapIntInt(0, 10f);
@@ -101,7 +101,7 @@ public final class Spooler
 
 		// Don't bother with ConcurrentHashMap, as we want to lock the SPID_Allocator constructor as well, to make sure only
 		// one thread undertakes this expensive task.
-		HashedMap<java.nio.file.Path,SPID_Allocator> SPID_allocators = appctx.getNamedItem(getClass().getName()+"-spidalloc", (c) -> new HashedMap<>());
+		HashedMap<java.nio.file.Path,SPID_Allocator> SPID_allocators = appctx.getNamedItem(getClass().getName()+"-spidalloc", () -> new HashedMap<>());
 		synchronized (SPID_allocators) {
 			SPID_Allocator allocator = SPID_allocators.get(dhroot);
 			if (allocator == null) {

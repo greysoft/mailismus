@@ -58,7 +58,7 @@ public final class Loader
 
 	public static Loader get(ApplicationContextNAF appctx) {
 		NafManRegistry reg = NafManRegistry.get(appctx);
-		return appctx.getNamedItem(Loader.class.getName(), (c) -> new Loader(reg));
+		return appctx.getNamedItem(Loader.class.getName(), () -> new Loader(reg));
 	}
 
 	private final Map<Class<?>, Task> tasks = new ConcurrentHashMap<>();
