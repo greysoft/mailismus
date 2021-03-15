@@ -375,7 +375,6 @@ public class DeliveryTest
 		FileOps.deleteDirectory(nafcfg.getPathLogs());
 		// now create the real Dispatcher
 		DispatcherDef def = new DispatcherDef.Builder()
-				.withDNS(true)
 				.withSurviveHandlers(false)
 				.build();
 		dsptch = Dispatcher.create(appctx, def, logger);
@@ -409,7 +408,7 @@ public class DeliveryTest
 		// set up the SMTP delivery component
 		cfg = XmlConfig.makeSection(nafxml_client, "x");
 		com.grey.mailismus.mta.MTA_Task ctask = new com.grey.mailismus.mta.MTA_Task("utest_smtpc", dsptch, cfg,
-				Task.DFLT_FACT_DTORY, Task.DFLT_FACT_MS, MTA_Task.DFLT_FACT_QUEUE);
+				Task.DFLT_FACT_DTORY, Task.DFLT_FACT_MS, MTA_Task.DFLT_FACT_QUEUE, stask.getResolverDNS());
 		smtp_sender = new Forwarder(dsptch, ctask, ctask.taskConfig(), this, null, this);
 		if (maxsrvconns != 0) {
 			Object cproto = DynLoader.getField(smtp_sender, "protoClient");

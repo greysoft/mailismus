@@ -12,6 +12,7 @@ import com.grey.mailismus.mta.queue.Manager;
 import com.grey.mailismus.mta.queue.QueueFactory;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.nafman.NafManRegistry;
+import com.grey.naf.dns.resolver.ResolverDNS;
 import com.grey.naf.nafman.NafManCommand;
 import com.grey.mailismus.nafman.Loader;
 
@@ -26,9 +27,9 @@ public class MTA_Task
 	public Manager getQueue() {return qmgr;}
 
 	public MTA_Task(String name, Dispatcher dsptch, XmlConfig cfg,
-			DirectoryFactory df, MessageStoreFactory msf, QueueFactory qf) throws java.io.IOException
+			DirectoryFactory df, MessageStoreFactory msf, QueueFactory qf, ResolverDNS dns) throws java.io.IOException
 	{
-		super(name, dsptch, cfg, df, msf);
+		super(name, dsptch, cfg, df, msf, dns);
 		qmgr = (qf == null ? null : QueueFactory.init(qf, dsptch, null, getAppConfig(), name));
 	}
 

@@ -158,7 +158,7 @@ public class POP3Test
 
 		// set up the POP3 server
 		XmlConfig cfg = XmlConfig.makeSection(nafxml_server, "x");
-		com.grey.mailismus.Task stask = new com.grey.mailismus.Task("utest_pop3s", dsptch, cfg, Task.DFLT_FACT_DTORY, Task.DFLT_FACT_MS);
+		com.grey.mailismus.Task stask = new com.grey.mailismus.Task("utest_pop3s", dsptch, cfg, Task.DFLT_FACT_DTORY, Task.DFLT_FACT_MS, null);
 		if (dotstuffing) DynLoader.setField(stask.getMS(), "dotstuffing", true);
 		String grpname = "utest_pop3s_listeners";
 		ConcurrentListenerConfig[] lcfg = ConcurrentListenerConfig.buildMultiConfig(grpname, appctx.getConfig(), "listeners/listener", stask.taskConfig(), 0, 0, POP3Server.Factory.class, null);

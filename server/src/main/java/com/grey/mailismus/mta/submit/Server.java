@@ -595,8 +595,8 @@ public final class Server
 		String pfx = stem+(getSSLConfig() == null || getSSLConfig().isLatent() ? "" : "/SSL")+": ";
 		com.grey.logging.Logger log = getLogger();
 		MTA_Task task = MTA_Task.class.cast(getListener().getController());
+		resolver = task.getResolverDNS();
 		shared = new SharedFields(cfg, getDispatcher(), task, this, getListener(), getSSLConfig(), pfx);
-		resolver = getDispatcher().getResolverDNS();
 
 		if (shared.relay_clients != null) {
 			String txt = pfx+"Relay clients="+shared.relay_clients.length+" [";

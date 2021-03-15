@@ -1,5 +1,5 @@
 <!--
-  Copyright 2010-2018 Yusef Badri - All rights reserved.
+  Copyright 2010-2021 Yusef Badri - All rights reserved.
   Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
 -->
 <naf>
@@ -8,35 +8,35 @@
     </dirpaths>
     <dnsresolver master="mta-submit" partialprune="Y"/>
     <dispatchers>
-        <dispatcher name="mta-report" nafman="Y" zero_naflets="N" flush="15s"> 
+        <dispatcher name="mta-report" zero_naflets="N" flush="15s"> 
             <naflets>
                 <naflet name="mtareport" class="com.grey.mailismus.mta.reporting.ReportsTask">
                     <configfile root="mailserver/mta/report">%DIRCONF%/mailismus.xml</configfile>
                 </naflet>
             </naflets>
         </dispatcher>
-        <dispatcher name="mta-submit" dns="Y" nafman="Y" zero_naflets="N" flush="15s">
+        <dispatcher name="mta-submit" zero_naflets="N" flush="15s">
             <naflets>
                 <naflet name="mtasubmit" class="com.grey.mailismus.mta.submit.SubmitTask">
                     <configfile root="mailserver/mta/submit">%DIRCONF%/mailismus.xml</configfile>
                 </naflet>
             </naflets>
         </dispatcher>
-        <dispatcher name="mta-deliver" dns="Y" nafman="Y" zero_naflets="N" flush="15s">
+        <dispatcher name="mta-deliver" zero_naflets="N" flush="15s">
             <naflets>
                 <naflet name="mtadeliver" class="com.grey.mailismus.mta.deliver.DeliverTask">
                     <configfile root="mailserver/mta/deliver">%DIRCONF%/mailismus.xml</configfile>
                 </naflet>
             </naflets>
         </dispatcher>
-        <dispatcher name="imap" nafman="Y" zero_naflets="N" flush="15s" enabled="N">
+        <dispatcher name="imap" zero_naflets="N" flush="15s" enabled="N">
             <naflets>
                 <naflet name="imap4server" class="com.grey.mailismus.imap.server.IMAP4Task">
                     <configfile root="mailserver/imap/server">%DIRCONF%/mailismus.xml</configfile>
                 </naflet>
             </naflets>
         </dispatcher>
-        <dispatcher name="pop3" nafman="Y" zero_naflets="N" flush="15s" enabled="N">
+        <dispatcher name="pop3" zero_naflets="N" flush="15s" enabled="N">
             <naflets>
                 <naflet name="pop3server" class="com.grey.mailismus.pop3.server.ServerTask" enabled="N">
                     <configfile root="mailserver/pop3server">%DIRCONF%/mailismus.xml</configfile>

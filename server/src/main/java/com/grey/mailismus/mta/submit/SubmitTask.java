@@ -15,10 +15,8 @@ public final class SubmitTask
 {
 	private final ListenerSet listeners;
 
-	public SubmitTask(String name, Dispatcher dsptch, XmlConfig cfg)
-			throws java.io.IOException
-	{
-		super(name, dsptch, cfg, DFLT_FACT_DTORY, null, DFLT_FACT_QUEUE);
+	public SubmitTask(String name, Dispatcher dsptch, XmlConfig cfg) throws java.io.IOException {
+		super(name, dsptch, cfg, DFLT_FACT_DTORY, null, DFLT_FACT_QUEUE, createResolverDNS(dsptch));
 		String grpname = "SubmitTask="+getName();
 		ConcurrentListenerConfig[] lcfg = ConcurrentListenerConfig.buildMultiConfig(grpname, dsptch.getApplicationContext().getConfig(), "listeners/listener", taskConfig(),
 				com.grey.mailismus.mta.Protocol.TCP_PORT, com.grey.mailismus.mta.Protocol.TCP_SSLPORT, Server.Factory.class, null);

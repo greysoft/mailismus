@@ -92,7 +92,7 @@ public final class ReportsTask
 	public ReportsTask(String name, com.grey.naf.reactor.Dispatcher d, com.grey.base.config.XmlConfig cfg, boolean once)
 			throws java.io.IOException
 	{
-		super(name, d, cfg, null, null, DFLT_FACT_QUEUE);
+		super(name, d, cfg, null, null, DFLT_FACT_QUEUE, null);
 		logger = d.getLogger();
 		qmgr = getQueue();
 		one_shot = once;

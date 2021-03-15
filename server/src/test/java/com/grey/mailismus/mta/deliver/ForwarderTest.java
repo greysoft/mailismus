@@ -13,6 +13,8 @@ import com.grey.base.utils.DynLoader;
 import com.grey.base.collections.HashedSetInt;
 import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.NAFConfig;
+import com.grey.naf.dns.resolver.ResolverConfig;
+import com.grey.naf.dns.resolver.ResolverDNS;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.TimerNAF;
 import com.grey.mailismus.AppConfig;
@@ -74,6 +76,7 @@ public class ForwarderTest
 	private static MockServerDNS mockserver; //use mock server because failed queries much faster than timeouts
 
 	private Dispatcher dsptch;
+	private ResolverDNS dnsResolver;
 	private Forwarder fwd;
 	private boolean halted;
 	String testname;
@@ -107,14 +110,17 @@ public class ForwarderTest
 				+"</dnsresolver></naf>";
 		com.grey.naf.DispatcherDef def = new com.grey.naf.DispatcherDef.Builder()
 				.withName("utest_fwd_"+testname)
-				.withDNS(true)
 				.withSurviveHandlers(false)
 				.build();
 		XmlConfig xmlcfg = XmlConfig.makeSection(nafxml, "/naf");
 		NAFConfig nafcfg = new NAFConfig.Builder().withXmlConfig(xmlcfg).build();
+		ResolverConfig rcfg = new ResolverConfig.Builder()
+				.withXmlConfig(nafcfg.getNode("dnsresolver"))
+				.build();
 		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, nafcfg, true);
 		dsptch = Dispatcher.create(appctx, def, logger);
 		dsptch.registerReaper(this);
+		dnsResolver = ResolverDNS.create(dsptch, rcfg);
 	}
 
 	// Use the real SMTP client as the sender, and its delivery fails as all the recipient domains are non-existent
@@ -131,7 +137,7 @@ public class ForwarderTest
 		String[][] msgs = lst.toArray(new String[lst.size()][]);
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs, false);
 		AppConfig appcfg = AppConfig.get("", dsptch);
-		fwd = new Forwarder(dsptch, cfg, appcfg, qmgr, null, this, null, this);
+		fwd = new Forwarder(dsptch, cfg, appcfg, qmgr, null, this, null, this, dnsResolver);
 		exec(qmgr, null, false);
 	}
 
@@ -142,7 +148,7 @@ public class ForwarderTest
 		XmlConfig cfg = XmlConfig.makeSection(cfgxml, "deliver");
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs1, true);
 		SenderFactory sndrfact = new SenderFactory(expected_senders, false);
-		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact);
+		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
 		sndrfact.ctl = fwd;
 		exec(qmgr, sndrfact, true);
 	}
@@ -155,7 +161,7 @@ public class ForwarderTest
 		XmlConfig cfg = XmlConfig.makeSection(cfgxml, "deliver");
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs2, true);
 		SenderFactory sndrfact = new SenderFactory(expected_senders, expected_refills, true);
-		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact);
+		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
 		sndrfact.ctl = fwd;
 		exec(qmgr, sndrfact, false);
 	}
@@ -169,7 +175,7 @@ public class ForwarderTest
 		XmlConfig cfg = XmlConfig.makeSection(cfgxml, "deliver");
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs3, true, 1);
 		SenderFactory sndrfact = new SenderFactory(expected_senders, true);
-		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact);
+		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
 		sndrfact.ctl = fwd;
 		exec(qmgr, sndrfact, false);
 	}
@@ -185,7 +191,7 @@ public class ForwarderTest
 		XmlConfig cfg = XmlConfig.makeSection(cfgxml, "deliver");
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs4, true, 0);
 		SenderFactory sndrfact = new SenderFactory(expected_senders, expected_refills, true);
-		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact);
+		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
 		sndrfact.ctl = fwd;
 		exec(qmgr, sndrfact, false);
 	}
@@ -198,7 +204,7 @@ public class ForwarderTest
 		XmlConfig cfg = XmlConfig.makeSection(cfgxml, "deliver");
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs4, true, 0);
 		SenderFactory sndrfact = new SenderFactory(expected_senders, true);
-		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact);
+		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
 		sndrfact.ctl = fwd;
 		exec(qmgr, sndrfact, false);
 	}
@@ -211,7 +217,7 @@ public class ForwarderTest
 		XmlConfig cfg = XmlConfig.makeSection(cfgxml, "deliver");
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs5, true, 0);
 		SenderFactory sndrfact = new SenderFactory(expected_senders, expected_refills, true);
-		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact);
+		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
 		sndrfact.ctl = fwd;
 		exec(qmgr, sndrfact, false);
 	}
@@ -235,7 +241,7 @@ public class ForwarderTest
 		String[][] msgs = lst.toArray(new String[lst.size()][]);
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs, true);
 		SenderFactory sndrfact = new SenderFactory(null, true);
-		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact);
+		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
 		com.grey.mailismus.mta.queue.Cache qc = (com.grey.mailismus.mta.queue.Cache)DynLoader.getField(fwd, "qcache");
 		org.junit.Assert.assertEquals(2500, qc.capacity()); //the default for non-slaverelay mode
 		sndrfact.ctl = fwd;
@@ -269,7 +275,7 @@ public class ForwarderTest
 		String[][] msgs = lst.toArray(new String[lst.size()][]);
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs, true);
 		SenderFactory sndrfact = new SenderFactory(null, true);
-		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact);
+		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
 		sndrfact.ctl = fwd;
 		exec(qmgr, sndrfact, false);
 		org.junit.Assert.assertEquals(maxserverconns * destcnt, sndrfact.senders.size());
@@ -294,7 +300,7 @@ public class ForwarderTest
 		String[][] msgs = lst.toArray(new String[lst.size()][]);
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs, true);
 		SenderFactory sndrfact = new SenderFactory(null, true);
-		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact);
+		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
 		com.grey.mailismus.mta.queue.Cache qc = (com.grey.mailismus.mta.queue.Cache)DynLoader.getField(fwd, "qcache");
 		org.junit.Assert.assertEquals(5000, qc.capacity()); //the default for slaverelay mode
 		sndrfact.ctl = fwd;
@@ -320,7 +326,7 @@ public class ForwarderTest
 		XmlConfig cfg = XmlConfig.makeSection(delivxml, "deliver");
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs1, true);
 		SenderFactory sndrfact = new SenderFactory(expected_senders, deferred);
-		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact);
+		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
 		sndrfact.ctl = fwd;
 		exec(qmgr, sndrfact, false);
 	}

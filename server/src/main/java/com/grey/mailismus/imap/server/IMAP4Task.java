@@ -18,7 +18,7 @@ public class IMAP4Task
 
 	public IMAP4Task(String name, Dispatcher d, XmlConfig cfg) throws java.io.IOException
 	{
-		super(name, d, cfg, DFLT_FACT_DTORY, DFLT_FACT_MS);
+		super(name, d, cfg, DFLT_FACT_DTORY, DFLT_FACT_MS, null);
 		String grpname = "IMAP4Task="+getName();
 		ConcurrentListenerConfig[] lcfg = ConcurrentListenerConfig.buildMultiConfig(grpname, d.getApplicationContext().getConfig(), "listeners/listener", taskConfig(),
 				IMAP4Protocol.TCP_PORT, IMAP4Protocol.TCP_SSLPORT, IMAP4Server.Factory.class, null);

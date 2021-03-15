@@ -295,7 +295,7 @@ final class Client
 	protected com.grey.naf.SSLConfig getSSLConfig() {return (active_relay == null ? conncfg.anonssl : active_relay.sslconfig);}
 
 	// this is a prototype instance which provides configuration info for the others
-	public Client(Delivery.Controller ctl, com.grey.naf.reactor.Dispatcher d, com.grey.base.config.XmlConfig cfg, int maxconns)
+	public Client(Delivery.Controller ctl, com.grey.naf.reactor.Dispatcher d, ResolverDNS dns, com.grey.base.config.XmlConfig cfg, int maxconns)
 		throws java.io.IOException
 	{
 		super(d, null, null);
@@ -307,7 +307,7 @@ final class Client
 		} catch (java.security.GeneralSecurityException ex) {
 			throw new MailismusConfigException("Failed to create shared config", ex);
 		}
-		resolver = d.getResolverDNS();
+		resolver = dns;
 		remote_tsap_buf = null;
 	}
 

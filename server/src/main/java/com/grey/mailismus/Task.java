@@ -4,6 +4,7 @@
  */
 package com.grey.mailismus;
 
+import java.net.UnknownHostException;
 import java.util.List;
 
 import com.grey.base.config.SysProps;
@@ -13,6 +14,8 @@ import com.grey.base.utils.NIOBuffers;
 import com.grey.logging.Logger;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.nafman.NafManRegistry;
+import com.grey.naf.dns.resolver.ResolverConfig;
+import com.grey.naf.dns.resolver.ResolverDNS;
 import com.grey.naf.nafman.NafManCommand;
 
 import com.grey.mailismus.nafman.Loader;
@@ -37,23 +40,25 @@ public class Task
 	private final AppConfig appcfg;
 	private final MessageStore ms;
 	private final Directory dtory;
+	private final ResolverDNS dnsResolver;
 	private final StringBuilder tmpsb = new StringBuilder(); //pre-allocated merely for efficiency
 
 	public AppConfig getAppConfig() {return appcfg;}
 	public MessageStore getMS() {return ms;}
 	public Directory getDirectory() {return dtory;}
+	public final ResolverDNS getResolverDNS() {return dnsResolver;}
 
 	protected void startTask() throws java.io.IOException {}
 
 	@Override
 	public CharSequence nafmanHandlerID() {return getName();}
 
-	public Task(String name, Dispatcher d, XmlConfig cfg, DirectoryFactory df, MessageStoreFactory msf) throws java.io.IOException
-	{
+	public Task(String name, Dispatcher d, XmlConfig cfg, DirectoryFactory df, MessageStoreFactory msf, ResolverDNS dns) throws java.io.IOException {
 		super(name, d, cfg);
 		Logger logger = d.getLogger();
 		appcfg = AppConfig.get(taskConfigFile(), d);
 		Loader.get(d.getApplicationContext()).register(this);
+		dnsResolver = (dns == null ? null: dns);
 
 		if (df != null) {
 			dtory = df.create(getDispatcher(), appcfg.getConfigDirectory());
@@ -77,13 +82,11 @@ public class Task
 	}
 
 	@Override
-	protected void startNaflet() throws java.io.IOException
-	{
+	protected void startNaflet() throws java.io.IOException {
 		startTask();
 	}
 
-	public void registerDirectoryOps(int pref)
-	{
+	public void registerDirectoryOps(int pref) {
 		if (getDirectory() == null || getDispatcher().getNafManAgent() == null) return;
 		NafManRegistry reg = getDispatcher().getNafManAgent().getRegistry();
 		reg.registerHandler(Loader.CMD_DTORY_RELOAD, pref, this, getDispatcher());
@@ -91,8 +94,7 @@ public class Task
 	}
 
 	@Override
-	public CharSequence handleNAFManCommand(NafManCommand cmd) throws java.io.IOException
-	{
+	public CharSequence handleNAFManCommand(NafManCommand cmd) throws java.io.IOException {
 		tmpsb.setLength(0);
 		if (cmd.getCommandDef().code.equals(Loader.CMD_DTORY_RELOAD)) {
 			getDirectory().reload();
@@ -117,10 +119,16 @@ public class Task
 		return tmpsb;
 	}
 
+	public static ResolverDNS createResolverDNS(Dispatcher d) throws UnknownHostException {
+		ResolverConfig rcfg = new ResolverConfig.Builder()
+				.withXmlConfig(d.getApplicationContext().getConfig().getNode("dnsresolver"))
+				.build();
+		return ResolverDNS.create(d, rcfg);
+	}
+
 	// Buffers we never read from and whose backing array we never access should be able to benefit from being
 	// direct, so control that setting independently of the BufferSpec class.
-	public static java.nio.ByteBuffer constBuffer(CharSequence data)
-	{
+	public static java.nio.ByteBuffer constBuffer(CharSequence data) {
 		return NIOBuffers.encode(data, null, NIODIRECT_CONSTBUF).asReadOnlyBuffer();
 	}
 }

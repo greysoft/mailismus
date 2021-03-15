@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2018 Yusef Badri - All rights reserved.
+ * Copyright 2010-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.deliver;
@@ -11,6 +11,7 @@ import com.grey.base.utils.TimeOps;
 import com.grey.base.utils.ByteChars;
 import com.grey.base.utils.IP;
 import com.grey.naf.EntityReaper;
+import com.grey.naf.dns.resolver.ResolverDNS;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.mailismus.AppConfig;
 import com.grey.mailismus.mta.MTA_Task;
@@ -117,13 +118,13 @@ public final class Forwarder
 			com.grey.base.collections.GenericFactory<Delivery.MessageSender> sender_fact,
 			BatchCallback bcb) throws java.io.IOException
 	{
-		this(d, cfg, task.getAppConfig(), task.getQueue(), task.getMS(), rpr, sender_fact, bcb);
+		this(d, cfg, task.getAppConfig(), task.getQueue(), task.getMS(), rpr, sender_fact, bcb, task.getResolverDNS());
 	}
 
 	public Forwarder(Dispatcher d, XmlConfig cfg, AppConfig appConfig,
 			com.grey.mailismus.mta.queue.Manager qm, com.grey.mailismus.ms.MessageStore mstore,
 			EntityReaper rpr, com.grey.base.collections.GenericFactory<Delivery.MessageSender> sender_fact,
-			BatchCallback bcb) throws java.io.IOException
+			BatchCallback bcb, ResolverDNS dnsResolver) throws java.io.IOException
 	{
 		this.appConfig = appConfig;
 		dsptch = d;
@@ -174,7 +175,7 @@ public final class Forwarder
 
 		if (sender_fact == null) {
 			XmlConfig smtpcfg = cfg.getSection("client");
-			protoClient = new Client(this, dsptch, smtpcfg, max_serverconns);
+			protoClient = new Client(this, dsptch, dnsResolver, smtpcfg, max_serverconns);
 			sender_fact = new Client.Factory(protoClient);
 		} else {
 			protoClient = null;

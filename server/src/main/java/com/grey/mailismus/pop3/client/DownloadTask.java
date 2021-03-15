@@ -33,7 +33,7 @@ public class DownloadTask
 			int srvport, com.grey.naf.EntityReaper r, java.util.ArrayList<String> clients)
 			throws java.io.IOException, java.security.GeneralSecurityException
 	{
-		super(name, d, cfg, DFLT_FACT_DTORY, DFLT_FACT_MS);
+		super(name, d, cfg, DFLT_FACT_DTORY, DFLT_FACT_MS, null);
 		logger = d.getLogger();
 		observer = r;
 		com.grey.base.config.XmlConfig taskcfg = taskConfig();
