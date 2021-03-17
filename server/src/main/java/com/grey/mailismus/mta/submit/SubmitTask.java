@@ -25,24 +25,21 @@ public final class SubmitTask
 	}
 
 	@Override
-	protected void startTask() throws java.io.IOException
-	{
+	protected void startTask() throws java.io.IOException {
 		if (listeners.configured() == 0) {
 			nafletStopped();
 			return;
 		}
-		listeners.start();
+		listeners.start(true);
 	}
 
 	@Override
-	protected boolean stopNaflet()
-	{
-		return listeners.stop();
+	protected boolean stopNaflet() {
+		return listeners.stop(true);
 	}
 
 	@Override
-	public void entityStopped(Object obj)
-	{
+	public void entityStopped(Object obj) {
 		ListenerSet.class.cast(obj); //make sure it's the expected type
 		nafletStopped();
 	}

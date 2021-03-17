@@ -28,13 +28,13 @@ public class FilterManager
 	public FilterManager(XmlConfig cfg, Dispatcher dsptch) throws java.io.IOException {
 		threadpool = dsptch.getApplicationContext().getThreadpool();
 		filter_factory = createFilterFactory(cfg, dsptch);
-		resultsChannel = new Producer<>(FilterExecutor.class, dsptch, this);
-		resultsChannel.start();
+		resultsChannel = new Producer<>("Filter-results", FilterExecutor.class, dsptch, this);
+		resultsChannel.startDispatcherRunnable();
 	}
 
 	public void shutdown() {
 		threadpool.shutdownNow();
-		resultsChannel.shutdown();
+		resultsChannel.stopDispatcherRunnable();
 	}
 
 	public FilterExecutor approveMessage(Server server,

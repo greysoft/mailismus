@@ -430,12 +430,12 @@ public class DeliveryTest
 		actual_fwdbatchcnt = 0;
 		fwd_errmsg = null;
 		dsptch_failed = true;
-		stask.start(dsptch);
+		stask.startDispatcherRunnable();
 		smtp_sender.start();
 		dsptch.start(); //Dispatcher launches in separate thread
 		Dispatcher.STOPSTATUS stopsts = dsptch.waitStopped(MAXRUNTIME, true);
 		boolean c_stopped = smtp_sender.stop();
-		boolean s_stopped = stask.stop();
+		boolean s_stopped = stask.stopDispatcherRunnable();
 		org.junit.Assert.assertEquals(Dispatcher.STOPSTATUS.STOPPED, stopsts);
 		org.junit.Assert.assertTrue(dsptch.completedOK());
 		org.junit.Assert.assertFalse(dsptch_failed);
@@ -464,8 +464,8 @@ public class DeliveryTest
 		// now run the Reports task synchronously - note that Dispatcher is not running, but task is in one-shot mode
 		cfg = XmlConfig.makeSection(nafxml_reports, "x");
 		com.grey.mailismus.mta.reporting.ReportsTask rtask = new com.grey.mailismus.mta.reporting.ReportsTask("utest_smtprpt", dsptch, cfg, true);
-		rtask.start(dsptch);
-		boolean stopped = rtask.stop();
+		rtask.startDispatcherRunnable();
+		boolean stopped = rtask.stopDispatcherRunnable();
 		org.junit.Assert.assertTrue(stopped);
 
 		//verify Audit logs

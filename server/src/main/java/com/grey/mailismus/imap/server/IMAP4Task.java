@@ -16,8 +16,7 @@ public class IMAP4Task
 {
 	private final ListenerSet listeners;
 
-	public IMAP4Task(String name, Dispatcher d, XmlConfig cfg) throws java.io.IOException
-	{
+	public IMAP4Task(String name, Dispatcher d, XmlConfig cfg) throws java.io.IOException {
 		super(name, d, cfg, DFLT_FACT_DTORY, DFLT_FACT_MS, null);
 		String grpname = "IMAP4Task="+getName();
 		ConcurrentListenerConfig[] lcfg = ConcurrentListenerConfig.buildMultiConfig(grpname, d.getApplicationContext().getConfig(), "listeners/listener", taskConfig(),
@@ -27,19 +26,17 @@ public class IMAP4Task
 	}
 
 	@Override
-	protected void startTask() throws java.io.IOException
-	{
+	protected void startTask() throws java.io.IOException {
 		if (listeners.configured() == 0) {
 			nafletStopped();
 			return;
 		}
-		listeners.start();
+		listeners.start(true);
 	}
 
 	@Override
-	protected boolean stopNaflet()
-	{
-		return listeners.stop();
+	protected boolean stopNaflet() {
+		return listeners.stop(true);
 	}
 
 	@Override

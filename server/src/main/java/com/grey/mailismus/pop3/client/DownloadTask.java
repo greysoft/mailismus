@@ -30,7 +30,7 @@ public class DownloadTask
 	}
 
 	public DownloadTask(String name, com.grey.naf.reactor.Dispatcher d, XmlConfig cfg,
-			int srvport, com.grey.naf.EntityReaper r, java.util.ArrayList<String> clients)
+			int srvport, com.grey.naf.EntityReaper r, java.util.List<String> clients)
 			throws java.io.IOException, java.security.GeneralSecurityException
 	{
 		super(name, d, cfg, DFLT_FACT_DTORY, DFLT_FACT_MS, null);
@@ -102,7 +102,7 @@ public class DownloadTask
 			if (activeTimers.size() == 0) {
 				//... and we have no remaining scheduled clients, so we're done
 				logger.info("POP3-Download: Halting as no scheduled clients remain");
-				stop();
+				stopDispatcherRunnable();
 			}
 			return;
 		}

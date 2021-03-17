@@ -396,7 +396,7 @@ public class IMAP4ServerTest
 		srvaddr = TSAP.build(null, lstnr.getPort(), true);
 
 		// launch Dispatcher
-		srvtask.start(null);
+		srvtask.startDispatcherRunnable();
 		dsptch.start(); //Dispatcher launches in separate thread
 	}
 
@@ -407,7 +407,7 @@ public class IMAP4ServerTest
 		Dispatcher.STOPSTATUS stopsts = dsptch.waitStopped(TimeOps.MSECS_PER_SECOND * 10, true);
 		org.junit.Assert.assertEquals(Dispatcher.STOPSTATUS.STOPPED, stopsts);
 		org.junit.Assert.assertTrue(dsptch.completedOK());
-		boolean taskstopped = srvtask.stop();
+		boolean taskstopped = srvtask.stopDispatcherRunnable();
 		org.junit.Assert.assertTrue(taskstopped);
 	}
 

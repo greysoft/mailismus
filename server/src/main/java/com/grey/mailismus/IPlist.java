@@ -120,8 +120,8 @@ public class IPlist
 		if (dsptch == null) {
 			updatesFeed = null;
 		} else {
-			updatesFeed = new Producer<>(HashedSetInt.class, dsptch, this);
-			updatesFeed.start();
+			updatesFeed = new Producer<>("IPlist-updates", HashedSetInt.class, dsptch, this);
+			updatesFeed.startDispatcherRunnable();
 		}
 
 		try {
@@ -164,7 +164,7 @@ public class IPlist
 				log.log(LEVEL.TRC, ex, false, "IPlist="+listname+": Shutdown errors");
 			}
 		}
-		if (updatesFeed != null) updatesFeed.shutdown();
+		if (updatesFeed != null) updatesFeed.stopDispatcherRunnable();
 		if (tmr != null) tmr.cancel();
 		tmr = null;
 		memlist = null;

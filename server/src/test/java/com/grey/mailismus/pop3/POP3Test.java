@@ -4,12 +4,16 @@
  */
 package com.grey.mailismus.pop3;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.grey.base.config.SysProps;
 import com.grey.base.config.XmlConfig;
 import com.grey.base.utils.DynLoader;
 import com.grey.base.utils.FileOps;
 import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.DispatcherDef;
+import com.grey.naf.EntityReaper;
 import com.grey.naf.NAFConfig;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.ListenerSet;
@@ -168,9 +172,9 @@ public class POP3Test
 		// set up the POP3 client
 		cfg = XmlConfig.makeSection(nafxml_client, "x");
 		ClientReaper creaper = new ClientReaper(this, dsptch);
-		java.util.ArrayList<String> lst = new java.util.ArrayList<String>();
+		List<String> lst = new ArrayList<String>();
 		lst.add(cid);
-		com.grey.mailismus.Task ctask = new DownloadTask("utest_pop3downloader", dsptch, cfg, srvport, creaper, lst);
+		com.grey.mailismus.Task ctask = new TestDownloadTask("utest_pop3downloader", dsptch, cfg, srvport, creaper, lst);
 
 		// set up any messages to be downloaded by the POP client - inject into Server's MS
 		int msgsizes = 0;
@@ -204,12 +208,12 @@ public class POP3Test
 
 		// launch
 		dsptch_failed = true;
-		lstnrs.start();
-		ctask.start(creaper);
+		lstnrs.start(false);
+		ctask.startDispatcherRunnable();
 		dsptch.start(); //Dispatcher launches in separate thread
 		Dispatcher.STOPSTATUS stopsts = dsptch.waitStopped(MAXRUNTIME, true);
-		boolean cstopped = ctask.stop();
-		boolean lstopped = lstnrs.stop();
+		boolean cstopped = ctask.stopDispatcherRunnable();
+		boolean lstopped = lstnrs.stop(false);
 		org.junit.Assert.assertEquals(Dispatcher.STOPSTATUS.STOPPED, stopsts);
 		org.junit.Assert.assertTrue(dsptch.completedOK());
 		org.junit.Assert.assertFalse(dsptch_failed);
@@ -270,8 +274,8 @@ public class POP3Test
 		return cnt;
 	}
 	
-	private static class ClientReaper implements com.grey.naf.EntityReaper {
-		public final java.util.ArrayList<DownloadClient.Results> results = new java.util.ArrayList<DownloadClient.Results>();
+	private static class ClientReaper implements EntityReaper {
+		public final List<DownloadClient.Results> results = new ArrayList<DownloadClient.Results>();
 		private final com.grey.naf.reactor.TimerNAF.Handler observer;
 		private final Dispatcher dsptch;
 		
@@ -291,6 +295,20 @@ public class POP3Test
 			r.completed_ok = client.getResults().completed_ok;
 			r.msgcnt = client.getResults().msgcnt;
 			results.add(r);
+		}
+	}
+
+	private static class TestDownloadTask extends DownloadTask {
+		private final EntityReaper rpr;
+		public TestDownloadTask(String name, Dispatcher d, XmlConfig cfg, int srvport, EntityReaper rpr, List<String> clients)
+				throws java.io.IOException, java.security.GeneralSecurityException {
+			super(name, d, cfg, srvport, rpr, clients);
+			this.rpr = rpr;
+		}
+		@Override
+		protected void nafletStopped() {
+			super.nafletStopped();
+			rpr.entityStopped(this);
 		}
 	}
 }
