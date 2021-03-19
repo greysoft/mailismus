@@ -449,13 +449,13 @@ public class DeliveryTest
 
 		// This is really a check on Dispatcher correctness, rather than the MTA
 		@SuppressWarnings("unchecked")
-		HashedMapIntKey<ChannelMonitor> activechannels = (HashedMapIntKey<ChannelMonitor>)DynLoader.getField(dsptch, "activechannels");
+		HashedMapIntKey<ChannelMonitor> activechannels = (HashedMapIntKey<ChannelMonitor>)DynLoader.getField(dsptch, "activeChannels");
 		@SuppressWarnings("unchecked")
-		Circulist<TimerNAF> activetimers = (Circulist<TimerNAF>)DynLoader.getField(dsptch, "activetimers");
+		Circulist<TimerNAF> activetimers = (Circulist<TimerNAF>)DynLoader.getField(dsptch, "activeTimers");
 		@SuppressWarnings("unchecked")
-		ObjectQueue<TimerNAF> pendingtimers = (ObjectQueue<TimerNAF>)DynLoader.getField(dsptch, "pendingtimers");
+		ObjectQueue<TimerNAF> pendingtimers = (ObjectQueue<TimerNAF>)DynLoader.getField(dsptch, "pendingTimers");
 		@SuppressWarnings("unchecked")
-		ObjectWell<TimerNAF> sparetimers = (ObjectWell<TimerNAF>)DynLoader.getField(dsptch, "sparetimers");
+		ObjectWell<TimerNAF> sparetimers = (ObjectWell<TimerNAF>)DynLoader.getField(dsptch, "timerPool");
 		org.junit.Assert.assertEquals(0, activechannels.size());
 		org.junit.Assert.assertEquals(0, activetimers.size());
 		org.junit.Assert.assertEquals(0, pendingtimers.size());

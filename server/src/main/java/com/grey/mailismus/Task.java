@@ -14,6 +14,7 @@ import com.grey.base.utils.NIOBuffers;
 import com.grey.logging.Logger;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.nafman.NafManRegistry;
+import com.grey.naf.NAFConfig;
 import com.grey.naf.dns.resolver.ResolverConfig;
 import com.grey.naf.dns.resolver.ResolverDNS;
 import com.grey.naf.nafman.NafManCommand;
@@ -37,6 +38,7 @@ public class Task
 
 	private static final boolean NIODIRECT_CONSTBUF = SysProps.get("grey.mailismus.niodirect", true);
 
+	private final XmlConfig taskcfg;
 	private final AppConfig appcfg;
 	private final MessageStore ms;
 	private final Directory dtory;
@@ -51,14 +53,25 @@ public class Task
 	protected void startTask() throws java.io.IOException {}
 
 	@Override
+	public XmlConfig taskConfig() {return taskcfg;}
+	@Override
 	public CharSequence nafmanHandlerID() {return getName();}
 
 	public Task(String name, Dispatcher d, XmlConfig cfg, DirectoryFactory df, MessageStoreFactory msf, ResolverDNS dns) throws java.io.IOException {
 		super(name, d, cfg);
 		Logger logger = d.getLogger();
-		appcfg = AppConfig.get(taskConfigFile(), d);
-		Loader.get(d.getApplicationContext()).register(this);
 		dnsResolver = (dns == null ? null: dns);
+		NAFConfig nafcfg = d.getApplicationContext().getConfig();
+
+		String cfgfile = nafcfg.getPath(cfg, "configfile", null, false, null, null);
+		if (cfgfile != null) {
+			String cfgroot = cfg.getValue("configfile/@root", false, null);
+			taskcfg = XmlConfig.getSection(cfgfile, cfgroot);
+		} else {
+			taskcfg = cfg;
+		}
+		appcfg = AppConfig.get(cfgfile, d);
+		Loader.get(d.getApplicationContext()).register(this);
 
 		if (df != null) {
 			dtory = df.create(getDispatcher(), appcfg.getConfigDirectory());
@@ -77,8 +90,9 @@ public class Task
 		} else {
 			ms = null;
 		}
+
 		logger.trace("Naflet="+getName()+": Message-Store="+(ms==null?"N":"Y")+"; Directory="+(dtory==null?"N":"Y")
-							+"; niodirect_const="+NIODIRECT_CONSTBUF);
+				+"; niodirect_const="+NIODIRECT_CONSTBUF);
 	}
 
 	@Override

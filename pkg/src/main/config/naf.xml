@@ -8,35 +8,35 @@
     </dirpaths>
     <dnsresolver master="mta-submit" partialprune="Y"/>
     <dispatchers>
-        <dispatcher name="mta-report" zero_naflets="N" flush="15s"> 
+        <dispatcher name="mta-report" flush="15s"> 
             <naflets>
                 <naflet name="mtareport" class="com.grey.mailismus.mta.reporting.ReportsTask">
                     <configfile root="mailserver/mta/report">%DIRCONF%/mailismus.xml</configfile>
                 </naflet>
             </naflets>
         </dispatcher>
-        <dispatcher name="mta-submit" zero_naflets="N" flush="15s">
+        <dispatcher name="mta-submit" flush="15s">
             <naflets>
                 <naflet name="mtasubmit" class="com.grey.mailismus.mta.submit.SubmitTask">
                     <configfile root="mailserver/mta/submit">%DIRCONF%/mailismus.xml</configfile>
                 </naflet>
             </naflets>
         </dispatcher>
-        <dispatcher name="mta-deliver" zero_naflets="N" flush="15s">
+        <dispatcher name="mta-deliver" flush="15s">
             <naflets>
                 <naflet name="mtadeliver" class="com.grey.mailismus.mta.deliver.DeliverTask">
                     <configfile root="mailserver/mta/deliver">%DIRCONF%/mailismus.xml</configfile>
                 </naflet>
             </naflets>
         </dispatcher>
-        <dispatcher name="imap" zero_naflets="N" flush="15s" enabled="N">
+        <dispatcher name="imap" flush="15s" enabled="N">
             <naflets>
                 <naflet name="imap4server" class="com.grey.mailismus.imap.server.IMAP4Task">
                     <configfile root="mailserver/imap/server">%DIRCONF%/mailismus.xml</configfile>
                 </naflet>
             </naflets>
         </dispatcher>
-        <dispatcher name="pop3" zero_naflets="N" flush="15s" enabled="N">
+        <dispatcher name="pop3" flush="15s" enabled="N">
             <naflets>
                 <naflet name="pop3server" class="com.grey.mailismus.pop3.server.ServerTask" enabled="N">
                     <configfile root="mailserver/pop3server">%DIRCONF%/mailismus.xml</configfile>
