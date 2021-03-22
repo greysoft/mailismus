@@ -82,8 +82,8 @@ public final class Forwarder
 	// batchStats is logged and reset at the end of each batch, while openStats is accumulated for an open-ended period,
 	// until retrieved and reset by the NAFMAN COUNTERS command (and unlike the running totals below, it is only updated
 	// at the end of each batch)
-	private final Delivery.Stats batchStats = new Delivery.Stats();
-	private final Delivery.Stats openStats = new Delivery.Stats();
+	private final Delivery.Stats batchStats;
+	private final Delivery.Stats openStats;
 	private int sendercnt; //number of MessageSenders launched for current batch
 	private int pending_recips; //number of entries in current batch which have not yet been handled (qstatus==READY)
 
@@ -172,6 +172,8 @@ public final class Forwarder
 		}
 		cap_qcache = (int)cfg.getSize("queuecache", cap_qcache);
 		qcache = qmgr.initCache(cap_qcache);
+		batchStats = new Delivery.Stats(dsptch);
+		openStats = new Delivery.Stats(dsptch);
 
 		if (sender_fact == null) {
 			XmlConfig smtpcfg = cfg.getSection("client");
@@ -304,7 +306,7 @@ public final class Forwarder
 		}
 
 		// load pending messages from queue
-		batchStats.reset(null);
+		batchStats.reset();
 		if (active_serverconns != null) active_serverconns.clear();
 		qcache.clear();
 		qmgr.getMessages(qcache, sendDeferred);
@@ -317,7 +319,7 @@ public final class Forwarder
 			return false;
 		}
 		batchcnt++;
-		long time1 = System.currentTimeMillis();
+		long time1 = dsptch.getRealTime();
 		long qtime = time1 - batchStats.start;
 		total_qtime += qtime;
 		LEVEL lvl = LEVEL.TRC;
@@ -337,7 +339,7 @@ public final class Forwarder
 		} finally {
 			inScan = false;
 		}
-		long time2 = System.currentTimeMillis();
+		long time2 = dsptch.getRealTime();
 		long launchtime = time2 - time1;
 		total_launchtime += launchtime;
 		total_sendtime -= (time2 - batchStats.start); //because we will later add the time from batchStats.start onwards
@@ -467,7 +469,7 @@ public final class Forwarder
 	@Override
 	public void messageCompleted(Delivery.MessageSender sender)
 	{
-		long time1 = System.currentTimeMillis();
+		long time1 = dsptch.getRealTime();
 		boolean active = recordMessageResult(sender);
 		Delivery.MessageParams msgparams = sender.getMessageParams();
 		msgparams.resetMessage();
@@ -480,7 +482,7 @@ public final class Forwarder
 		} else {
 			populateSender(sender, 0, qcache.size());
 		}
-		long span = System.currentTimeMillis() - time1;
+		long span = dsptch.getRealTime() - time1;
 		total_launchtime += span;
 		total_sendtime -= span; //because we will later add the time from batchStats.start onwards
 	}
@@ -617,14 +619,14 @@ public final class Forwarder
 		if (active_serverconns != null) active_serverconns.clear();
 		int qsize = qcache.size();
 		long interval = interval_low;
-		long time1 = System.currentTimeMillis();
+		long time1 = dsptch.getRealTime();
 		try {
 			qmgr.messagesProcessed(qcache);
 		} catch (Throwable ex) {
 			dsptch.getLogger().log(LEVEL.ERR, ex, true, "SMTP-Delivery/batch="+batchcnt+": Queue-Flush failed");
 			interval = interval_err;
 		}
-		long time2 = System.currentTimeMillis();
+		long time2 = dsptch.getRealTime();
 		long qtime = time2 - time1;
 		long btime = time2 - batchStats.start;
 		total_qtime += qtime;
@@ -697,7 +699,7 @@ public final class Forwarder
 			tmpsb.append("<br/>Local Recipients: OK=").append(openStats.localcnt-openStats.localfailcnt).append("; Fail="+openStats.localfailcnt);
 			tmpsb.append("<br/>Current SMTP Connections: ").append(connectionsCount());
 			if (active_serverconns != null) tmpsb.append(" (Peers=").append(active_serverconns.size()).append(')');
-			if (StringOps.stringAsBool(cmd.getArg(com.grey.naf.nafman.NafManCommand.ATTR_RESET))) openStats.reset(dsptch);
+			if (StringOps.stringAsBool(cmd.getArg(com.grey.naf.nafman.NafManCommand.ATTR_RESET))) openStats.reset();
 		} else if (cmd.getCommandDef().code.equals(com.grey.mailismus.nafman.Loader.CMD_SENDQ)) {
 			if (tmr_qpoll != null) tmr_qpoll.reset(0);
 			sendDeferred = true;

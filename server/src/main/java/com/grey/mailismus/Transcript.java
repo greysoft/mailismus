@@ -217,7 +217,7 @@ public final class Transcript
 
 	private void initEntry(long systime)
 	{
-		if (systime == 0) systime = System.currentTimeMillis();
+		if (systime == 0) systime = dsptch.getRealTime();
 		dtcal.setTimeInMillis(systime);
 		try {
 			if (strm == null

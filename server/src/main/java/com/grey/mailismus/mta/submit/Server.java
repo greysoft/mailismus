@@ -376,7 +376,7 @@ public final class Server
 		int peak_conncnt; //max value reached by current_conncnt
 
 		// these are the stats counters that are retrieved and reset by the NAFMAN COUNTERS command
-		long stats_start = System.currentTimeMillis();
+		long stats_start;
 		int stats_conncnt;	//number of connections accepted
 		int stats_rejconns;	//number of connections explicitly rejected
 		int stats_msgcnt;	//number of messages successfully submitted onto queue
@@ -385,7 +385,7 @@ public final class Server
 		int stats_peakconcurrency; //max value reached by current_conncnt in current stats interval
 
 		private final StringBuilder discardmsgidbuf = new StringBuilder();
-		private long discard_msgid = System.currentTimeMillis();
+		private long discard_msgid;
 
 		// temp work areas, pre-allocated for efficiency
 		final com.grey.base.collections.ObjectWell<com.grey.base.utils.EmailAddress> addrbufcache;
@@ -409,6 +409,8 @@ public final class Server
 			srcrouted_bounces_recip = cfg.getValue("srcrouted_bounces_recip", false, "postmaster");
 			localdelivery = cfg.getBool("localdelivery", true);
 			spf_sender_rewrite = cfg.getBool("spf_sender_rewrite", true);
+			stats_start = dsptch.getRealTime();
+			discard_msgid = stats_start;
 			netbufs = new com.grey.naf.BufferSpec(cfg, "niobuffers", 4*1024, 128);
 			if (netbufs.rcvbufsiz < 80) throw new MailismusConfigException(logpfx+"recvbuf="+netbufs.rcvbufsiz+" is too small");
 

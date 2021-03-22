@@ -93,9 +93,10 @@ public interface Delivery
 		public int localcnt; //number of local recipients handled (ie. no. of MessageRecips deliver into the MS)
 		public int localfailcnt; //number of local recipients who failed - this is a subset of localcnt
 		public long start;
-		public Stats() {reset(null);}
-		public Stats reset(com.grey.naf.reactor.TimerNAF.TimeProvider t) {
-			start = (t == null ? System.currentTimeMillis() : t.getSystemTime());
+		private final com.grey.naf.reactor.TimerNAF.TimeProvider timeProvider;
+		public Stats(com.grey.naf.reactor.TimerNAF.TimeProvider t) {timeProvider=t; reset();}
+		public Stats reset() {
+			start = timeProvider.getRealTime();
 			conncnt = sendermsgcnt = remotecnt = remotefailcnt = localcnt = localfailcnt = 0;
 			return this;}
 		@Override
@@ -103,7 +104,7 @@ public interface Delivery
 			String txt = "DeliveryStats: Conns="+conncnt+", remote-msgs="+sendermsgcnt;
 			if (localcnt != 0) txt += ", localrecips="+(localcnt-localfailcnt)+"/"+localcnt;
 			if (remotecnt != 0) txt += ", remoterecips="+(remotecnt-remotefailcnt)+"/"+remotecnt;
-			return txt+" - time="+(System.currentTimeMillis()-start)+"ms";
+			return txt+" - time="+(timeProvider.getRealTime()-start)+"ms";
 		}
 	}
 }

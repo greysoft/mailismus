@@ -4,6 +4,7 @@
  */
 package com.grey.mailismus.mta.queue;
 
+import java.time.Clock;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -43,12 +44,12 @@ public final class Spooler
 	private final com.grey.logging.Logger logger;
 	private final String loglbl;
 	private final boolean isHardLinked;
-
 	private final HashedMapIntInt spids_refcnt;
 	private final SPID_Allocator spidgen;
 	private final int max_spidrefs;
+	private final Clock clock = Clock.systemUTC();
 
-	//temp work areas, pre-allocated for efficiency
+	// temp work areas, pre-allocated for efficiency
 	private final StringBuilder tmpsb = new StringBuilder();
 	// these are needed by externalSPID()
 	private static final char[] hexdigits = "0123456789ABCDEF".toCharArray();
@@ -105,7 +106,7 @@ public final class Spooler
 		synchronized (SPID_allocators) {
 			SPID_Allocator allocator = SPID_allocators.get(dhroot);
 			if (allocator == null) {
-				spidgen = new SPID_Allocator(dhroot);
+				spidgen = new SPID_Allocator(dhroot, clock);
 				SPID_allocators.put(dhroot, spidgen);
 			} else {
 				spidgen = allocator;
@@ -372,8 +373,8 @@ public final class Spooler
 		//SPID to assign to next single-recip message
 		private AtomicInteger nextspid_solo = new AtomicInteger();
 
-		public SPID_Allocator(java.nio.file.Path dhroot) throws java.io.IOException {
-			long nextspid = System.currentTimeMillis();
+		public SPID_Allocator(java.nio.file.Path dhroot, Clock clock) throws java.io.IOException {
+			long nextspid = clock.millis();
 			java.util.ArrayList<java.nio.file.Path> spooldirs = FileOps.directoryList(dhroot, false);
 			for (int idx = 0; idx != spooldirs.size(); idx++) {
 				java.nio.file.Path dhsilo = spooldirs.get(idx);

@@ -122,7 +122,7 @@ public class DownloadClient
 		public void stop(com.grey.naf.reactor.Dispatcher dsptch)
 		{
 			if (qmgr != null) qmgr.stop();
-			if (transcript != null) transcript.close(System.currentTimeMillis());
+			if (transcript != null) transcript.close(dsptch.getRealTime());
 			if (audit != null) audit.close();
 		}
 	}

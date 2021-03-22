@@ -64,6 +64,14 @@ public class DeliveryTest
 	}
 	private static MockServerDNS mockserverDNS;
 
+	private static final TimerNAF.TimeProvider TimeProvider = new TimerNAF.TimeProvider() {
+		private final Clock clock = Clock.systemUTC();
+		@Override
+		public long getRealTime() {return clock.millis();}
+		@Override
+		public long getSystemTime() {return getRealTime();}
+	};
+
 	private FwdStats[] expect_fwdstats;
 	private final FwdStats actual_fwdstats = new FwdStats();
 	private int actual_fwdbatchcnt;
@@ -617,13 +625,13 @@ public class DeliveryTest
 
 	private static class FwdStats
 	{
-		final Delivery.Stats stats = new Delivery.Stats();
+		final Delivery.Stats stats = new Delivery.Stats(TimeProvider);
 		int qsize;
 		FwdStats() {}
 		FwdStats(int q, int c, int m) {qsize = q; stats.conncnt = c; stats.sendermsgcnt = m;}
 		FwdStats relay(int t, int f) {stats.remotecnt = t; stats.remotefailcnt = f; return this;}
 		FwdStats local(int t, int f) {stats.localcnt = t; stats.localfailcnt = f; return this;}
-		FwdStats reset() {stats.reset(null); qsize = 0; return this;}
+		FwdStats reset() {stats.reset(); qsize = 0; return this;}
 	}
 
 	public static class TestFilterFactory implements FilterFactory {

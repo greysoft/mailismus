@@ -4,6 +4,7 @@
  */
 package com.grey.mailismus.mta.queue.queue_providers.filesystem_cluster;
 
+import java.time.Clock;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.grey.base.utils.ByteChars;
@@ -23,6 +24,12 @@ public class ClusterControllerTest
 	private final ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true);
 	private final ClusterController cctl;
 	private final ConcurrentHashMap<?,?> cmap;
+	private final Clock clock = Clock.systemUTC();
+
+	@Override
+	public long getRealTime() {return clock.millis();}
+	@Override
+	public long getSystemTime() {return getRealTime();}
 
 	public ClusterControllerTest() {
 		cctl = ClusterController.getController(appctx, java.nio.file.Paths.get(rootpath), this, logger);
@@ -315,10 +322,5 @@ public class ClusterControllerTest
 		offset = cctl.getPartialOffset(c);
 		org.junit.Assert.assertEquals(partial_offset, offset);
 		org.junit.Assert.assertNull(DynLoader.getField(c3, "ostrm"));
-	}
-
-	@Override
-	public long getSystemTime() {
-		return System.currentTimeMillis();
 	}
 }
