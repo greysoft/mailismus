@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2018 Yusef Badri - All rights reserved.
+ * Copyright 2012-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.directory.files;
@@ -82,7 +82,6 @@ public class FilesDirectoryTest
 		// make sure previous data is still in effect
 		org.junit.Assert.assertTrue(dty.isLocalDomain(new ByteChars("mydom1.local")));
 		org.junit.Assert.assertTrue(dty.isLocalUser(new ByteChars("locuser1")));
-		dsptch.stop();
 	}
 
 	@org.junit.Test
@@ -207,7 +206,7 @@ public class FilesDirectoryTest
 			cfgxml = cfgxml.replace("xplainpass", "plainpass");
 			local_users = local_users_plain;
 		}
-		NAFConfig nafcfg = dsptch.getApplicationContext().getConfig();
+		NAFConfig nafcfg = appctx.getConfig();
 		com.grey.base.config.XmlConfig cfg = com.grey.base.config.XmlConfig.makeSection(cfgxml, "directory");
 		String pthnam = nafcfg.getPath(cfg, "domains", null, true, null, getClass());
 		java.io.File fh = new java.io.File(pthnam);

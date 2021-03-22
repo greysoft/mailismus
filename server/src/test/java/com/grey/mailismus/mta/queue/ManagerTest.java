@@ -26,6 +26,9 @@ import com.grey.logging.Logger;
 
 public abstract class ManagerTest
 {
+	static {
+		SysProps.set("greynaf.dispatchers.tolerant_threadchecks", true);
+	}
 	private static final int BULKCACHESIZE = 29;
 	private static final int DFLT_BULKMSGCNT = 5000;
 	protected static final Logger logger = com.grey.logging.Factory.getLoggerNoEx("qmgrtest");
@@ -77,10 +80,10 @@ public abstract class ManagerTest
 		org.junit.Assert.assertEquals(0, refcnt.size());
 	}
 
+	// We never started Dispatcher, so don't stop it here
 	@org.junit.After
 	public void shutdown() throws java.io.IOException
 	{
-		if (dsptch != null) dsptch.stop();
 		if (qmgr != null) qmgr.stop();
 		dsptch = null;
 		qmgr = null;

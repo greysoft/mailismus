@@ -10,6 +10,7 @@ import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.DispatcherDef;
 import com.grey.naf.NAFConfig;
 import com.grey.naf.reactor.Dispatcher;
+import com.grey.naf.reactor.DispatcherRunnable;
 import com.grey.naf.reactor.TimerNAF;
 import com.grey.logging.Logger.LEVEL;
 
@@ -38,9 +39,6 @@ public class IPlistTest
 	private IPlist cur_iplist;
 	private int expected_size;
 	private volatile boolean reloaded;
-
-	@Override
-	public void eventError(TimerNAF tmr, Dispatcher d, Throwable ex) {}
 
 	@org.junit.Test
 	public void testMemorySync() throws java.io.IOException, java.net.URISyntaxException
@@ -72,16 +70,28 @@ public class IPlistTest
 		DispatcherDef def = new DispatcherDef.Builder().withXmlConfig(dcfg).build();
 		Dispatcher dsptch = Dispatcher.create(appctx, def, logger);
 		boolean ok = false;
-		IPlist iplist = null;
 		try {
 			XmlConfig cfg = appctx.getConfig().getNode("iplist");
 			org.junit.Assert.assertNotNull(cfg);
-			iplist = new IPlist("test_iplist_mem_async", null, cfg, dsptch);
+			IPlist iplist = new IPlist("test_iplist_mem_async", null, cfg, dsptch);
 			org.junit.Assert.assertTrue(iplist.allowHostnames());
 			commonChecks(iplist, EXPSIZE_MEMTEST);
 			org.junit.Assert.assertFalse(iplist.exists(IP.convertDottedIP("105.1.2.3")));
 			org.junit.Assert.assertFalse(iplist.exists(IP.convertDottedIP("112.1.2.3")));
 			org.junit.Assert.assertTrue(iplist.toString().contains("memory="));
+			DispatcherRunnable runnable = new DispatcherRunnable() {
+				@Override
+				public String getName() {return "IPlistTest.shutdown";}
+				@Override
+				public Dispatcher getDispatcher() {return dsptch;}
+				@Override
+				public boolean stopDispatcherRunnable() {
+					iplist.close();
+					iplist.close();
+					return true;
+				}
+			};
+			dsptch.loadRunnable(runnable);
 			reload(iplist, EXPSIZE_MEMTEST, dsptch);
 			ok = true;
 		} finally {
@@ -92,10 +102,6 @@ public class IPlistTest
 				logger.log(LEVEL.ERR, ex, true, "Failed to close Dispatcher after testMemoryAsync");
 				if (ok) throw ex;
 			}
-		}
-		if (iplist != null) {
-			iplist.close();
-			iplist.close();
 		}
 	}
 

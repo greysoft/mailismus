@@ -60,8 +60,6 @@ final class Greylist
 	private com.grey.naf.reactor.TimerNAF tmr_purge;
 	private volatile boolean is_closed;
 
-	@Override
-	public void eventError(com.grey.naf.reactor.TimerNAF tmr, com.grey.naf.reactor.Dispatcher d, Throwable ex) {}
 	public int[] count() {return show(null);}
 
 	public Greylist(com.grey.naf.reactor.Dispatcher dsptch, DBHandle.Type dbtype, com.grey.base.config.XmlConfig cfg)

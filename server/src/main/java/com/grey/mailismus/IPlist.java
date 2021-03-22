@@ -5,6 +5,9 @@
 package com.grey.mailismus;
 
 import com.grey.base.config.XmlConfig;
+
+import java.io.IOException;
+
 import com.grey.base.collections.HashedSetInt;
 import com.grey.base.collections.IteratorInt;
 import com.grey.base.utils.FileOps;
@@ -121,7 +124,14 @@ public class IPlist
 			updatesFeed = null;
 		} else {
 			updatesFeed = new Producer<>("IPlist-updates", HashedSetInt.class, dsptch, this);
-			updatesFeed.startDispatcherRunnable();
+
+			TimerNAF.Handler onStart = new TimerNAF.Handler() {
+				@Override
+				public void timerIndication(TimerNAF t, Dispatcher d) throws IOException {
+					updatesFeed.startDispatcherRunnable(); //need to call this within Dispatcher thread
+				}
+			};
+			dsptch.setTimer(0, 0, onStart);
 		}
 
 		try {
@@ -378,11 +388,6 @@ public class IPlist
 	{
 		tmr = null; //Timer param is expected to be tmr, don't bother checking
 		reload();
-	}
-
-	@Override
-	public void eventError(TimerNAF t, Dispatcher d, Throwable ex) {
-		//already logged by Dispatcher so nothing more to do
 	}
 	
 	@Override

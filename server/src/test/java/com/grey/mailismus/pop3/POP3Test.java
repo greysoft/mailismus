@@ -209,16 +209,12 @@ public class POP3Test
 		// launch
 		dsptch_failed = true;
 		lstnrs.start(false);
-		ctask.startDispatcherRunnable();
+		dsptch.loadRunnable(ctask);
 		dsptch.start(); //Dispatcher launches in separate thread
 		Dispatcher.STOPSTATUS stopsts = dsptch.waitStopped(MAXRUNTIME, true);
-		boolean cstopped = ctask.stopDispatcherRunnable();
-		boolean lstopped = lstnrs.stop(false);
 		org.junit.Assert.assertEquals(Dispatcher.STOPSTATUS.STOPPED, stopsts);
 		org.junit.Assert.assertTrue(dsptch.completedOK());
 		org.junit.Assert.assertFalse(dsptch_failed);
-		org.junit.Assert.assertTrue(cstopped);
-		org.junit.Assert.assertTrue(lstopped);
 		DownloadClient.Results main_results = creaper.results.get(0);
 
 		if (main_results.completed_ok) {
@@ -262,8 +258,6 @@ public class POP3Test
 		boolean stopped = d.stop();
 		org.junit.Assert.assertFalse(stopped);
 	}
-	@Override
-	public void eventError(com.grey.naf.reactor.TimerNAF tmr, Dispatcher d, Throwable ex) {}
 
 	private static int getMessageCount(com.grey.mailismus.ms.MessageStore ms_iface, com.grey.base.utils.ByteChars username)
 	{

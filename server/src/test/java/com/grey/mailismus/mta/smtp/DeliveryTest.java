@@ -5,6 +5,7 @@
 package com.grey.mailismus.mta.smtp;
 
 import java.nio.file.Path;
+import java.time.Clock;
 import java.util.ArrayList;
 
 import com.grey.base.config.SysProps;
@@ -17,66 +18,67 @@ import com.grey.base.utils.TSAP;
 import com.grey.base.utils.EmailAddress;
 import com.grey.base.utils.DynLoader;
 import com.grey.base.collections.Circulist;
-import com.grey.base.collections.ObjectQueue;
-import com.grey.base.collections.ObjectWell;
 import com.grey.base.collections.HashedMapIntInt;
 import com.grey.base.collections.HashedMapIntKey;
-
+import com.grey.base.collections.ObjectQueue;
+import com.grey.base.collections.ObjectWell;
 import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.NAFConfig;
 import com.grey.naf.DispatcherDef;
-import com.grey.naf.EntityReaper;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.TimerNAF;
 import com.grey.naf.reactor.ChannelMonitor;
 
 import com.grey.mailismus.AppConfig;
-import com.grey.mailismus.Task;
-import com.grey.mailismus.mta.MTA_Task;
 import com.grey.mailismus.mta.queue.QueueFactory;
+import com.grey.mailismus.mta.queue.Manager;
+import com.grey.mailismus.mta.queue.SubmitHandle;
+import com.grey.mailismus.mta.queue.queue_providers.filesystem.FilesysQueue;
+import com.grey.mailismus.mta.queue.queue_providers.filesystem_cluster.ClusteredQueue;
+import com.grey.mailismus.mta.queue.queue_providers.sql.SQLQueue;
+import com.grey.mailismus.mta.reporting.ReportsTask;
+import com.grey.mailismus.mta.submit.SubmitTask;
 import com.grey.mailismus.mta.submit.filter.api.FilterFactory;
 import com.grey.mailismus.mta.submit.filter.api.FilterResultsHandler;
 import com.grey.mailismus.mta.submit.filter.api.MessageFilter;
 import com.grey.mailismus.mta.deliver.Relay;
+import com.grey.mailismus.mta.deliver.DeliverTask;
 import com.grey.mailismus.mta.deliver.Delivery;
 import com.grey.mailismus.mta.deliver.Forwarder;
 import com.grey.mailismus.TestSupport;
+import com.grey.mailismus.ms.maildir.MaildirStore;
 
 /*
  * NB: The certificate files referenced in this test's config are copied from NAF's SSLConnectionTest
  */
 public class DeliveryTest
-	implements Forwarder.BatchCallback, EntityReaper, TimerNAF.Handler
+	implements Forwarder.BatchCallback, TimerNAF.Handler
 {
 	private static final String appcfg_path = "cp:com/grey/mailismus/mta/smtp/conf.xml";
 	private static final long MAXRUNTIME = SysProps.getTime("grey.test.mta.runtime", "1m");
 	private static final int TMRTYPE_STOP = 1;
 
-	private static MockServerDNS mockserverDNS;
-
 	static {
 		TestSupport.initPaths(DeliveryTest.class);
+		SysProps.set("greynaf.dispatchers.tolerant_threadchecks", true);
 	}
+	private static MockServerDNS mockserverDNS;
 
-	private static class FwdStats
-	{
-		final Delivery.Stats stats = new Delivery.Stats();
-		int qsize;
-		FwdStats() {}
-		FwdStats(int q, int c, int m) {qsize = q; stats.conncnt = c; stats.sendermsgcnt = m;}
-		FwdStats relay(int t, int f) {stats.remotecnt = t; stats.remotefailcnt = f; return this;}
-		FwdStats local(int t, int f) {stats.localcnt = t; stats.localfailcnt = f; return this;}
-		FwdStats reset() {stats.reset(null); qsize = 0; return this;}
-	}
 	private FwdStats[] expect_fwdstats;
 	private final FwdStats actual_fwdstats = new FwdStats();
 	private int actual_fwdbatchcnt;
 	private String fwd_errmsg;
 
 	private Dispatcher dsptch;
-	private Forwarder smtp_sender;
 	private String altcfg_path;
-	private boolean dsptch_failed;
+	private volatile boolean stopping;
+
+	@org.junit.Rule
+	public final org.junit.rules.TestRule testwatcher = new org.junit.rules.TestWatcher() {
+		@Override public void starting(org.junit.runner.Description d) {
+			System.out.println("Starting test="+d.getMethodName()+" - "+d.getClassName());
+		}
+	};
 
 	@org.junit.BeforeClass
 	public static void beforeClass() throws java.io.IOException
@@ -98,13 +100,6 @@ public class DeliveryTest
 	{
 		if (mockserverDNS != null) mockserverDNS.stop();
 	}
-
-	@org.junit.Rule
-	public final org.junit.rules.TestRule testwatcher = new org.junit.rules.TestWatcher() {
-		@Override public void starting(org.junit.runner.Description d) {
-			System.out.println("Starting test="+d.getMethodName()+" - "+d.getClassName());
-		}
-	};
 
 	//See testAliases() for treatment of @nosuchdomain.dns
 	@org.junit.Test
@@ -366,23 +361,27 @@ public class DeliveryTest
 		XmlConfig xmlcfg = XmlConfig.makeSection(nafxml, "/naf");
 		NAFConfig nafcfg = new NAFConfig.Builder().withXmlConfig(xmlcfg).build();
 		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, nafcfg, true);
+		Clock clock = Clock.systemUTC();
 
 		// create a disposable Dispatcher first, just to identify and clean up the working directories that will be used
 		com.grey.logging.Logger logger = com.grey.logging.Factory.getLogger("no-such-logger");
-		dsptch = Dispatcher.create(appctx, new DispatcherDef.Builder().build(), logger);
+		DispatcherDef dcfg = new DispatcherDef.Builder().withName("DeliveryTest-preliminary").build();
+		dsptch = Dispatcher.create(appctx, dcfg, logger);
 		FileOps.deleteDirectory(nafcfg.getPathVar());
 		FileOps.deleteDirectory(nafcfg.getPathTemp());
 		FileOps.deleteDirectory(nafcfg.getPathLogs());
 		// now create the real Dispatcher
 		DispatcherDef def = new DispatcherDef.Builder()
+				.withName("DeliveryTest")
 				.withSurviveHandlers(false)
+				.withClock(clock)
 				.build();
 		dsptch = Dispatcher.create(appctx, def, logger);
 		AppConfig appcfg = AppConfig.get(nafcfg.getPath(pthnam_appcfg, null), dsptch);
 
 		// Inject the messages into the queue for Forwarder to pick up.
 		// Email addresses would be lower-cased by SMTP server before being submitted to Queue, so do same with our test data.
-		com.grey.mailismus.mta.queue.Manager qmgr = QueueFactory.init(dsptch, appcfg, "initial-inject");
+		Manager qmgr = QueueFactory.init(dsptch, appcfg, "initial-inject");
 		for (int idx = 0; idx != msgs.length; idx++) {
 			MessageSpec msg = msgs[idx];
 			ByteChars sender = new ByteChars(msg.sender).toLowerCase();
@@ -390,7 +389,7 @@ public class DeliveryTest
 			MessageSpec.addRecips(recips, msg.recips_temperr);
 			MessageSpec.addRecips(recips, msg.recips_permerr);
 			MessageSpec.addRecips(recips, msg.recips_ok);
-			com.grey.mailismus.mta.queue.SubmitHandle msgh = qmgr.startSubmit(sender, recips, null, IP.IP_LOCALHOST);
+			SubmitHandle msgh = qmgr.startSubmit(sender, recips, null, IP.IP_LOCALHOST);
 			msgh.write(new ByteChars("Header "+idx+"\r\n\r\n"));
 			msgh.write(new ByteChars(msg.body+"\r\n"));
 			boolean ok = qmgr.endSubmit(msgh, false);
@@ -401,15 +400,15 @@ public class DeliveryTest
 
 		// Set up the SMTP server
 		// It needs to be configured to to use an alternative queue , to prevent it feeding messages back to the Forwarder in
-		// an endless loop.
+		// an endless loop. This is done via the utest_smtps name mapping to a special queue-config in mailismus.xml.
 		XmlConfig cfg = XmlConfig.makeSection(nafxml_server, "x");
-		com.grey.mailismus.mta.submit.SubmitTask stask = new com.grey.mailismus.mta.submit.SubmitTask("utest_smtps", dsptch, cfg);
+		SubmitTask stask = new SubmitTask("utest_smtps", dsptch, cfg);
 
 		// set up the SMTP delivery component
 		cfg = XmlConfig.makeSection(nafxml_client, "x");
-		com.grey.mailismus.mta.MTA_Task ctask = new com.grey.mailismus.mta.MTA_Task("utest_smtpc", dsptch, cfg,
-				Task.DFLT_FACT_DTORY, Task.DFLT_FACT_MS, MTA_Task.DFLT_FACT_QUEUE, stask.getResolverDNS());
-		smtp_sender = new Forwarder(dsptch, ctask, ctask.taskConfig(), this, null, this);
+		DeliverTask dtask = new DeliverTask("utest_smtpc", dsptch, cfg);
+		Forwarder smtp_sender = new Forwarder(dsptch, dtask, dtask.taskConfig(), dtask, null, this);
+		DynLoader.setField(dtask, "sender", smtp_sender);
 		if (maxsrvconns != 0) {
 			Object cproto = DynLoader.getField(smtp_sender, "protoClient");
 			Object cshared = DynLoader.getField(cproto, "shared");
@@ -426,21 +425,16 @@ public class DeliveryTest
 		}
 
 		// launch SMTP server and client in same Dispatcher thread
+		stopping = false;
 		actual_fwdstats.reset();
 		actual_fwdbatchcnt = 0;
 		fwd_errmsg = null;
-		dsptch_failed = true;
-		stask.startDispatcherRunnable();
-		smtp_sender.start();
-		dsptch.start(); //Dispatcher launches in separate thread
+		dsptch.loadRunnable(dtask);
+		dsptch.loadRunnable(stask);
+		dsptch.start();
 		Dispatcher.STOPSTATUS stopsts = dsptch.waitStopped(MAXRUNTIME, true);
-		boolean c_stopped = smtp_sender.stop();
-		boolean s_stopped = stask.stopDispatcherRunnable();
 		org.junit.Assert.assertEquals(Dispatcher.STOPSTATUS.STOPPED, stopsts);
 		org.junit.Assert.assertTrue(dsptch.completedOK());
-		org.junit.Assert.assertFalse(dsptch_failed);
-		org.junit.Assert.assertTrue(c_stopped);
-		org.junit.Assert.assertTrue(s_stopped);
 
 		Object cproto = DynLoader.getField(smtp_sender, "protoClient");
 		Object cshared = DynLoader.getField(cproto, "shared");
@@ -457,18 +451,17 @@ public class DeliveryTest
 		@SuppressWarnings("unchecked")
 		ObjectWell<TimerNAF> sparetimers = (ObjectWell<TimerNAF>)DynLoader.getField(dsptch, "timerPool");
 		org.junit.Assert.assertEquals(0, activechannels.size());
-		org.junit.Assert.assertEquals(0, activetimers.size());
-		org.junit.Assert.assertEquals(0, pendingtimers.size());
+		org.junit.Assert.assertEquals(activetimers.toString(), 0, activetimers.size());
+		org.junit.Assert.assertEquals(pendingtimers.toString(), 0, pendingtimers.size());
 		org.junit.Assert.assertEquals(sparetimers.size(), sparetimers.population());
 
-		// now run the Reports task synchronously - note that Dispatcher is not running, but task is in one-shot mode
+		// Now run the Reports task synchronously - note that Dispatcher is not running, but task is in one-shot mode.
+		// We can't run Reports task in the live Dispatcher as its NDRs will get picked up the Submit task and we wouldn't be able to seee
+		// which task did what.
 		cfg = XmlConfig.makeSection(nafxml_reports, "x");
-		com.grey.mailismus.mta.reporting.ReportsTask rtask = new com.grey.mailismus.mta.reporting.ReportsTask("utest_smtprpt", dsptch, cfg, true);
-		rtask.startDispatcherRunnable();
-		boolean stopped = rtask.stopDispatcherRunnable();
-		org.junit.Assert.assertTrue(stopped);
+		int bounces = ReportsTask.processQueue("utest_smtprpt", dsptch, cfg, clock);
 
-		//verify Audit logs
+		// calculate the expected outcomes and verify Audit logs
 		String audit_ok = FileOps.readAsText(nafcfg.getPathLogs()+"/audit/delivered.log", null);
 		String audit_permerr = FileOps.readAsText(nafcfg.getPathLogs()+"/audit/bounces.log", null);
 		if (audit_ok == null) audit_ok = "";
@@ -511,14 +504,20 @@ public class DeliveryTest
 		diagcnt = FileOps.countFiles(new java.io.File(nafcfg.getPathVar()+"/spool_server/ndrdiag"), true);
 		srv_actual_spoolcnt -= diagcnt;
 
-		int actual_temperr = qmgr.qsize(com.grey.mailismus.mta.queue.Manager.SHOWFLAG_TEMPERR);
-		int actual_ndrcnt = qmgr.qsize(com.grey.mailismus.mta.queue.Manager.SHOWFLAG_NEW);
-		int srv_actual_submitcnt = stask.getQueue().qsize(com.grey.mailismus.mta.queue.Manager.SHOWFLAG_NEW);
+		int actual_temperr = qmgr.qsize(Manager.SHOWFLAG_TEMPERR);
+		int actual_ndrcnt = qmgr.qsize(Manager.SHOWFLAG_NEW);
+		int srv_actual_submitcnt = stask.getQueue().qsize(Manager.SHOWFLAG_NEW);
 		if (actual_temperr != -1) org.junit.Assert.assertEquals(expected_temperr, actual_temperr);
 		if (actual_ndrcnt != -1) org.junit.Assert.assertEquals(expected_bouncecnt, actual_ndrcnt);
 		if (srv_actual_submitcnt != -1) org.junit.Assert.assertEquals(server_submitcnt, srv_actual_submitcnt);
 
-		if (qmgr.getClass().equals(com.grey.mailismus.mta.queue.queue_providers.filesystem.FilesysQueue.class)) {
+		if (qmgr.getClass().equals(ClusteredQueue.class) || qmgr.getClass().equals(FilesysQueue.class) || qmgr.getClass().equals(SQLQueue.class)) {
+			org.junit.Assert.assertNotEquals(-1, actual_temperr);
+			org.junit.Assert.assertNotEquals(-1, actual_ndrcnt);
+			org.junit.Assert.assertNotEquals(-1, srv_actual_submitcnt);
+		}
+
+		if (qmgr.getClass().equals(FilesysQueue.class)) {
 			actual_temperr = FileOps.countFiles(new java.io.File(nafcfg.getPathVar()+"/queue/deferred"), true);
 			actual_ndrcnt = FileOps.countFiles(new java.io.File(nafcfg.getPathVar()+"/queue/incoming"), true);
 			srv_actual_submitcnt = FileOps.countFiles(new java.io.File(nafcfg.getPathVar()+"/queue_server/incoming"), true);
@@ -526,7 +525,7 @@ public class DeliveryTest
 			org.junit.Assert.assertEquals(expected_bouncecnt, actual_ndrcnt);
 			org.junit.Assert.assertEquals(server_submitcnt, srv_actual_submitcnt);
 		}
-		if (ctask.getMS().getClass().equals(com.grey.mailismus.ms.maildir.MaildirStore.class)) {
+		if (dtask.getMS().getClass().equals(MaildirStore.class)) {
 			int actual_localcnt = FileOps.countFiles(new java.io.File(nafcfg.getPathVar()+"/ms"), true);
 			int expect_localcnt = 0;
 			for (int idx = 0; idx != expect_fwdstats.length; idx++) {expect_localcnt += (expect_fwdstats[idx].stats.localcnt - expect_fwdstats[idx].stats.localfailcnt);}
@@ -538,6 +537,7 @@ public class DeliveryTest
 		org.junit.Assert.assertEquals(expected_spoolcnt, actual_spoolcnt);
 		org.junit.Assert.assertEquals(server_spoolcnt, srv_actual_spoolcnt);
 		org.junit.Assert.assertEquals(expected_bouncecnt, actual_bouncecnt);
+		org.junit.Assert.assertEquals(actual_permerr, bounces);
 		if (actual_fwdbatchcnt != expect_fwdstats.length) {
 			org.junit.Assert.fail("Expected FwdBatches="+expect_fwdstats.length+" vs "+actual_fwdbatchcnt);
 		} else {
@@ -546,19 +546,13 @@ public class DeliveryTest
 	}
 
 	@Override
-	public void entityStopped(Object obj)
-	{
-		if (obj != smtp_sender) return;
-		dsptch.setTimer(100, TMRTYPE_STOP, this); //give server time to receive disconnect events
-	}
-
-	@Override
 	public void batchCompleted(int qsize, Delivery.Stats stats)
 	{
 		if (qsize == 0) {
-			boolean stopped = smtp_sender.stop();
-			org.junit.Assert.assertTrue(stopped);
-			entityStopped(smtp_sender); //because synchronous stop() won't result in call to entityStopped()
+			if (!stopping) {
+				stopping = true;
+				dsptch.setTimer(100, TMRTYPE_STOP, this);
+			}
 		} else {
 			// crashing the Dispatcher here wouldn't yield friendly error messages, so don't assert these stats till later
 			if (actual_fwdbatchcnt < expect_fwdstats.length && fwd_errmsg == null) {
@@ -578,13 +572,9 @@ public class DeliveryTest
 	}
 
 	@Override
-	public void timerIndication(TimerNAF tmr, Dispatcher d) {
-		if (tmr.getType() != TMRTYPE_STOP) return;
-		if (d.isRunning()) dsptch_failed = false; //state that we stopped the Dispatcher, as opposed to it crashing out on error
-		d.stop();
+	public void timerIndication(TimerNAF tmr, Dispatcher d) throws java.io.IOException {
+		if (tmr.getType() == TMRTYPE_STOP) d.stop();
 	}
-	@Override
-	public void eventError(TimerNAF tmr, Dispatcher d, Throwable ex) {}
 
 	
 	private static class MessageSpec
@@ -594,8 +584,8 @@ public class DeliveryTest
 		public final CharSequence[] recips_temperr;
 		public final CharSequence[] recips_permerr;
 		public final CharSequence body;
-		public MessageSpec(CharSequence s, CharSequence[] rok, CharSequence[] rtmp, CharSequence[] rperm, CharSequence b) {
-			sender=s; recips_ok=rok; recips_temperr=rtmp; recips_permerr=rperm; body=b;
+		public MessageSpec(CharSequence sndr, CharSequence[] rok, CharSequence[] rtmp, CharSequence[] rperm, CharSequence b) {
+			sender=sndr; recips_ok=rok; recips_temperr=rtmp; recips_permerr=rperm; body=b;
 		}
 		public static void addRecips(ArrayList<EmailAddress> lst, CharSequence[] recips) {
 			if (recips == null) return;
@@ -623,6 +613,17 @@ public class DeliveryTest
 		}
 		@Override
 		public void cancel() {}   
+	}
+
+	private static class FwdStats
+	{
+		final Delivery.Stats stats = new Delivery.Stats();
+		int qsize;
+		FwdStats() {}
+		FwdStats(int q, int c, int m) {qsize = q; stats.conncnt = c; stats.sendermsgcnt = m;}
+		FwdStats relay(int t, int f) {stats.remotecnt = t; stats.remotefailcnt = f; return this;}
+		FwdStats local(int t, int f) {stats.localcnt = t; stats.localfailcnt = f; return this;}
+		FwdStats reset() {stats.reset(null); qsize = 0; return this;}
 	}
 
 	public static class TestFilterFactory implements FilterFactory {

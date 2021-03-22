@@ -1,9 +1,10 @@
 /*
- * Copyright 2013-2018 Yusef Badri - All rights reserved.
+ * Copyright 2013-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.submit.filter;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 
@@ -14,6 +15,7 @@ import com.grey.base.utils.TSAP;
 import com.grey.naf.NAFConfig;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.Producer;
+import com.grey.naf.reactor.TimerNAF;
 import com.grey.mailismus.mta.submit.Server;
 import com.grey.mailismus.mta.submit.filter.api.FilterFactory;
 import com.grey.mailismus.mta.submit.filter.api.MessageFilter;
@@ -29,7 +31,14 @@ public class FilterManager
 		threadpool = dsptch.getApplicationContext().getThreadpool();
 		filter_factory = createFilterFactory(cfg, dsptch);
 		resultsChannel = new Producer<>("Filter-results", FilterExecutor.class, dsptch, this);
-		resultsChannel.startDispatcherRunnable();
+
+		TimerNAF.Handler onStart = new TimerNAF.Handler() {
+			@Override
+			public void timerIndication(TimerNAF t, Dispatcher d) throws IOException {
+				resultsChannel.startDispatcherRunnable(); //need to call this within Dispatcher thread
+			}
+		};
+		dsptch.setTimer(0, 0, onStart);
 	}
 
 	public void shutdown() {

@@ -4,6 +4,8 @@
  */
 package com.grey.mailismus.mta.reporting;
 
+import java.time.Clock;
+
 import com.grey.base.utils.ByteChars;
 import com.grey.base.utils.FileOps;
 import com.grey.base.utils.StringOps;
@@ -42,7 +44,6 @@ public final class ReportsTask
 	private final java.util.ArrayList<com.grey.base.utils.EmailAddress> additionalRecipients
 			= new java.util.ArrayList<com.grey.base.utils.EmailAddress>(); //list of recipients to whom duplicates of NDRs should be emailed
 	private final String archiveDirectory; //a directory in which to store copies of all NDRs
-	private final boolean one_shot;
 
 	private final com.grey.base.utils.ByteChars ndr_status;
 	private final com.grey.base.utils.ByteChars ndr_headers;
@@ -61,7 +62,7 @@ public final class ReportsTask
 	private com.grey.naf.reactor.TimerNAF tmr_housekeep;
 
 	// these are the stats counters that are retrieved and reset by the NAFMAN COUNTERS command
-	private long stats_start = System.currentTimeMillis();
+	private long stats_start;
 	private int stats_bounces; //total bounced messages processed
 	private int stats_ndrbounces; //bounced NDRs process - a subset of stats_bounces
 
@@ -79,23 +80,23 @@ public final class ReportsTask
 	private final StringBuilder tmpsb = new StringBuilder();
 	private final ByteChars tmpbuf_failmsg = new ByteChars();
 
-	// not much we can do here - our only Dispatcher entry point (Timer handler) doesn't even throw
-	@Override
-	public void eventError(com.grey.naf.reactor.TimerNAF tmr, com.grey.naf.reactor.Dispatcher d, Throwable ex) {}
-
-	public ReportsTask(String name, com.grey.naf.reactor.Dispatcher dsptch, com.grey.base.config.XmlConfig cfg)
-			throws java.io.IOException
-	{
-		this(name, dsptch, cfg, false);
+	// one-shot scan of the queue
+	public static int processQueue(String name, com.grey.naf.reactor.Dispatcher dsptch, com.grey.base.config.XmlConfig cfg, Clock clock) throws java.io.IOException {
+		ReportsTask task = new ReportsTask(name, dsptch, cfg);
+		try {
+			int bounces = task.processQueue(clock.millis());
+			task.stop(false);
+			return bounces;
+		} catch (Exception ex) {
+			throw new MailismusException("ReportsTask="+task.getName()+" failed to process Queue on one-shot mode", ex);
+		}
 	}
 
-	public ReportsTask(String name, com.grey.naf.reactor.Dispatcher d, com.grey.base.config.XmlConfig cfg, boolean once)
-			throws java.io.IOException
-	{
+	public ReportsTask(String name, com.grey.naf.reactor.Dispatcher d, com.grey.base.config.XmlConfig cfg) throws java.io.IOException {
 		super(name, d, cfg, null, null, DFLT_FACT_QUEUE, null);
 		logger = d.getLogger();
 		qmgr = getQueue();
-		one_shot = once;
+		stats_start = d.getRealTime();
 		com.grey.base.config.XmlConfig taskcfg = taskConfig();
 		registerQueueOps(com.grey.mailismus.nafman.Loader.PREF_SHOWQ_REPORT);
 		String subj = "Delivery Failure Report";
@@ -177,7 +178,8 @@ public final class ReportsTask
 		logger.info("ReportsTask: queuecache="+qcache.capacity()+"/"+cachesize);
 		logger.info("ReportsTask Intervals: Low="+TimeOps.expandMilliTime(interval_low)
 				+", High="+TimeOps.expandMilliTime(interval_high)
-				+", Error="+TimeOps.expandMilliTime(interval_err));
+				+", Error="+TimeOps.expandMilliTime(interval_err)
+				+", Delay="+TimeOps.expandMilliTime(delay_start));
 
 		if (getDispatcher().getNafManAgent() != null) {
 			com.grey.naf.nafman.NafManRegistry reg = getDispatcher().getNafManAgent().getRegistry();
@@ -188,15 +190,6 @@ public final class ReportsTask
 	@Override
 	protected void startTask()
 	{
-		if (one_shot) {
-			try {
-				processQueue();
-			} catch (Exception ex) {
-				throw new MailismusException("ReportsTask="+getName()+" failed to process Queue", ex);
-			}
-			stop(true);
-			return;
-		}
 		tmr_qpoll = getDispatcher().setTimer(delay_start, TMRTYPE_POLLQUEUE, this);
 		if (interval_housekeep != 0) tmr_housekeep = getDispatcher().setTimer(interval_housekeep, TMRTYPE_HOUSEKEEP, this);
 	}
@@ -230,7 +223,7 @@ public final class ReportsTask
 		case TMRTYPE_POLLQUEUE:
 			tmr_qpoll = null;
 			interval = pollQueue();
-			if (interval != 0) tmr_qpoll = getDispatcher().setTimer(interval, TMRTYPE_POLLQUEUE, this);
+			tmr_qpoll = getDispatcher().setTimer(interval, TMRTYPE_POLLQUEUE, this);
 			break;
 
 		case TMRTYPE_HOUSEKEEP:
@@ -253,7 +246,7 @@ public final class ReportsTask
 		long interval = interval_low;
 
 		try {
-			if (!processQueue()) {
+			if (processQueue(getDispatcher().getSystemTime()) == 0) {
 				// didn't find any pending recipients
 				interval = interval_high;
 			}
@@ -264,16 +257,15 @@ public final class ReportsTask
 		return interval;
 	}
 
-	private boolean processQueue() throws java.io.IOException
+	private int processQueue(long systime) throws java.io.IOException
 	{
 		qcache.clear();
 		qmgr.getBounces(qcache);
 		int bouncecnt = qcache.size();
-		if (bouncecnt == 0) return false;
-		qcache.sort();
+		if (bouncecnt == 0) return 0;
 		logger.trace("ReportsTask: QMGR Loaded Bounces="+bouncecnt);
 
-		dtcal.setTimeInMillis(getDispatcher().getSystemTime());
+		dtcal.setTimeInMillis(systime);
 		tmpsb.setLength(0);
 		TimeOps.makeTimeRFC822(dtcal, tmpsb);
 		time_now.populate(tmpsb);
@@ -282,6 +274,7 @@ public final class ReportsTask
 		int slot1 = -1;
 		int reportscnt = 0;
 		boolean endOfReport = false;
+		qcache.sort();
 
 		while (qslot != bouncecnt) {
 			com.grey.mailismus.mta.queue.MessageRecip recip = qcache.get(qslot);
@@ -310,28 +303,28 @@ public final class ReportsTask
 			}
 
 			if (endOfReport) {
-				issueReport(slot1, qslot - 1);
+				issueReport(slot1, qslot - 1, systime);
 				reportscnt++;
 				endOfReport = false;
 				slot1 = next_slot1;
 			}
-			if (action != null && audit != null) audit.log(action, recip, true, getDispatcher().getSystemTime(), qmgr.externalSPID(recip.spid));
+			if (action != null && audit != null) audit.log(action, recip, true, systime, qmgr.externalSPID(recip.spid));
 			qslot++;
 		}
 
 		if (slot1 != -1) {
 			//process the final qcache entries
-			issueReport(slot1, bouncecnt - 1);
+			issueReport(slot1, bouncecnt - 1, systime);
 			reportscnt++;
 		}
 		logger.info("ReportsTask: Issued reports="+reportscnt);
 
 		// flush the queue cache
 		qmgr.bouncesProcessed(qcache);
-		return true;
+		return bouncecnt;
 	}
 
-	private void issueReport(int slot1, int slotlast)
+	private void issueReport(int slot1, int slotlast, long systime)
 	{
 		String action = "Bounced Msg";
 		int bounced_spid = qcache.get(slot1).spid;
@@ -372,7 +365,7 @@ public final class ReportsTask
 
 		if (audit != null) {
 			for (int idx = slot1; idx <= slotlast; idx++) {
-				audit.log(action, qcache.get(idx), true, getDispatcher().getSystemTime(), extspidbuf);
+				audit.log(action, qcache.get(idx), true, systime, extspidbuf);
 			}
 		}
 	}

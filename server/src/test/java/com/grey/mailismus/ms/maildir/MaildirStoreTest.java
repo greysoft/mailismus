@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2018 Yusef Badri - All rights reserved.
+ * Copyright 2012-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.ms.maildir;
@@ -113,8 +113,6 @@ public class MaildirStoreTest
 		org.junit.Assert.assertEquals(1, sess.newMessageCount());
 		org.junit.Assert.assertEquals(sess.getUIDL(0), uidl1);
 		sess.endSession();
-
-		dsptch.stop();
 	}
 
 	@org.junit.Test
@@ -169,8 +167,6 @@ public class MaildirStoreTest
 		sess = ms.startInboxSession(username);
 		org.junit.Assert.assertEquals(0, sess.newMessageCount());
 		sess.endSession();
-
-		dsptch.stop();
 	}
 
 	private com.grey.base.config.XmlConfig setup(boolean withDirectory, boolean disabled, boolean dotstuffed)
@@ -193,11 +189,11 @@ public class MaildirStoreTest
 		if (!dotstuffed) cfgxml = cfgxml.replace("dotstuffing>", "xdotstuffing>");
 		com.grey.base.config.XmlConfig cfg = com.grey.base.config.XmlConfig.makeSection(cfgxml, "message_store");
 		if (!withDirectory) return cfg;
-		String pthnam = dsptch.getApplicationContext().getConfig().getPath(cfg, "directory/domains", null, true, null, getClass());
+		String pthnam = appctx.getConfig().getPath(cfg, "directory/domains", null, true, null, getClass());
 		java.io.File fh = new java.io.File(pthnam);
 		FileOps.ensureDirExists(fh.getParentFile());
 		FileOps.writeTextFile(fh, local_domains, false);
-		pthnam = dsptch.getApplicationContext().getConfig().getPath(cfg, "directory/users", null, true, null, getClass());
+		pthnam = appctx.getConfig().getPath(cfg, "directory/users", null, true, null, getClass());
 		FileOps.writeTextFile(pthnam, local_users);
 		return cfg;
 	}

@@ -31,13 +31,12 @@ public class BaseManagerTest
 
 	public BaseManagerTest() throws Exception {
 		dsptch = Dispatcher.create(appctx, new DispatcherDef.Builder().withName("qmgrbasetest").build(), logger);
-		FileOps.ensureDirExists(dsptch.getApplicationContext().getConfig().getPathTemp());
+		FileOps.ensureDirExists(appctx.getConfig().getPathTemp());
 	}
 
 	@org.junit.After
 	public void shutdown() throws java.io.IOException
 	{
-		dsptch.stop();
 		if (qmgr != null) qmgr.stop();
 		qmgr = null;
 	}
