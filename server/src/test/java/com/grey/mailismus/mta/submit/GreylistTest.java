@@ -10,9 +10,9 @@ import com.grey.base.utils.TimeOps;
 import com.grey.base.utils.FileOps;
 import com.grey.base.utils.IP;
 import com.grey.naf.ApplicationContextNAF;
-import com.grey.naf.DispatcherDef;
 import com.grey.naf.NAFConfig;
 import com.grey.naf.reactor.Dispatcher;
+import com.grey.naf.reactor.config.DispatcherConfig;
 import com.grey.mailismus.DBHandle;
 import com.grey.mailismus.TestSupport;
 
@@ -49,7 +49,7 @@ public class GreylistTest
 		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true);
 		FileOps.deleteDirectory(appctx.getConfig().getPathVar());
 		XmlConfig dcfg = appctx.getConfig().getDispatcher("testmtadispatcher1");
-		DispatcherDef def = new DispatcherDef.Builder().withXmlConfig(dcfg).build();
+		DispatcherConfig def = new DispatcherConfig.Builder().withXmlConfig(dcfg).build();
 		Dispatcher dsptch = Dispatcher.create(appctx, def, logger);
 
 		String pthnam = dsptch.getApplicationContext().getConfig().getPathVar()+"/"+WHITELIST_FILE;

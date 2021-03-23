@@ -14,7 +14,7 @@ import com.grey.base.utils.IP;
 import com.grey.base.config.XmlConfig;
 import com.grey.mailismus.Task;
 import com.grey.mailismus.pop3.POP3Protocol;
-import com.grey.naf.SSLConfig;
+import com.grey.naf.reactor.config.SSLConfig;
 import com.grey.mailismus.mta.queue.QueueFactory;
 import com.grey.mailismus.errors.MailismusConfigException;
 import com.grey.mailismus.errors.MailismusException;
@@ -62,10 +62,10 @@ public class DownloadClient
 		final com.grey.mailismus.AppConfig appConfig;
 		final com.grey.mailismus.ms.MessageStore ms;
 		final com.grey.mailismus.directory.Directory dtory;
-		final com.grey.mailismus.mta.queue.Manager qmgr;
+		final com.grey.mailismus.mta.queue.QueueManager qmgr;
 		final com.grey.mailismus.Audit audit;
 		final com.grey.mailismus.Transcript transcript;
-		final com.grey.naf.BufferSpec bufspec;
+		final com.grey.naf.BufferGenerator bufspec;
 		final java.security.MessageDigest md5proc;
 		final java.io.File stagingDir;
 		final boolean smtp_disabled;
@@ -93,7 +93,7 @@ public class DownloadClient
 			appConfig = task.getAppConfig();
 			tmtprotocol = cfg.getTime("timeout", com.grey.base.utils.TimeOps.parseMilliTime("4m"));
 			delay_chanclose = cfg.getTime("delay_close", 0);
-			bufspec = new com.grey.naf.BufferSpec(cfg, "niobuffers", 4*1024, 128); //always line-buffered
+			bufspec = new com.grey.naf.BufferGenerator(cfg, "niobuffers", 4*1024, 128); //always line-buffered
 			audit = com.grey.mailismus.Audit.create("POP3-Download", "audit", dsptch, cfg);
 			transcript = com.grey.mailismus.Transcript.create(dsptch, cfg, "transcript");
 			ms = task.getMS();
@@ -141,7 +141,7 @@ public class DownloadClient
 	private final String remoteuser;
 	private final com.grey.base.utils.ByteChars remotepass;
 	private final POP3Protocol.AUTHTYPE[] authtypes;
-	private final com.grey.naf.SSLConfig sslconfig;
+	private final com.grey.naf.reactor.config.SSLConfig sslconfig;
 	private final com.grey.base.utils.ByteChars smtp_sender;
 	private final java.util.ArrayList<com.grey.base.utils.EmailAddress> smtp_recips;
 	private final java.io.File dh_download; //destination directory, for download-to-file mode
@@ -182,7 +182,7 @@ public class DownloadClient
 	public int getRunCount() {return runcnt;}
 
 	@Override
-	protected com.grey.naf.SSLConfig getSSLConfig() {return sslconfig;}
+	protected com.grey.naf.reactor.config.SSLConfig getSSLConfig() {return sslconfig;}
 
 	public DownloadClient(com.grey.naf.reactor.Dispatcher d, DownloadClient.Common commondefs, XmlConfig cfg,
 							String id, int srvport, boolean record_results) throws java.io.IOException

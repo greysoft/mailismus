@@ -11,9 +11,9 @@ import com.grey.base.collections.HashedMap;
 import com.grey.base.collections.HashedMapIntKey;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.ApplicationContextNAF;
-import com.grey.naf.dns.resolver.PacketDNS;
 import com.grey.naf.dns.resolver.ResolverDNS;
-import com.grey.naf.dns.resolver.ResourceData;
+import com.grey.naf.dns.resolver.engine.PacketDNS;
+import com.grey.naf.dns.resolver.engine.ResourceData;
 import com.grey.naf.dns.server.DnsServerConfig;
 
 public class MockServerDNS
@@ -31,7 +31,7 @@ public class MockServerDNS
 	public MockServerDNS(ApplicationContextNAF appctx) throws java.io.IOException {
 		populateAnswers();
 		com.grey.logging.Logger logger = com.grey.logging.Factory.getLogger("no-such-logger");
-		com.grey.naf.DispatcherDef def = new com.grey.naf.DispatcherDef.Builder()
+		com.grey.naf.reactor.config.DispatcherConfig def = new com.grey.naf.reactor.config.DispatcherConfig.Builder()
 				.withName("Mock-DNS-Server")
 				.withSurviveHandlers(false)
 				.build();

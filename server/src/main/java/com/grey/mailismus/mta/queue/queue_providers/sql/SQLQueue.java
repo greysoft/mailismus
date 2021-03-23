@@ -28,7 +28,7 @@ import com.grey.mailismus.errors.MailismusConfigException;
  * pstmt.setNull(n, java.sql.Types.VARCHAR) successfully conveys a NULL for a varchar field
  */
 public final class SQLQueue
-	extends com.grey.mailismus.mta.queue.Manager
+	extends com.grey.mailismus.mta.queue.QueueManager
 	implements com.grey.mailismus.mta.queue.Spooler.SPID_Counter
 {
 	private static final String TBLNAM_SMTPQ = "MMTA_SMTPQUEUE";

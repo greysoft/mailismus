@@ -17,8 +17,8 @@ import com.grey.base.collections.HashedMapIntInt;
 import com.grey.base.collections.HashedSet;
 import com.grey.base.collections.HashedSetInt;
 import com.grey.naf.ApplicationContextNAF;
-import com.grey.naf.DispatcherDef;
 import com.grey.naf.reactor.Dispatcher;
+import com.grey.naf.reactor.config.DispatcherConfig;
 import com.grey.mailismus.AppConfig;
 import com.grey.mailismus.mta.Protocol;
 import com.grey.mailismus.TestSupport;
@@ -44,7 +44,7 @@ public abstract class ManagerTest
 	private int update_deferred_cnt; //number of deferred messages (ie. temp errors) left behind by phase_update()
 	private int spool_size;
 
-	protected Manager qmgr;
+	protected QueueManager qmgr;
 	protected AppConfig appcfg;
 
 	protected abstract Class<?> getQueueClass();
@@ -70,7 +70,7 @@ public abstract class ManagerTest
 		if (qcfgxml_extra != null) qcfgxml = qcfgxml.replace("</queue>", qcfgxml_extra+"</queue>");
 		String dname = "qmgrtest-"+getQueueClass().getName();
 		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true);
-		DispatcherDef def = new DispatcherDef.Builder().withName(dname).build();
+		DispatcherConfig def = new DispatcherConfig.Builder().withName(dname).build();
 		dsptch = Dispatcher.create(appctx, def, logger);
 		FileOps.ensureDirExists(dsptch.getApplicationContext().getConfig().getPathTemp());
 		appcfg = createAppConfig(dsptch, hasDatabase());
@@ -179,7 +179,7 @@ public abstract class ManagerTest
 	{
 		final int bulkmsgcnt = getBulkMessageCount();
 		org.junit.Assume.assumeTrue(isTestSuiteRunnable() && bulkmsgcnt != 0);
-		final Manager qmgr_submit = qmgr;
+		final QueueManager qmgr_submit = qmgr;
 		final HashedSetInt submitted_spids = new HashedSetInt();
 		final HashedSet<ByteChars> submitted_recips = new HashedSet<ByteChars>();
 		TestSupport.TestRunnerThread submit = new TestSupport.TestRunnerThread("utest-bulkdlv-submit") {
@@ -202,7 +202,7 @@ public abstract class ManagerTest
 			}
 		};
 		TestSupport.TestRunnerThread delivery = new TestSupport.TestRunnerThread("utest-bulkdlv-dlv") {
-			private final Manager qmgr2 = createManager(null, getName());
+			private final QueueManager qmgr2 = createManager(null, getName());
 			private final Cache qcache2 = qmgr2.initCache(BULKCACHESIZE);
 			private int loadcnt;
 			@Override
@@ -259,7 +259,7 @@ public abstract class ManagerTest
 	{
 		final int bulkmsgcnt = getBulkMessageCount();
 		org.junit.Assume.assumeTrue(isTestSuiteRunnable() && bulkmsgcnt != 0);
-		final Manager qmgr_submit = qmgr;
+		final QueueManager qmgr_submit = qmgr;
 		final HashedSetInt submitted_spids = new HashedSetInt();
 		final HashedSet<ByteChars> submitted_recips = new HashedSet<ByteChars>();
 		TestSupport.TestRunnerThread submit = new TestSupport.TestRunnerThread("utest-bulkfail-submit") {
@@ -284,7 +284,7 @@ public abstract class ManagerTest
 			}
 		};
 		TestSupport.TestRunnerThread delivery = new TestSupport.TestRunnerThread("utest-bulkfail-dlv") {
-			private final Manager qmgr2 = createManager(null, getName());
+			private final QueueManager qmgr2 = createManager(null, getName());
 			private final Cache qcache2 = qmgr2.initCache(BULKCACHESIZE);
 			private int loadcnt;
 			@Override
@@ -330,7 +330,7 @@ public abstract class ManagerTest
 			}
 		};
 		TestSupport.TestRunnerThread reporting = new TestSupport.TestRunnerThread("utest-bulkfail-rpt") {
-			private final Manager qmgr2 = createManager(null, getName());
+			private final QueueManager qmgr2 = createManager(null, getName());
 			private final Cache qcache2 = qmgr2.initCache(BULKCACHESIZE);
 			private int loadcnt;
 			private int storecnt;
@@ -475,14 +475,14 @@ public abstract class ManagerTest
 		update_unprocessed_cnt = recips_total - updated_cnt;
 		int cnt = qmgr.messagesProcessed(qcache);
 		spool_size = (isHardLinked(qmgr) ? recips_total - updated_cnt + bounce_cnt + update_deferred_cnt : 1);
-		int qsz = qmgr.qsize(Manager.SHOWFLAG_NEW);
+		int qsz = qmgr.qsize(QueueManager.SHOWFLAG_NEW);
 		printQueue("after Update");
 		org.junit.Assert.assertEquals(updated_cnt, cnt);
 		org.junit.Assert.assertEquals(spool_size, spoolSize(qmgr));
 		if (qsz != -1) {
 			org.junit.Assert.assertEquals(recips_total - updated_cnt, qsz);
-			org.junit.Assert.assertEquals(bounce_cnt, qmgr.qsize(Manager.SHOWFLAG_BOUNCES));
-			org.junit.Assert.assertEquals(update_deferred_cnt, qmgr.qsize(Manager.SHOWFLAG_TEMPERR));
+			org.junit.Assert.assertEquals(bounce_cnt, qmgr.qsize(QueueManager.SHOWFLAG_BOUNCES));
+			org.junit.Assert.assertEquals(update_deferred_cnt, qmgr.qsize(QueueManager.SHOWFLAG_TEMPERR));
 		}
 
 		// if we reload the "ready" recipients, we should only get back the ones we didn't mark as done
@@ -570,9 +570,9 @@ public abstract class ManagerTest
 		org.junit.Assert.assertEquals(spool_size, spoolSize(qmgr));
 
 		// reload pending messages to verify that the new report messages do exist
-		total = qmgr.qsize(null, recip.sender, Manager.SHOWFLAG_NEW);
+		total = qmgr.qsize(null, recip.sender, QueueManager.SHOWFLAG_NEW);
 		if (total != -1) org.junit.Assert.assertEquals(1, total);
-		total = qmgr.qsize(null, duprecip, Manager.SHOWFLAG_NEW);
+		total = qmgr.qsize(null, duprecip, QueueManager.SHOWFLAG_NEW);
 		if (total != -1) org.junit.Assert.assertEquals(1, total);
 		qcache.clear();
 		qmgr.getMessages(qcache);
@@ -711,8 +711,8 @@ public abstract class ManagerTest
 		boolean ok = false;
 		try {
 			int total = qmgr.qsize(0);
-			int newcnt = qmgr.qsize(Manager.SHOWFLAG_NEW);
-			int bouncecnt = qmgr.qsize(Manager.SHOWFLAG_BOUNCES);
+			int newcnt = qmgr.qsize(QueueManager.SHOWFLAG_NEW);
+			int bouncecnt = qmgr.qsize(QueueManager.SHOWFLAG_BOUNCES);
 			if (total != -1) {
 				org.junit.Assert.assertEquals(total_exp, total);
 				org.junit.Assert.assertEquals(newcnt_exp, newcnt);
@@ -738,7 +738,7 @@ public abstract class ManagerTest
 		}
 	}
 
-	Manager createManager(String xmlcfg, String name) throws java.io.IOException
+	QueueManager createManager(String xmlcfg, String name) throws java.io.IOException
 	{
 		if (xmlcfg == null) xmlcfg = qcfgxml;
 		XmlConfig qcfg = XmlConfig.makeSection(xmlcfg, "/queue");
@@ -760,27 +760,27 @@ public abstract class ManagerTest
 		return AppConfig.get(cfgfile, dsptch);
 	}
 
-	static void verifyEmptyQueue(Manager qmgr) throws java.io.IOException {
+	static void verifyEmptyQueue(QueueManager qmgr) throws java.io.IOException {
 		verifyEmptySpool(qmgr);
 		int qsz = qmgr.qsize(0);
 		if (qsz != -1) org.junit.Assert.assertEquals(0, qsz);
 	}
 
-	static void verifyEmptySpool(Manager qmgr) {
+	static void verifyEmptySpool(QueueManager qmgr) {
 		HashedMapIntInt refcnt = (HashedMapIntInt)ManagerTest.getSpoolField(qmgr, "spids_refcnt");
 		org.junit.Assert.assertEquals(0, spoolSize(qmgr));
 		if (refcnt != null) org.junit.Assert.assertEquals(refcnt.toString(), 0, refcnt.size());
 	}
 
-	static boolean isHardLinked(Manager qmgr) {
+	static boolean isHardLinked(QueueManager qmgr) {
 		return qmgr.getSpooler().isHardLinked();
 	}
 
-	static Object getSpoolField(Manager qmgr, String fldnam) {
+	static Object getSpoolField(QueueManager qmgr, String fldnam) {
 		return DynLoader.getField(qmgr.getSpooler(), fldnam);
 	}
 
-	static int spoolSize(Manager qmgr) {
+	static int spoolSize(QueueManager qmgr) {
 		java.nio.file.Path pth = (java.nio.file.Path)getSpoolField(qmgr, "dhroot");
 		return FileOps.countFiles(pth.toFile(), true);
 	}

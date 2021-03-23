@@ -44,7 +44,7 @@ final class SharedFields
 	final java.util.Calendar dtcal = TimeOps.getCalendar(null);
 	final com.grey.mailismus.Transcript transcript;
 	final boolean full_transcript;
-	final com.grey.naf.BufferSpec bufspec;
+	final com.grey.naf.BufferGenerator bufspec;
 	final java.io.File stagingDir;
 	final long tmtprotocol;
 	final long tmtauth;
@@ -99,7 +99,7 @@ final class SharedFields
 	java.nio.ByteBuffer tmpniobuf;
 
 	public SharedFields(com.grey.base.config.XmlConfig cfg, com.grey.naf.reactor.Dispatcher dsptch, com.grey.mailismus.Task task,
-			IMAP4Server proto, com.grey.naf.SSLConfig sslcfg, String logpfx)
+			IMAP4Server proto, com.grey.naf.reactor.config.SSLConfig sslcfg, String logpfx)
 		throws java.io.IOException
 	{
 		if (task.getMS() == null || task.getDirectory() == null) {
@@ -114,7 +114,7 @@ final class SharedFields
 		capa_idle = cfg.getBool("capa_idle", true);
 		delay_chanclose = cfg.getTime("delay_close", 0);
 		maximapbuf = cfg.getInt("maxtransmitbuf", true, 8 * 1024);
-		bufspec = new com.grey.naf.BufferSpec(cfg, "niobuffers", 16 * 1024, 16 * 1024);
+		bufspec = new com.grey.naf.BufferGenerator(cfg, "niobuffers", 16 * 1024, 16 * 1024);
 		transcript = com.grey.mailismus.Transcript.create(dsptch, cfg, "transcript");
 		full_transcript = cfg.getBool("transcript/@full", false);
 

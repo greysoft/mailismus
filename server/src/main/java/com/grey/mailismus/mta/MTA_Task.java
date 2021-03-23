@@ -8,7 +8,7 @@ import com.grey.base.config.XmlConfig;
 import com.grey.base.utils.StringOps;
 import com.grey.mailismus.directory.DirectoryFactory;
 import com.grey.mailismus.ms.MessageStoreFactory;
-import com.grey.mailismus.mta.queue.Manager;
+import com.grey.mailismus.mta.queue.QueueManager;
 import com.grey.mailismus.mta.queue.QueueFactory;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.nafman.NafManRegistry;
@@ -21,10 +21,10 @@ public class MTA_Task
 {
 	public static final QueueFactory DFLT_FACT_QUEUE = new QueueFactory();
 
-	private final Manager qmgr;
+	private final QueueManager qmgr;
 	private final StringBuilder tmpsb = new StringBuilder(); //pre-allocated merely for efficiency
 
-	public Manager getQueue() {return qmgr;}
+	public QueueManager getQueue() {return qmgr;}
 
 	public MTA_Task(String name, Dispatcher dsptch, XmlConfig cfg,
 			DirectoryFactory df, MessageStoreFactory msf, QueueFactory qf, ResolverDNS dns) throws java.io.IOException
@@ -54,7 +54,7 @@ public class MTA_Task
 			if (total == -1) {
 				tmpsb.append("Unsupported operation");
 			} else {
-				int retrycnt = (total == 0 ? 0 : getQueue().qsize(sender, recip, Manager.SHOWFLAG_TEMPERR));
+				int retrycnt = (total == 0 ? 0 : getQueue().qsize(sender, recip, QueueManager.SHOWFLAG_TEMPERR));
 				tmpsb.append("Total Messages: ").append(total).append("<br/>");
 				tmpsb.append("Retry Messages: ").append(retrycnt);
 			}
@@ -63,7 +63,7 @@ public class MTA_Task
 			int flags =0;
 			String sender = cmd.getArg("sender");
 			String recip = cmd.getArg("recip");
-			if (StringOps.stringAsBool(cmd.getArg("revsort"))) flags |= Manager.SHOWFLAG_REVSORT;
+			if (StringOps.stringAsBool(cmd.getArg("revsort"))) flags |= QueueManager.SHOWFLAG_REVSORT;
 			String s = cmd.getArg("max");
 			if (s != null) {
 				try {

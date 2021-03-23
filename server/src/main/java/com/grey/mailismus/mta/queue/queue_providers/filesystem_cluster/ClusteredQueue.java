@@ -19,7 +19,7 @@ import com.grey.mailismus.mta.queue.MessageRecip;
 import com.grey.logging.Logger.LEVEL;
 
 public final class ClusteredQueue
-	extends com.grey.mailismus.mta.queue.Manager
+	extends com.grey.mailismus.mta.queue.QueueManager
 	implements com.grey.mailismus.mta.queue.Spooler.SPID_Counter
 {
 	private static final String QDIR_INCOMING = "incoming"; //incoming messages are queued here

@@ -17,7 +17,7 @@ final class FilenameParser
 	public static final char PFX_DEFERDIR = 'T';
 	public static final int FILENAME_PFXLEN = 1; //all 3 filename prefixes above must be this length
 
-	private final com.grey.mailismus.mta.queue.Manager qmgr;
+	private final com.grey.mailismus.mta.queue.QueueManager qmgr;
 
 	// These are output-only fields which are set upon return from parse().
 	// Beware that they are transient results that are overwritten by each call to parse().
@@ -29,7 +29,7 @@ final class FilenameParser
 	private final ByteChars tmpbc = new ByteChars();
 	public final ByteChars tmplightbc = new ByteChars(-1); //lightweight object without own storage
 
-	public FilenameParser(com.grey.mailismus.mta.queue.Manager qm) {qmgr = qm;}
+	public FilenameParser(com.grey.mailismus.mta.queue.QueueManager qm) {qmgr = qm;}
 
 	// see buildFilename() for the format
 	public boolean parse(String filename)

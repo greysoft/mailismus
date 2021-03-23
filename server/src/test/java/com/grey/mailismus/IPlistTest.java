@@ -7,11 +7,11 @@ package com.grey.mailismus;
 import com.grey.base.config.XmlConfig;
 import com.grey.base.utils.IP;
 import com.grey.naf.ApplicationContextNAF;
-import com.grey.naf.DispatcherDef;
 import com.grey.naf.NAFConfig;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.DispatcherRunnable;
 import com.grey.naf.reactor.TimerNAF;
+import com.grey.naf.reactor.config.DispatcherConfig;
 import com.grey.logging.Logger.LEVEL;
 
 /*
@@ -67,7 +67,7 @@ public class IPlistTest
 		String cfgpath = TestSupport.getResourcePath("/mtanaf.xml", getClass());
 		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true);
 		XmlConfig dcfg = appctx.getConfig().getDispatcher(dname);
-		DispatcherDef def = new DispatcherDef.Builder().withXmlConfig(dcfg).build();
+		DispatcherConfig def = new DispatcherConfig.Builder().withXmlConfig(dcfg).build();
 		Dispatcher dsptch = Dispatcher.create(appctx, def, logger);
 		boolean ok = false;
 		try {
@@ -138,7 +138,7 @@ public class IPlistTest
 		String cfgpath = TestSupport.getResourcePath("/mtanaf.xml", getClass());
 		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true);
 		XmlConfig dcfg = appctx.getConfig().getDispatcher(dname);
-		DispatcherDef def = new DispatcherDef.Builder().withXmlConfig(dcfg).build();
+		DispatcherConfig def = new DispatcherConfig.Builder().withXmlConfig(dcfg).build();
 		Dispatcher dsptch = Dispatcher.create(appctx, def, logger);
 		boolean ok = false;
 		IPlist iplist = null;

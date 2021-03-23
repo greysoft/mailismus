@@ -108,7 +108,7 @@ public class InboxSession
 
 	private void transmitMessageChunk(com.grey.naf.reactor.IOExecWriter chanwriter, CharSequence sb) throws java.io.IOException
 	{
-		ms.tmpniobuf = com.grey.base.utils.NIOBuffers.encode(sb, ms.tmpniobuf, com.grey.naf.BufferSpec.directniobufs);
+		ms.tmpniobuf = com.grey.base.utils.NIOBuffers.encode(sb, ms.tmpniobuf, com.grey.naf.BufferGenerator.directniobufs);
 		ms.tmpniobuf.position(0);
 		chanwriter.transmit(ms.tmpniobuf);
 	}

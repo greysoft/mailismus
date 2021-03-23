@@ -12,12 +12,12 @@ import com.grey.base.config.XmlConfig;
 import com.grey.base.utils.DynLoader;
 import com.grey.base.utils.FileOps;
 import com.grey.naf.ApplicationContextNAF;
-import com.grey.naf.DispatcherDef;
 import com.grey.naf.EntityReaper;
 import com.grey.naf.NAFConfig;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.ListenerSet;
 import com.grey.naf.reactor.config.ConcurrentListenerConfig;
+import com.grey.naf.reactor.config.DispatcherConfig;
 import com.grey.mailismus.Task;
 import com.grey.mailismus.TestSupport;
 import com.grey.mailismus.pop3.client.DownloadClient;
@@ -149,13 +149,13 @@ public class POP3Test
 			throws java.io.IOException, java.security.GeneralSecurityException
 	{
 		// create a disposable Dispatcher first, just to identify and clean up the working directories that will be used
-		dsptch = Dispatcher.create(appctx, new DispatcherDef.Builder().build(), com.grey.logging.Factory.getLogger("no-such-logger"));
+		dsptch = Dispatcher.create(appctx, new DispatcherConfig.Builder().build(), com.grey.logging.Factory.getLogger("no-such-logger"));
 		NAFConfig nafcfg = dsptch.getApplicationContext().getConfig();
 		FileOps.deleteDirectory(nafcfg.getPathVar());
 		FileOps.deleteDirectory(nafcfg.getPathTemp());
 		FileOps.deleteDirectory(nafcfg.getPathLogs());
 		// now create the real Dispatcher
-		com.grey.naf.DispatcherDef def = new com.grey.naf.DispatcherDef.Builder()
+		com.grey.naf.reactor.config.DispatcherConfig def = new com.grey.naf.reactor.config.DispatcherConfig.Builder()
 				.withSurviveHandlers(false)
 				.build();
 		dsptch = Dispatcher.create(appctx, def, com.grey.logging.Factory.getLogger("no-such-logger"));

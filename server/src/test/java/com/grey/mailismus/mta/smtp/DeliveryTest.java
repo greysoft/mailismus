@@ -24,14 +24,14 @@ import com.grey.base.collections.ObjectQueue;
 import com.grey.base.collections.ObjectWell;
 import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.NAFConfig;
-import com.grey.naf.DispatcherDef;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.TimerNAF;
+import com.grey.naf.reactor.config.DispatcherConfig;
 import com.grey.naf.reactor.ChannelMonitor;
 
 import com.grey.mailismus.AppConfig;
 import com.grey.mailismus.mta.queue.QueueFactory;
-import com.grey.mailismus.mta.queue.Manager;
+import com.grey.mailismus.mta.queue.QueueManager;
 import com.grey.mailismus.mta.queue.SubmitHandle;
 import com.grey.mailismus.mta.queue.queue_providers.filesystem.FilesysQueue;
 import com.grey.mailismus.mta.queue.queue_providers.filesystem_cluster.ClusteredQueue;
@@ -373,13 +373,13 @@ public class DeliveryTest
 
 		// create a disposable Dispatcher first, just to identify and clean up the working directories that will be used
 		com.grey.logging.Logger logger = com.grey.logging.Factory.getLogger("no-such-logger");
-		DispatcherDef dcfg = new DispatcherDef.Builder().withName("DeliveryTest-preliminary").build();
+		DispatcherConfig dcfg = new DispatcherConfig.Builder().withName("DeliveryTest-preliminary").build();
 		dsptch = Dispatcher.create(appctx, dcfg, logger);
 		FileOps.deleteDirectory(nafcfg.getPathVar());
 		FileOps.deleteDirectory(nafcfg.getPathTemp());
 		FileOps.deleteDirectory(nafcfg.getPathLogs());
 		// now create the real Dispatcher
-		DispatcherDef def = new DispatcherDef.Builder()
+		DispatcherConfig def = new DispatcherConfig.Builder()
 				.withName("DeliveryTest")
 				.withSurviveHandlers(false)
 				.withClock(clock)
@@ -389,7 +389,7 @@ public class DeliveryTest
 
 		// Inject the messages into the queue for Forwarder to pick up.
 		// Email addresses would be lower-cased by SMTP server before being submitted to Queue, so do same with our test data.
-		Manager qmgr = QueueFactory.init(dsptch, appcfg, "initial-inject");
+		QueueManager qmgr = QueueFactory.init(dsptch, appcfg, "initial-inject");
 		for (int idx = 0; idx != msgs.length; idx++) {
 			MessageSpec msg = msgs[idx];
 			ByteChars sender = new ByteChars(msg.sender).toLowerCase();
@@ -512,9 +512,9 @@ public class DeliveryTest
 		diagcnt = FileOps.countFiles(new java.io.File(nafcfg.getPathVar()+"/spool_server/ndrdiag"), true);
 		srv_actual_spoolcnt -= diagcnt;
 
-		int actual_temperr = qmgr.qsize(Manager.SHOWFLAG_TEMPERR);
-		int actual_ndrcnt = qmgr.qsize(Manager.SHOWFLAG_NEW);
-		int srv_actual_submitcnt = stask.getQueue().qsize(Manager.SHOWFLAG_NEW);
+		int actual_temperr = qmgr.qsize(QueueManager.SHOWFLAG_TEMPERR);
+		int actual_ndrcnt = qmgr.qsize(QueueManager.SHOWFLAG_NEW);
+		int srv_actual_submitcnt = stask.getQueue().qsize(QueueManager.SHOWFLAG_NEW);
 		if (actual_temperr != -1) org.junit.Assert.assertEquals(expected_temperr, actual_temperr);
 		if (actual_ndrcnt != -1) org.junit.Assert.assertEquals(expected_bouncecnt, actual_ndrcnt);
 		if (srv_actual_submitcnt != -1) org.junit.Assert.assertEquals(server_submitcnt, srv_actual_submitcnt);

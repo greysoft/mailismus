@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2018 Yusef Badri - All rights reserved.
+ * Copyright 2010-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.queue;
@@ -10,7 +10,7 @@ import com.grey.base.utils.FileOps;
 import com.grey.base.utils.TimeOps;
 import com.grey.logging.Logger.LEVEL;
 
-abstract public class Manager
+abstract public class QueueManager
 {
 	// Flags for show() method.
 	public static final int SHOWFLAG_NEW = 1 << 0;
@@ -87,7 +87,7 @@ abstract public class Manager
 	public final void getMessages(Cache cache) throws java.io.IOException {getMessages(cache, false);}
 	protected final Spooler getSpooler() {return spool;}
 
-	protected Manager(com.grey.naf.reactor.Dispatcher d, Spooler spooler, com.grey.base.config.XmlConfig cfg, String name)
+	protected QueueManager(com.grey.naf.reactor.Dispatcher d, Spooler spooler, com.grey.base.config.XmlConfig cfg, String name)
 		throws java.io.IOException
 	{
 		if (spooler == null) {
@@ -125,7 +125,7 @@ abstract public class Manager
 		if (read_only) dsptch.getLogger().info(loglbl+"read-only mode");
 	}
 
-	protected Manager(com.grey.naf.reactor.Dispatcher d, com.grey.base.config.XmlConfig cfg, String name)
+	protected QueueManager(com.grey.naf.reactor.Dispatcher d, com.grey.base.config.XmlConfig cfg, String name)
 			throws java.io.IOException
 	{
 		this(d, null, cfg, name);

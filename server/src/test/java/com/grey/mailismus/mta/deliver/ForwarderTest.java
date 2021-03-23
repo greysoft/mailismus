@@ -108,7 +108,7 @@ public class ForwarderTest
 				+"<dnsresolver>"
 				+"<interceptor host=\"127.0.0.1\" port=\""+mockserver.getPort()+"\"/>"
 				+"</dnsresolver></naf>";
-		com.grey.naf.DispatcherDef def = new com.grey.naf.DispatcherDef.Builder()
+		com.grey.naf.reactor.config.DispatcherConfig def = new com.grey.naf.reactor.config.DispatcherConfig.Builder()
 				.withName("utest_fwd_"+testname)
 				.withSurviveHandlers(false)
 				.build();
@@ -364,7 +364,7 @@ public class ForwarderTest
 
 
 	private static class MyQueueManager
-		extends com.grey.mailismus.mta.queue.Manager
+		extends com.grey.mailismus.mta.queue.QueueManager
 	{
 		private final String[][] storedmsgs;
 		private final boolean expect_success;

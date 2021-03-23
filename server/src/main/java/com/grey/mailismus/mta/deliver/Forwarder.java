@@ -54,7 +54,7 @@ public final class Forwarder
 
 	private final AppConfig appConfig;
 	private final Dispatcher dsptch;
-	private final com.grey.mailismus.mta.queue.Manager qmgr;
+	private final com.grey.mailismus.mta.queue.QueueManager qmgr;
 	private final com.grey.mailismus.ms.MessageStore ms;
 	private final Routing routing;
 	private final Client protoClient; //prototype client object used to construct the rest
@@ -103,7 +103,7 @@ public final class Forwarder
 
 	@Override public AppConfig getAppConfig() {return appConfig;}
 	@Override public Dispatcher getDispatcher() {return dsptch;}
-	@Override public com.grey.mailismus.mta.queue.Manager getQueue() {return qmgr;}
+	@Override public com.grey.mailismus.mta.queue.QueueManager getQueue() {return qmgr;}
 	@Override public Routing getRouting() {return routing;}
 	@Override public void senderCompleted(Delivery.MessageSender sender) {senderCompleted(sender, false);}
 	@Override public CharSequence nafmanHandlerID() {return "SMTP-Forwarder";}
@@ -122,7 +122,7 @@ public final class Forwarder
 	}
 
 	public Forwarder(Dispatcher d, XmlConfig cfg, AppConfig appConfig,
-			com.grey.mailismus.mta.queue.Manager qm, com.grey.mailismus.ms.MessageStore mstore,
+			com.grey.mailismus.mta.queue.QueueManager qm, com.grey.mailismus.ms.MessageStore mstore,
 			EntityReaper rpr, com.grey.base.collections.GenericFactory<Delivery.MessageSender> sender_fact,
 			BatchCallback bcb, ResolverDNS dnsResolver) throws java.io.IOException
 	{

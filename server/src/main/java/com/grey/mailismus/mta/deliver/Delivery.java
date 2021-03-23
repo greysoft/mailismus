@@ -12,7 +12,7 @@ public interface Delivery
 		void senderCompleted(MessageSender sender);
 		com.grey.mailismus.AppConfig getAppConfig();
 		com.grey.naf.reactor.Dispatcher getDispatcher();
-		com.grey.mailismus.mta.queue.Manager getQueue();
+		com.grey.mailismus.mta.queue.QueueManager getQueue();
 		Routing getRouting();
 	}
 

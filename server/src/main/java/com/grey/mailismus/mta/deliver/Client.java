@@ -9,8 +9,8 @@ import com.grey.mailismus.Task;
 import com.grey.mailismus.errors.MailismusConfigException;
 import com.grey.mailismus.errors.MailismusException;
 import com.grey.mailismus.mta.Protocol;
-import com.grey.naf.SSLConfig;
 import com.grey.naf.dns.resolver.ResolverDNS;
+import com.grey.naf.reactor.config.SSLConfig;
 import com.grey.base.utils.FileOps;
 import com.grey.base.utils.ByteArrayRef;
 import com.grey.base.utils.EmailAddress;
@@ -65,7 +65,7 @@ final class Client
 		final boolean sendQUIT;
 		final boolean awaitQUIT;
 		final int max_pipe; //max requests that can be pipelined in one send
-		final com.grey.naf.SSLConfig anonssl; //controls SSL behaviour with respect to servers other than the configured relays
+		final com.grey.naf.reactor.config.SSLConfig anonssl; //controls SSL behaviour with respect to servers other than the configured relays
 
 		// read-only buffers - pre-allocated and pre-populated buffers, for efficient sending of canned replies
 		final java.nio.ByteBuffer reqbuf_helo;
@@ -143,7 +143,7 @@ final class Client
 	{
 		final ConnectionConfig defaultcfg;
 		final ConnectionConfig[] remotecfg;
-		final com.grey.naf.BufferSpec bufspec;
+		final com.grey.naf.BufferGenerator bufspec;
 		final boolean fallback_mx_a; //MX queries fall back to simple hostname lookup if no MX RRs exist
 		final Client prototype_client;
 
@@ -189,7 +189,7 @@ final class Client
 			appConfig = ctl.getAppConfig();
 
 			transcript = com.grey.mailismus.Transcript.create(dsptch, cfg, "transcript");
-			bufspec = new com.grey.naf.BufferSpec(cfg, "niobuffers", 256, 128);
+			bufspec = new com.grey.naf.BufferGenerator(cfg, "niobuffers", 256, 128);
 			fallback_mx_a = cfg.getBool("fallbackMX_A", false);
 			boolean nocnxlimit = cfg.getBool("nomaxsrvconns", false);
 			if (bufspec.rcvbufsiz < 40) throw new MailismusConfigException(logpfx+"recvbuf="+bufspec.rcvbufsiz+" is too small");
@@ -259,7 +259,7 @@ final class Client
 	private final SharedFields shared;
 	private final com.grey.base.utils.TSAP remote_tsap_buf;
 	private final ResolverDNS resolver;
-	private final java.util.ArrayList<com.grey.naf.dns.resolver.ResourceData> dnsInfo = new java.util.ArrayList<com.grey.naf.dns.resolver.ResourceData>();
+	private final java.util.ArrayList<com.grey.naf.dns.resolver.engine.ResourceData> dnsInfo = new java.util.ArrayList<com.grey.naf.dns.resolver.engine.ResourceData>();
 	private ConnectionConfig conncfg; //config to apply to current connection
 	private Relay active_relay;
 	private com.grey.base.utils.TSAP remote_tsap;
@@ -292,7 +292,7 @@ final class Client
 	private boolean isFlagSet(byte f) {return ((state2 & f) == f);}
 
 	@Override
-	protected com.grey.naf.SSLConfig getSSLConfig() {return (active_relay == null ? conncfg.anonssl : active_relay.sslconfig);}
+	protected com.grey.naf.reactor.config.SSLConfig getSSLConfig() {return (active_relay == null ? conncfg.anonssl : active_relay.sslconfig);}
 
 	// this is a prototype instance which provides configuration info for the others
 	public Client(Delivery.Controller ctl, com.grey.naf.reactor.Dispatcher d, ResolverDNS dns, com.grey.base.config.XmlConfig cfg, int maxconns)
@@ -434,7 +434,7 @@ final class Client
 		mxptr = 0;
 		dnsInfo.clear();
 		setFlag(S2_DNSWAIT);
-		com.grey.naf.dns.resolver.ResolverAnswer answer;
+		com.grey.naf.dns.resolver.engine.ResolverAnswer answer;
 		if (as_host) {
 			answer = resolver.resolveHostname(msgparams.getDestination(), this, null, 0);
 		} else {
@@ -444,7 +444,7 @@ final class Client
 	}
 
 	@Override
-	public void dnsResolved(com.grey.naf.reactor.Dispatcher d, com.grey.naf.dns.resolver.ResolverAnswer answer, Object callerparam)
+	public void dnsResolved(com.grey.naf.reactor.Dispatcher d, com.grey.naf.dns.resolver.engine.ResolverAnswer answer, Object callerparam)
 	{
 		try {
 			handleDnsResult(answer);
@@ -454,21 +454,21 @@ final class Client
 		}
 	}
 
-	private void handleDnsResult(com.grey.naf.dns.resolver.ResolverAnswer answer) throws java.net.UnknownHostException
+	private void handleDnsResult(com.grey.naf.dns.resolver.engine.ResolverAnswer answer) throws java.net.UnknownHostException
 	{
 		clearFlag(S2_DNSWAIT);
 		int statuscode = 0;
 		CharSequence diagnostic = null;
 
 		if (shared.fallback_mx_a) {
-			if (answer.result == com.grey.naf.dns.resolver.ResolverAnswer.STATUS.NODOMAIN
+			if (answer.result == com.grey.naf.dns.resolver.engine.ResolverAnswer.STATUS.NODOMAIN
 					&& answer.qtype == com.grey.naf.dns.resolver.ResolverDNS.QTYPE_MX) {
 				try {
 					dnsLookup(true);
 					return;
 				} catch (Exception ex) {
 					getLogger().log(LEVEL.ERR, ex, false, pfx_log+" failed on DNS-A lookup");
-					answer.result = com.grey.naf.dns.resolver.ResolverAnswer.STATUS.BADNAME;
+					answer.result = com.grey.naf.dns.resolver.engine.ResolverAnswer.STATUS.BADNAME;
 				}
 			}
 		}
@@ -982,7 +982,7 @@ final class Client
 			break;
 
 		case A_STARTSESSION:
-			com.grey.naf.SSLConfig activessl = getSSLConfig();
+			com.grey.naf.reactor.config.SSLConfig activessl = getSSLConfig();
 			if (activessl != null && !usingSSL()) {
 				if (isFlagSet(S2_SERVER_STLS)) {
 					return issueAction(PROTO_ACTION.A_STLS, PROTO_STATE.S_STLS);

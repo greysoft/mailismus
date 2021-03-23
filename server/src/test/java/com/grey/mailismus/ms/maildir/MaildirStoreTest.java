@@ -176,7 +176,7 @@ public class MaildirStoreTest
 		FileOps.deleteDirectory(dh_work);
 		org.junit.Assert.assertFalse(dh_work.exists());
 		FileOps.ensureDirExists(dh_work);
-		dsptch = com.grey.naf.reactor.Dispatcher.create(appctx, new com.grey.naf.DispatcherDef.Builder().build(), logger);
+		dsptch = com.grey.naf.reactor.Dispatcher.create(appctx, new com.grey.naf.reactor.config.DispatcherConfig.Builder().build(), logger);
 
 		String cfgxml = mscfgxml;
 		if (!withDirectory) {

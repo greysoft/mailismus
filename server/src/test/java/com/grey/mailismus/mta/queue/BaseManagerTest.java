@@ -14,8 +14,8 @@ import com.grey.base.utils.FileOps;
 import com.grey.base.collections.HashedSetInt;
 import com.grey.base.config.XmlConfig;
 import com.grey.naf.ApplicationContextNAF;
-import com.grey.naf.DispatcherDef;
 import com.grey.naf.reactor.Dispatcher;
+import com.grey.naf.reactor.config.DispatcherConfig;
 import com.grey.mailismus.AppConfig;
 import com.grey.mailismus.TestSupport;
 import com.grey.logging.Logger;
@@ -27,10 +27,10 @@ public class BaseManagerTest
 	private final ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true);
 
 	private final Dispatcher dsptch;
-	private Manager qmgr;
+	private QueueManager qmgr;
 
 	public BaseManagerTest() throws Exception {
-		dsptch = Dispatcher.create(appctx, new DispatcherDef.Builder().withName("qmgrbasetest").build(), logger);
+		dsptch = Dispatcher.create(appctx, new DispatcherConfig.Builder().withName("qmgrbasetest").build(), logger);
 		FileOps.ensureDirExists(appctx.getConfig().getPathTemp());
 	}
 
@@ -201,7 +201,7 @@ public class BaseManagerTest
 		ManagerTest.verifyEmptyQueue(qmgr);
 	}
 
-	private static int predictNextSPID(Manager qmgr, int recipcnt)
+	private static int predictNextSPID(QueueManager qmgr, int recipcnt)
 	{
 		Object spidgen = ManagerTest.getSpoolField(qmgr, "spidgen");
 		AtomicInteger gen = (AtomicInteger)DynLoader.getField(spidgen, recipcnt == 1 ? "nextspid_solo" : "nextspid_multi");
@@ -218,7 +218,7 @@ public class BaseManagerTest
 		protected boolean storeMessage(SubmitHandle sph) {throw new QException("Simulating ctl-store failure");}
 	}
 
-	public static class TestManager extends Manager
+	public static class TestManager extends QueueManager
 	{
 		public TestManager(Dispatcher d, XmlConfig qcfg, AppConfig appcfg, String name) throws java.io.IOException {
 			super(d, qcfg, name);

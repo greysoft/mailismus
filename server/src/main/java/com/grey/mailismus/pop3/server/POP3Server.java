@@ -80,7 +80,7 @@ public final class POP3Server
 	{
 		// assorted shared settings and objects
 		final com.grey.base.collections.HashedSet<com.grey.base.utils.ByteChars> currentUsers = new com.grey.base.collections.HashedSet<com.grey.base.utils.ByteChars>();
-		final com.grey.naf.BufferSpec bufspec;
+		final com.grey.naf.BufferGenerator bufspec;
 		final com.grey.mailismus.ms.maildir.MaildirStore ms;
 		final com.grey.mailismus.directory.Directory dtory;
 		final SaslAuthenticator saslauth;
@@ -122,7 +122,7 @@ public final class POP3Server
 		java.nio.ByteBuffer tmpniobuf;
 
 		public SharedFields(com.grey.base.config.XmlConfig cfg, com.grey.naf.reactor.Dispatcher dsptch, com.grey.mailismus.Task task,
-				POP3Server proto, com.grey.naf.SSLConfig sslcfg, String logpfx)
+				POP3Server proto, com.grey.naf.reactor.config.SSLConfig sslcfg, String logpfx)
 			throws java.security.GeneralSecurityException
 		{
 			if (task.getMS() == null || task.getDirectory() == null) {
@@ -136,7 +136,7 @@ public final class POP3Server
 			expire = cfg.getInt("expire", true, -1);
 			tmtprotocol = cfg.getTime("timeout", com.grey.base.utils.TimeOps.parseMilliTime("2m")); //NB: RFC-1939 says at least 10 mins
 			delay_chanclose = cfg.getTime("delay_close", 0);
-			bufspec = new com.grey.naf.BufferSpec(cfg, "niobuffers", 256, 128);
+			bufspec = new com.grey.naf.BufferGenerator(cfg, "niobuffers", 256, 128);
 			transcript = com.grey.mailismus.Transcript.create(dsptch, cfg, "transcript");
 
 			authtypes_enabled = configureAuthTypes("authtypes", cfg, true, POP3Protocol.AUTHTYPE.values(), null, logpfx);

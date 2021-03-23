@@ -53,7 +53,7 @@ public final class ReportsTask
 	private final com.grey.base.utils.ByteChars mime_altprologue;
 	private final byte[] msgfilebuf;
 
-	private final com.grey.mailismus.mta.queue.Manager qmgr;
+	private final com.grey.mailismus.mta.queue.QueueManager qmgr;
 	private final com.grey.mailismus.mta.queue.Cache qcache;
 	private final com.grey.mailismus.Audit audit;
 	private final Logger logger;

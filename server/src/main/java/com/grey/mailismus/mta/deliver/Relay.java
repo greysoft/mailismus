@@ -9,7 +9,7 @@ import com.grey.base.utils.EmailAddress;
 import com.grey.base.utils.IP;
 import com.grey.base.utils.TSAP;
 import com.grey.mailismus.errors.MailismusConfigException;
-import com.grey.naf.SSLConfig;
+import com.grey.naf.reactor.config.SSLConfig;
 
 /*
  * This class specifies the connection details for a remote SMTP server we use as a relay for specific domains.
@@ -17,7 +17,7 @@ import com.grey.naf.SSLConfig;
 public final class Relay
 {
 	public final TSAP tsap;
-	public final com.grey.naf.SSLConfig sslconfig;
+	public final com.grey.naf.reactor.config.SSLConfig sslconfig;
 	public final boolean auth_enabled;
 	public final boolean auth_initrsp;
 	public final boolean auth_compat; //handle Protocol.EXT_AUTH_COMPAT responses from this server
