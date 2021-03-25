@@ -31,7 +31,7 @@ public final class IMAP4Server
 	// This class maps the new Listener.Server design to the original prototype scheme on which
 	// this server is still based.
 	public static final class Factory
-		implements com.grey.naf.reactor.ConcurrentListener.ServerFactory
+		implements com.grey.naf.reactor.CM_Listener.ServerFactory
 	{
 		private final IMAP4Server prototype;
 
@@ -42,11 +42,9 @@ public final class IMAP4Server
 		}
 
 		@Override
-		public IMAP4Server factory_create() {return new IMAP4Server(prototype);}
+		public IMAP4Server createServer() {return new IMAP4Server(prototype);}
 		@Override
-		public Class<IMAP4Server> getServerClass() {return IMAP4Server.class;}
-		@Override
-		public void shutdown() {prototype.abortServer();}
+		public void shutdownServerFactory() {prototype.abortServer();}
 	}
 
 	private static final boolean UNILATERAL_REPORTS = SysProps.get("grey.imap.unilateral_reports", true);

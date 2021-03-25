@@ -155,19 +155,19 @@ public final class POP3Server
 			capa_sasl_ssl = setCapaSASL(authtypes_enabled, null);
 
 			if (authtypes_enabled.contains(POP3Protocol.AUTHTYPE.SASL_PLAIN)) {
-				com.grey.base.sasl.ServerFactory fact = new com.grey.base.sasl.ServerFactory(com.grey.base.sasl.SaslEntity.MECH.PLAIN, saslauth, true);
+				com.grey.base.sasl.SaslServerFactory fact = new com.grey.base.sasl.SaslServerFactory(com.grey.base.sasl.SaslEntity.MECH.PLAIN, saslauth, true);
 				saslmechs_plain = new com.grey.base.collections.ObjectWell<com.grey.base.sasl.PlainServer>(null, fact, "POP3S_SaslPlain", 0, 0, 1);
 			} else {
 				saslmechs_plain = null;
 			}
 			if (authtypes_enabled.contains(POP3Protocol.AUTHTYPE.SASL_CRAM_MD5)) {
-				com.grey.base.sasl.ServerFactory fact = new com.grey.base.sasl.ServerFactory(com.grey.base.sasl.SaslEntity.MECH.CRAM_MD5, saslauth, true);
+				com.grey.base.sasl.SaslServerFactory fact = new com.grey.base.sasl.SaslServerFactory(com.grey.base.sasl.SaslEntity.MECH.CRAM_MD5, saslauth, true);
 				saslmechs_cmd5 = new com.grey.base.collections.ObjectWell<com.grey.base.sasl.CramMD5Server>(null, fact, "POP3S_SaslCMD5", 0, 0, 1);
 			} else {
 				saslmechs_cmd5 = null;
 			}
 			if (authtypes_enabled.contains(POP3Protocol.AUTHTYPE.SASL_EXTERNAL)) {
-				com.grey.base.sasl.ServerFactory fact = new com.grey.base.sasl.ServerFactory(com.grey.base.sasl.SaslEntity.MECH.EXTERNAL, saslauth, true);
+				com.grey.base.sasl.SaslServerFactory fact = new com.grey.base.sasl.SaslServerFactory(com.grey.base.sasl.SaslEntity.MECH.EXTERNAL, saslauth, true);
 				saslmechs_ext = new com.grey.base.collections.ObjectWell<com.grey.base.sasl.ExternalServer>(null, fact, "POP3S_SaslExternal", 0, 0, 1);
 			} else {
 				saslmechs_ext = null;
@@ -222,7 +222,7 @@ public final class POP3Server
 	// This class maps the new Listener.Server design to the original prototype scheme on which
 	// this server is still based.
 	public static final class Factory
-		implements com.grey.naf.reactor.ConcurrentListener.ServerFactory
+		implements com.grey.naf.reactor.CM_Listener.ServerFactory
 	{
 		private final POP3Server prototype;
 
@@ -233,11 +233,9 @@ public final class POP3Server
 		}
 
 		@Override
-		public POP3Server factory_create() {return new POP3Server(prototype);}
+		public POP3Server createServer() {return new POP3Server(prototype);}
 		@Override
-		public Class<POP3Server> getServerClass() {return POP3Server.class;}
-		@Override
-		public void shutdown() {prototype.abortServer();}
+		public void shutdownServerFactory() {prototype.abortServer();}
 	}
 
 	private final SharedFields shared;
@@ -269,7 +267,8 @@ public final class POP3Server
 		String stem = "POP3-Server";
 		pfx_log = stem+"/E"+getCMID();
 		String pfx = stem+(getSSLConfig() == null || getSSLConfig().isLatent() ? "" : "/SSL")+": ";
-		shared = new SharedFields(cfg, getDispatcher(), com.grey.mailismus.Task.class.cast(getListener().getController()), this, getSSLConfig(), pfx);
+		Task task = com.grey.mailismus.Task.class.cast(getListener().getController());
+		shared = new SharedFields(cfg, getDispatcher(), task, this, getSSLConfig(), pfx);
 		apopToken = null;
 		String txt = (shared.authtypes_ssl.size() == 0 ? null : shared.authtypes_ssl.size()+"/"+shared.authtypes_ssl);
 		if (txt != null && shared.authtypes_ssl.size() == shared.authtypes_enabled.size()) txt = "all";

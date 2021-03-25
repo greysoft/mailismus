@@ -185,19 +185,19 @@ final class SharedFields
 		}
 
 		if (authtypes_enabled.contains(IMAP4Protocol.AUTHTYPE.SASL_PLAIN)) {
-			com.grey.base.sasl.ServerFactory fact = new com.grey.base.sasl.ServerFactory(com.grey.base.sasl.SaslEntity.MECH.PLAIN, saslauth, true);
+			com.grey.base.sasl.SaslServerFactory fact = new com.grey.base.sasl.SaslServerFactory(com.grey.base.sasl.SaslEntity.MECH.PLAIN, saslauth, true);
 			saslmechs_plain = new com.grey.base.collections.ObjectWell<com.grey.base.sasl.PlainServer>(null, fact, "IMAP_Plain", 0, 0, 1);
 		} else {
 			saslmechs_plain = null;
 		}
 		if (authtypes_enabled.contains(IMAP4Protocol.AUTHTYPE.SASL_CRAM_MD5)) {
-			com.grey.base.sasl.ServerFactory fact = new com.grey.base.sasl.ServerFactory(com.grey.base.sasl.SaslEntity.MECH.CRAM_MD5, saslauth, true);
+			com.grey.base.sasl.SaslServerFactory fact = new com.grey.base.sasl.SaslServerFactory(com.grey.base.sasl.SaslEntity.MECH.CRAM_MD5, saslauth, true);
 			saslmechs_cmd5 = new com.grey.base.collections.ObjectWell<com.grey.base.sasl.CramMD5Server>(null, fact, "IMAP_CramMD5", 0, 0, 1);
 		} else {
 			saslmechs_cmd5 = null;
 		}
 		if (authtypes_enabled.contains(IMAP4Protocol.AUTHTYPE.SASL_EXTERNAL)) {
-			com.grey.base.sasl.ServerFactory fact = new com.grey.base.sasl.ServerFactory(com.grey.base.sasl.SaslEntity.MECH.EXTERNAL, saslauth, true);
+			com.grey.base.sasl.SaslServerFactory fact = new com.grey.base.sasl.SaslServerFactory(com.grey.base.sasl.SaslEntity.MECH.EXTERNAL, saslauth, true);
 			saslmechs_ext = new com.grey.base.collections.ObjectWell<com.grey.base.sasl.ExternalServer>(null, fact, "IMAP_External", 0, 0, 1);
 		} else {
 			saslmechs_ext = null;

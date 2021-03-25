@@ -147,7 +147,7 @@ public final class Server
 	// This class maps the new Listener.Server design to the original prototype scheme on which
 	// this server is still based.
 	public static final class Factory
-		implements com.grey.naf.reactor.ConcurrentListener.ServerFactory
+		implements com.grey.naf.reactor.CM_Listener.ServerFactory
 	{
 		private final Server prototype;
 
@@ -157,11 +157,9 @@ public final class Server
 		}
 
 		@Override
-		public Server factory_create() {return new Server(prototype);}
+		public Server createServer() {return new Server(prototype);}
 		@Override
-		public Class<Server> getServerClass() {return Server.class;}
-		@Override
-		public void shutdown() {prototype.abortServer();}
+		public void shutdownServerFactory() {prototype.abortServer();}
 	}
 
 	// config to apply on a per-connection basis, depending who we're talking to
@@ -503,11 +501,11 @@ public final class Server
 				saslmechs_cmd5 = null;
 				saslmechs_ext = null;
 			} else {
-				com.grey.base.sasl.ServerFactory fact = new com.grey.base.sasl.ServerFactory(com.grey.base.sasl.SaslEntity.MECH.PLAIN, saslauth, true);
+				com.grey.base.sasl.SaslServerFactory fact = new com.grey.base.sasl.SaslServerFactory(com.grey.base.sasl.SaslEntity.MECH.PLAIN, saslauth, true);
 				saslmechs_plain = new com.grey.base.collections.ObjectWell<com.grey.base.sasl.PlainServer>(null, fact, "SMTP_Plain-"+lstnr.getName(), 0, 0, 1);
-				fact = new com.grey.base.sasl.ServerFactory(com.grey.base.sasl.SaslEntity.MECH.CRAM_MD5, saslauth, true);
+				fact = new com.grey.base.sasl.SaslServerFactory(com.grey.base.sasl.SaslEntity.MECH.CRAM_MD5, saslauth, true);
 				saslmechs_cmd5 = new com.grey.base.collections.ObjectWell<com.grey.base.sasl.CramMD5Server>(null, fact, "SMTP_CramMD5-"+lstnr.getName(), 0, 0, 1);
-				fact = new com.grey.base.sasl.ServerFactory(com.grey.base.sasl.SaslEntity.MECH.EXTERNAL, saslauth, true);
+				fact = new com.grey.base.sasl.SaslServerFactory(com.grey.base.sasl.SaslEntity.MECH.EXTERNAL, saslauth, true);
 				saslmechs_ext = new com.grey.base.collections.ObjectWell<com.grey.base.sasl.ExternalServer>(null, fact, "SMTP_External-"+lstnr.getName(), 0, 0, 1);
 			}
 			addrbufcache = new com.grey.base.collections.ObjectWell<com.grey.base.utils.EmailAddress>(com.grey.base.utils.EmailAddress.class, "SmtpServer-"+lstnr.getName());

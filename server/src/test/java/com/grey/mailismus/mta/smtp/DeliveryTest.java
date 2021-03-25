@@ -21,7 +21,6 @@ import com.grey.base.collections.Circulist;
 import com.grey.base.collections.HashedMapIntInt;
 import com.grey.base.collections.HashedMapIntKey;
 import com.grey.base.collections.ObjectQueue;
-import com.grey.base.collections.ObjectWell;
 import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.NAFConfig;
 import com.grey.naf.reactor.Dispatcher;
@@ -456,12 +455,9 @@ public class DeliveryTest
 		Circulist<TimerNAF> activetimers = (Circulist<TimerNAF>)DynLoader.getField(dsptch, "activeTimers");
 		@SuppressWarnings("unchecked")
 		ObjectQueue<TimerNAF> pendingtimers = (ObjectQueue<TimerNAF>)DynLoader.getField(dsptch, "pendingTimers");
-		@SuppressWarnings("unchecked")
-		ObjectWell<TimerNAF> sparetimers = (ObjectWell<TimerNAF>)DynLoader.getField(dsptch, "timerPool");
 		org.junit.Assert.assertEquals(0, activechannels.size());
 		org.junit.Assert.assertEquals(activetimers.toString(), 0, activetimers.size());
 		org.junit.Assert.assertEquals(pendingtimers.toString(), 0, pendingtimers.size());
-		org.junit.Assert.assertEquals(sparetimers.size(), sparetimers.population());
 
 		// Now run the Reports task synchronously - note that Dispatcher is not running, but task is in one-shot mode.
 		// We can't run Reports task in the live Dispatcher as its NDRs will get picked up the Submit task and we wouldn't be able to seee
