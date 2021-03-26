@@ -24,6 +24,11 @@
 		</dependency>
 		<dependency>
 			<groupId>com.github.greysoft.naf</groupId>
+			<artifactId>greynaf-dns</artifactId>
+			<version>${grey.version.naf}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.github.greysoft.naf</groupId>
 			<artifactId>greylog-slf4j</artifactId>
 			<version>${grey.version.naf}</version>
 		</dependency>
