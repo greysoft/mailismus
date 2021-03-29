@@ -295,6 +295,7 @@ public class IPlist
 
 		if (updatesFeed != null && reload_interval != 0) {
 			// schedule next reload
+			if (tmr != null) tmr.cancel();
 			tmr = updatesFeed.getDispatcher().setTimer(reload_interval, 0, this);
 		}
 	}

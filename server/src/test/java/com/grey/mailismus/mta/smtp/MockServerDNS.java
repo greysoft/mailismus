@@ -26,7 +26,6 @@ public class MockServerDNS
 	private final HashedMapIntKey<HashedMap<String,ResourceData[][]>> answers = new HashedMapIntKey<>();
 
 	public int getPort() {return srvr.getLocalPort();}
-	@Override public boolean dnsRecursionAvailable() {return false;}
 
 	public MockServerDNS(ApplicationContextNAF appctx) throws java.io.IOException {
 		populateAnswers();

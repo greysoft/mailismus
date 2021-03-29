@@ -4,6 +4,9 @@
  */
 package com.grey.mailismus;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.grey.base.config.XmlConfig;
 import com.grey.base.utils.IP;
 import com.grey.naf.ApplicationContextNAF;
@@ -36,6 +39,7 @@ public class IPlistTest
 	private static final com.grey.logging.Logger logger = com.grey.logging.Factory.getLoggerNoEx("");
 	private static final DBHandle.Type setup_dbtype = TestSupport.loadDBDriver(logger);
 
+	private final List<TimerNAF> timers = new ArrayList<>();
 	private IPlist cur_iplist;
 	private int expected_size;
 	private volatile boolean reloaded;
@@ -86,6 +90,9 @@ public class IPlistTest
 				public Dispatcher getDispatcher() {return dsptch;}
 				@Override
 				public boolean stopDispatcherRunnable() {
+					for (TimerNAF t : timers) {
+						t.cancel();
+					}
 					iplist.close();
 					iplist.close();
 					return true;
@@ -98,6 +105,7 @@ public class IPlistTest
 			try {
 				Dispatcher.STOPSTATUS stopsts = dsptch.waitStopped(1000, true);
 				org.junit.Assert.assertEquals(Dispatcher.STOPSTATUS.STOPPED, stopsts);
+				org.junit.Assert.assertTrue(dsptch.completedOK());
 			} catch (Throwable ex) {
 				logger.log(LEVEL.ERR, ex, true, "Failed to close Dispatcher after testMemoryAsync");
 				if (ok) throw ex;
@@ -141,30 +149,42 @@ public class IPlistTest
 		DispatcherConfig def = new DispatcherConfig.Builder().withXmlConfig(dcfg).build();
 		Dispatcher dsptch = Dispatcher.create(appctx, def, logger);
 		boolean ok = false;
-		IPlist iplist = null;
 		try {
 			DBHandle.Type dbtype = setup_dbtype; //null means we will fail, but want to report the failure
 			if (dbtype == null) dbtype = new DBHandle.Type(cfg, appctx.getConfig(), logger);
-			iplist = new IPlist("test_iplist_db", dbtype, cfg, dsptch);
+			IPlist iplist = new IPlist("test_iplist_db", dbtype, cfg, dsptch);
 			org.junit.Assert.assertFalse(iplist.allowHostnames());
 			commonChecks(iplist, EXPSIZE_DBTEST);
 			org.junit.Assert.assertTrue(iplist.exists(IP.convertDottedIP("105.1.2.3")));
 			org.junit.Assert.assertTrue(iplist.exists(IP.convertDottedIP("112.1.2.3")));
 			org.junit.Assert.assertTrue(iplist.toString().contains("database="));
+			DispatcherRunnable runnable = new DispatcherRunnable() {
+				@Override
+				public String getName() {return "IPlistTest.shutdown";}
+				@Override
+				public Dispatcher getDispatcher() {return dsptch;}
+				@Override
+				public boolean stopDispatcherRunnable() {
+					for (TimerNAF t : timers) {
+						t.cancel();
+					}
+					iplist.close();
+					iplist.close();
+					return true;
+				}
+			};
+			dsptch.loadRunnable(runnable);
 			reload(iplist, EXPSIZE_DBTEST, dsptch);
 			ok = true;
 		} finally {
 			try {
 				Dispatcher.STOPSTATUS stopsts = dsptch.waitStopped(1000, true);
 				org.junit.Assert.assertEquals(Dispatcher.STOPSTATUS.STOPPED, stopsts);
+				org.junit.Assert.assertTrue(dsptch.completedOK());
 			} catch (Throwable ex) {
 				logger.log(LEVEL.ERR, ex, true, "Failed to close Dispatcher after testDBAsync");
 				if (ok) throw ex;
 			}
-		}
-		if (iplist != null) {
-			iplist.close();
-			iplist.close();
 		}
 	}
 
@@ -192,7 +212,7 @@ public class IPlistTest
 		cur_iplist = iplist;
 		expected_size = expsize;
 		reloaded = false;
-		dsptch.setTimer(0, 1, this);
+		timers.add(dsptch.setTimer(0, 1, this));
 		dsptch.start();
 		while (!reloaded) TimerNAF.sleep(50);
 	}
@@ -201,12 +221,13 @@ public class IPlistTest
 	public void timerIndication(TimerNAF tmr, Dispatcher dsptch)
 			throws java.io.IOException
 	{
+		timers.remove(tmr);
 		switch (tmr.getType())
 		{
 		case 1:
 			cur_iplist.reload();
 			cur_iplist.waitLoad();
-			dsptch.setTimer(100, 2, this); //give IPlist time to receive its Producer notification
+			timers.add(dsptch.setTimer(100, 2, this)); //give IPlist time to receive its Producer notification
 			break;
 		case 2:
 			reloaded = true;

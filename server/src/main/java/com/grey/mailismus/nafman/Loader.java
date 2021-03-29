@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 Yusef Badri - All rights reserved.
+ * Copyright 2011-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.nafman;
@@ -38,12 +38,15 @@ public final class Loader
 	private static final String RSRC_GREYLIST = "greylist";
 	private static final String CP = "/"+Loader.class.getPackage().getName().replace('.', '/')+"/";
 
-	private static final NafManRegistry.DefCommand[] cmds = new NafManRegistry.DefCommand[] {
+	private static final NafManRegistry.DefCommand[] cmdsMTA = new NafManRegistry.DefCommand[] {
 		new NafManRegistry.DefCommand(CMD_LISTQ, FAMILY_MTA, "List queued messages", RSRC_QLIST, true),
 		new NafManRegistry.DefCommand(CMD_COUNTQ, FAMILY_MTA, "Show queue size", NafManRegistry.RSRC_CMDSTATUS, true),
 		new NafManRegistry.DefCommand(CMD_SENDQ, FAMILY_MTA, "Deliver queue now", NafManRegistry.RSRC_CMDSTATUS, true),
 		new NafManRegistry.DefCommand(CMD_LISTGREY, FAMILY_MTA, "Show greylist correspondents", RSRC_GREYLIST, true),
-		new NafManRegistry.DefCommand(CMD_COUNTERS, FAMILY_MTA, "Show (and reset) MTA stats counters", NafManRegistry.RSRC_CMDSTATUS, true),
+		new NafManRegistry.DefCommand(CMD_COUNTERS, FAMILY_MTA, "Show (and reset) MTA stats counters", NafManRegistry.RSRC_CMDSTATUS, true)
+	};
+
+	private static final NafManRegistry.DefCommand[] cmdsDirectory = new NafManRegistry.DefCommand[] {
 		new NafManRegistry.DefCommand(CMD_DTORY_ALIAS, FAMILY_DIRECTORY, "Show alias expansion in Directory", null, true),
 		new NafManRegistry.DefCommand(CMD_DTORY_RELOAD, FAMILY_DIRECTORY, "Reload Directory", NafManRegistry.RSRC_CMDSTATUS, false)
 	};
@@ -56,17 +59,17 @@ public final class Loader
 		new NafManRegistry.DefResource("greycsv", CP+"greycsv.xsl", null, null)
 	};
 
+	private final Map<Class<?>, Task> tasks = new ConcurrentHashMap<>();
+
 	public static Loader get(ApplicationContextNAF appctx) {
 		NafManRegistry reg = NafManRegistry.get(appctx);
 		return appctx.getNamedItem(Loader.class.getName(), () -> new Loader(reg));
 	}
 
-	private final Map<Class<?>, Task> tasks = new ConcurrentHashMap<>();
-
 	private Loader(NafManRegistry reg) {
-		reg.loadCommands(cmds);
-		reg.loadResources(resources);
-		reg.setHomePage(resources[0].name);
+		// the resources are common to all families, so just register them once
+		reg.registerCommandFamily(FAMILY_MTA, cmdsMTA, resources, resources[0].name);
+		reg.registerCommandFamily(FAMILY_DIRECTORY, cmdsDirectory, null, null);
 	}
 
 	public void register(Task task) {
