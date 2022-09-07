@@ -1,7 +1,8 @@
-The Mailismus mailserver, featuring SMTP, POP3 and IMAP.
+The Mailismus mailserver, featuring SMTP, POP3 and IMAP (with TLS).
 
 Home page: http://www.greyware.co.uk/mailismus
 Admin Guide: docs/guide/index.htm in this repo
+Source: https://github.com/greysoft/mailismus
 
 To build: mvn clean install
 
