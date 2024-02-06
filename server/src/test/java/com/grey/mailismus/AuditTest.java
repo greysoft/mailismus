@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2018 Yusef Badri - All rights reserved.
+ * Copyright 2012-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus;
@@ -8,7 +8,6 @@ import com.grey.base.config.XmlConfig;
 import com.grey.base.utils.ByteChars;
 import com.grey.base.utils.FileOps;
 import com.grey.base.utils.TimeOps;
-import com.grey.mailismus.TestSupport;
 
 public class AuditTest
 {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 Yusef Badri - All rights reserved.
+ * Copyright 2011-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus;
@@ -129,7 +129,7 @@ public class DBHandle
 			Class<?> clss = null;
 			try {
 				clss = DynLoader.loadClass(drvclass);
-				drvinst = (java.sql.Driver)clss.newInstance();
+				drvinst = (java.sql.Driver)clss.getDeclaredConstructor().newInstance();
 			} catch (Exception ex) {
 				throw new MailismusConfigException("Failed to create DB-Driver="+drvclass+"/"+clss, ex);
 			}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2015-2021 Yusef Badri - All rights reserved.
+ * Copyright 2015-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.deliver;
@@ -21,7 +21,6 @@ import com.grey.mailismus.AppConfig;
 import com.grey.mailismus.TestSupport;
 import com.grey.mailismus.mta.Protocol;
 import com.grey.mailismus.mta.queue.MessageRecip;
-import com.grey.mailismus.mta.deliver.Delivery;
 import com.grey.mailismus.mta.smtp.MockServerDNS;
 
 // Note that the older DeliveryTest suite includes a lot of test cases designed to test the Forwarder as well as the

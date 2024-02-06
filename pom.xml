@@ -1,5 +1,5 @@
 <!--
-  Copyright 2010-2022 Yusef Badri - All rights reserved.
+  Copyright 2010-2024 Yusef Badri - All rights reserved.
   Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -8,7 +8,7 @@
 	<parent>
 		<groupId>com.github.greysoft.greybuild</groupId>
 		<artifactId>grey-build-common</artifactId>
-		<version>2.0.3</version>
+		<version>2.0.4</version>
 	</parent>
 	<groupId>com.github.greysoft.mailismus</groupId>
 	<artifactId>mailismus-suite</artifactId>
