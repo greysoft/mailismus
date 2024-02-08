@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 Yusef Badri - All rights reserved.
+ * Copyright 2011-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus;
@@ -123,7 +123,7 @@ public class IPlist
 		if (dsptch == null) {
 			updatesFeed = null;
 		} else {
-			updatesFeed = new Producer<>("IPlist-updates", HashedSetInt.class, dsptch, this);
+			updatesFeed = new Producer<>("IPlist-updates", dsptch, this);
 
 			TimerNAF.Handler onStart = new TimerNAF.Handler() {
 				@Override

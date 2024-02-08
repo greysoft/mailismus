@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2021 Yusef Badri - All rights reserved.
+ * Copyright 2013-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.submit.filter;
@@ -30,7 +30,7 @@ public class FilterManager
 	public FilterManager(XmlConfig cfg, Dispatcher dsptch) throws java.io.IOException {
 		threadpool = dsptch.getApplicationContext().getThreadpool();
 		filter_factory = createFilterFactory(cfg, dsptch);
-		resultsChannel = new Producer<>("Filter-results", FilterExecutor.class, dsptch, this);
+		resultsChannel = new Producer<>("Filter-results", dsptch, this);
 
 		TimerNAF.Handler onStart = new TimerNAF.Handler() {
 			@Override
