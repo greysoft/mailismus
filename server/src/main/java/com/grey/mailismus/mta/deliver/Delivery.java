@@ -1,8 +1,19 @@
 /*
- * Copyright 2015-2018 Yusef Badri - All rights reserved.
+ * Copyright 2015-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.deliver;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.grey.base.utils.ByteChars;
+import com.grey.naf.reactor.Dispatcher;
+import com.grey.naf.reactor.TimerNAF;
+import com.grey.mailismus.AppConfig;
+import com.grey.mailismus.mta.queue.MessageRecip;
+import com.grey.mailismus.mta.queue.QueueManager;
 
 public interface Delivery
 {
@@ -10,16 +21,16 @@ public interface Delivery
 	{
 		void messageCompleted(MessageSender sender);
 		void senderCompleted(MessageSender sender);
-		com.grey.mailismus.AppConfig getAppConfig();
-		com.grey.naf.reactor.Dispatcher getDispatcher();
-		com.grey.mailismus.mta.queue.QueueManager getQueue();
+		AppConfig getAppConfig();
+		Dispatcher getDispatcher();
+		QueueManager getQueue();
 		Routing getRouting();
 	}
 
 
 	public interface MessageSender
 	{
-		void start(Controller ctl) throws java.io.IOException;
+		void start(Controller ctl) throws IOException;
 		boolean stop();
 		MessageParams getMessageParams();
 		short getDomainError();
@@ -29,23 +40,23 @@ public interface Delivery
 
 	static final class MessageParams
 	{
-		private final java.util.ArrayList<com.grey.mailismus.mta.queue.MessageRecip> recips = new java.util.ArrayList<com.grey.mailismus.mta.queue.MessageRecip>();
-		private com.grey.base.utils.ByteChars sender;
-		private com.grey.base.utils.ByteChars destdomain;
+		private final List<MessageRecip> recips = new ArrayList<>();
+		private ByteChars sender;
+		private ByteChars destdomain;
 		private Relay relay;
 		private int spid;
 		private int msgcnt;
 
 		public int getSPID() {return spid;}
-		public com.grey.base.utils.ByteChars getSender() {return sender;}
-		public com.grey.base.utils.ByteChars getDestination(){return destdomain;}
+		public ByteChars getSender() {return sender;}
+		public ByteChars getDestination(){return destdomain;}
 		public Relay getRelay() {return relay;}
-		public com.grey.mailismus.mta.queue.MessageRecip getRecipient(int idx) {return recips.get(idx);}
+		public MessageRecip getRecipient(int idx) {return recips.get(idx);}
 		public int recipCount() {return recips.size();}
 		int messageCount() {return msgcnt;}
 		int incrementMessages() {return ++msgcnt;}
 
-		MessageParams init(Relay rly, com.grey.base.utils.ByteChars destdom) {
+		MessageParams init(Relay rly, ByteChars destdom) {
 			clear();
 			relay = rly;
 			if (relay == null) destdomain = destdom;
@@ -68,8 +79,8 @@ public interface Delivery
 			return this;
 		}
 
-		void addRecipient(com.grey.mailismus.mta.queue.MessageRecip recip) {
-			if (recips.size() == 0) {
+		void addRecipient(MessageRecip recip) {
+			if (recips.isEmpty()) {
 				// Need to record these params outside 'recips', as list will get cleared. Obviously every 'recips' member
 				// will have the same SPID, but the destination domains will vary if in slave-relay or source-routed mode,
 				// so destdomain may not be meaningful.
@@ -93,8 +104,8 @@ public interface Delivery
 		public int localcnt; //number of local recipients handled (ie. no. of MessageRecips deliver into the MS)
 		public int localfailcnt; //number of local recipients who failed - this is a subset of localcnt
 		public long start;
-		private final com.grey.naf.reactor.TimerNAF.TimeProvider timeProvider;
-		public Stats(com.grey.naf.reactor.TimerNAF.TimeProvider t) {timeProvider=t; reset();}
+		private final TimerNAF.TimeProvider timeProvider;
+		public Stats(TimerNAF.TimeProvider t) {timeProvider=t; reset();}
 		public Stats reset() {
 			start = timeProvider.getRealTime();
 			conncnt = sendermsgcnt = remotecnt = remotefailcnt = localcnt = localfailcnt = 0;

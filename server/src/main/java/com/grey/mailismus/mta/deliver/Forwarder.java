@@ -1,28 +1,49 @@
 /*
- * Copyright 2010-2021 Yusef Badri - All rights reserved.
+ * Copyright 2010-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.deliver;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.nio.file.Path;
+import java.io.IOException;
+
+import com.grey.base.collections.GenericFactory;
+import com.grey.base.collections.HashedMapIntValue;
+import com.grey.base.collections.HashedSet;
+import com.grey.base.collections.ObjectWell;
 import com.grey.base.config.SysProps;
 import com.grey.base.config.XmlConfig;
 import com.grey.base.utils.StringOps;
 import com.grey.base.utils.TimeOps;
 import com.grey.base.utils.ByteChars;
+import com.grey.base.utils.EmailAddress;
 import com.grey.base.utils.IP;
+import com.grey.logging.Logger;
+import com.grey.logging.Logger.LEVEL;
+
 import com.grey.naf.EntityReaper;
-import com.grey.naf.dns.resolver.ResolverDNS;
 import com.grey.naf.reactor.Dispatcher;
+import com.grey.naf.reactor.TimerNAF;
+import com.grey.naf.dns.resolver.ResolverDNS;
+import com.grey.naf.nafman.NafManCommand;
+import com.grey.naf.nafman.NafManRegistry;
+
 import com.grey.mailismus.AppConfig;
+import com.grey.mailismus.Audit;
 import com.grey.mailismus.mta.MTA_Task;
 import com.grey.mailismus.mta.Protocol;
+import com.grey.mailismus.mta.queue.Cache;
 import com.grey.mailismus.mta.queue.MessageRecip;
-import com.grey.logging.Logger.LEVEL;
+import com.grey.mailismus.mta.queue.QueueManager;
+import com.grey.mailismus.ms.MessageStore;
+import com.grey.mailismus.nafman.Loader;
 
 public final class Forwarder
 	implements Delivery.Controller,
-		com.grey.naf.reactor.TimerNAF.Handler,
-		com.grey.naf.nafman.NafManCommand.Handler
+		TimerNAF.Handler,
+		NafManCommand.Handler
 {
 	public interface BatchCallback
 	{
@@ -54,26 +75,25 @@ public final class Forwarder
 
 	private final AppConfig appConfig;
 	private final Dispatcher dsptch;
-	private final com.grey.mailismus.mta.queue.QueueManager qmgr;
-	private final com.grey.mailismus.ms.MessageStore ms;
+	private final QueueManager qmgr;
+	private final MessageStore ms;
 	private final Routing routing;
 	private final Client protoClient; //prototype client object used to construct the rest
-	private final com.grey.mailismus.Audit audit;
+	private final Audit audit;
 	private final EntityReaper reaper;
 	private final BatchCallback batchCallback;
-	private final com.grey.mailismus.mta.queue.Cache qcache;
-	private final com.grey.base.collections.ObjectWell<Delivery.MessageSender> sparesenders;
-	private final com.grey.base.collections.HashedSet<Delivery.MessageSender> activesenders
-					= new com.grey.base.collections.HashedSet<Delivery.MessageSender>();
+	private final Cache qcache;
+	private final ObjectWell<Delivery.MessageSender> sparesenders;
+	private final HashedSet<Delivery.MessageSender> activesenders = new HashedSet<>();
 
 	// This maps connection targets (ie. SMTP servers) to the number of simultaneous connections we currently have to them.
 	// The map values can be of type ByteChars (destination domain) or Relay.
 	// Of course multiple connections to one destination domain might actually be spread amongst multiple servers, but we
 	// treat it as as one target, and limit the total connections to it.
-	private final com.grey.base.collections.HashedMapIntValue<Object> active_serverconns;
+	private final HashedMapIntValue<Object> active_serverconns;
 
-	private com.grey.naf.reactor.TimerNAF tmr_qpoll;
-	private com.grey.naf.reactor.TimerNAF tmr_killsenders;
+	private TimerNAF tmr_qpoll;
+	private TimerNAF tmr_killsenders;
 	private boolean has_stopped;
 	private boolean inShutdown;
 	private boolean inScan;
@@ -98,33 +118,33 @@ public final class Forwarder
 	private long total_sendtime; //batch processing time, excl qtime and launchtime (so more or less the SMTP time)
 
 	//pre-allocated merely for efficiency
-	private final com.grey.base.utils.EmailAddress tmpemaddr = new com.grey.base.utils.EmailAddress();
+	private final EmailAddress tmpemaddr = new EmailAddress();
 	private final StringBuilder tmpsb = new StringBuilder();
 
 	@Override public AppConfig getAppConfig() {return appConfig;}
 	@Override public Dispatcher getDispatcher() {return dsptch;}
-	@Override public com.grey.mailismus.mta.queue.QueueManager getQueue() {return qmgr;}
+	@Override public QueueManager getQueue() {return qmgr;}
 	@Override public Routing getRouting() {return routing;}
 	@Override public void senderCompleted(Delivery.MessageSender sender) {senderCompleted(sender, false);}
 	@Override public CharSequence nafmanHandlerID() {return "SMTP-Forwarder";}
 	private int connectionsCount() {return activesenders.size();}
 
-	public Forwarder(Dispatcher d, MTA_Task task, XmlConfig cfg, EntityReaper rpr) throws java.io.IOException
+	public Forwarder(Dispatcher d, MTA_Task task, XmlConfig cfg, EntityReaper rpr) throws IOException
 	{
 		this(d, task, cfg, rpr, null, null);
 	}
 
 	public Forwarder(Dispatcher d, MTA_Task task, XmlConfig cfg, EntityReaper rpr,
-			com.grey.base.collections.GenericFactory<Delivery.MessageSender> sender_fact,
-			BatchCallback bcb) throws java.io.IOException
+			GenericFactory<Delivery.MessageSender> sender_fact,
+			BatchCallback bcb) throws IOException
 	{
 		this(d, cfg, task.getAppConfig(), task.getQueue(), task.getMS(), rpr, sender_fact, bcb, task.getResolverDNS());
 	}
 
 	public Forwarder(Dispatcher d, XmlConfig cfg, AppConfig appConfig,
-			com.grey.mailismus.mta.queue.QueueManager qm, com.grey.mailismus.ms.MessageStore mstore,
-			EntityReaper rpr, com.grey.base.collections.GenericFactory<Delivery.MessageSender> sender_fact,
-			BatchCallback bcb, ResolverDNS dnsResolver) throws java.io.IOException
+			QueueManager qm, MessageStore mstore,
+			EntityReaper rpr, GenericFactory<Delivery.MessageSender> sender_fact,
+			BatchCallback bcb, ResolverDNS dnsResolver) throws IOException
 	{
 		this.appConfig = appConfig;
 		dsptch = d;
@@ -132,8 +152,8 @@ public final class Forwarder
 		qmgr = qm;
 		reaper = rpr;
 		batchCallback = bcb;
-		com.grey.logging.Logger log = dsptch.getLogger();
-		audit = com.grey.mailismus.Audit.create("MTA-Delivery", "audit", dsptch, cfg);
+		Logger log = dsptch.getLogger();
+		audit = Audit.create("MTA-Delivery", "audit", dsptch, cfg);
 		XmlConfig relaycfg = cfg.getSection("relays");
 		routing = new Routing(relaycfg, dsptch.getApplicationContext().getConfig(), log);
 
@@ -182,8 +202,8 @@ public final class Forwarder
 		} else {
 			protoClient = null;
 		}
-		sparesenders = new com.grey.base.collections.ObjectWell<Delivery.MessageSender>(sender_fact, "SmtpFwd");
-		active_serverconns = (max_serverconns == 0 ? null : new com.grey.base.collections.HashedMapIntValue<Object>());
+		sparesenders = new ObjectWell<>(sender_fact, "SmtpFwd");
+		active_serverconns = (max_serverconns == 0 ? null : new HashedMapIntValue<>());
 
 		log.info("SMTP-Delivery: slave-relay mode="+routing.modeSlaveRelay());
 		log.info("SMTP-Delivery: queue-cache="+qcache.capacity()+"/"+cap_qcache);
@@ -196,9 +216,9 @@ public final class Forwarder
 				+" - Start-Delay="+TimeOps.expandMilliTime(delay_start));
 
 		if (dsptch.getNafManAgent() != null) {
-			com.grey.naf.nafman.NafManRegistry reg = dsptch.getNafManAgent().getRegistry();
-			reg.registerHandler(com.grey.mailismus.nafman.Loader.CMD_COUNTERS, 0, this, dsptch);
-			reg.registerHandler(com.grey.mailismus.nafman.Loader.CMD_SENDQ, 0, this, dsptch);
+			NafManRegistry reg = dsptch.getNafManAgent().getRegistry();
+			reg.registerHandler(Loader.CMD_COUNTERS, 0, this, dsptch);
+			reg.registerHandler(Loader.CMD_SENDQ, 0, this, dsptch);
 		}
 	}
 
@@ -235,7 +255,7 @@ public final class Forwarder
 	private void stopSenders()
 	{
 		// loop on copy of set to avoid ConcurrentModification from callbacks
-		java.util.ArrayList<Delivery.MessageSender> lst = new java.util.ArrayList<Delivery.MessageSender>(activesenders);
+		List<Delivery.MessageSender> lst = new ArrayList<>(activesenders);
 		for (int idx = 0; idx != lst.size(); idx++) {
 			Delivery.MessageSender sender = lst.get(idx);
 			if (sender.stop()) senderCompleted(sender, true);
@@ -256,7 +276,7 @@ public final class Forwarder
 	}
 
 	@Override
-	public void timerIndication(com.grey.naf.reactor.TimerNAF tmr, Dispatcher d)
+	public void timerIndication(TimerNAF tmr, Dispatcher d)
 	{
 		switch (tmr.getType())
 		{
@@ -289,13 +309,13 @@ public final class Forwarder
 
 	// Not much we can do - very unlikely error however, as our NAF entry point (timerEventIndication) doesn't even throw.
 	@Override
-	public void eventError(com.grey.naf.reactor.TimerNAF tmr, Dispatcher d, Throwable ex)
+	public void eventError(TimerNAF tmr, Dispatcher d, Throwable ex)
 	{
 		dsptch.getLogger().error("SMTP-Delivery has NAF error: cache="+qcache.size()+", conns="+connectionsCount()
 			+", shutdown="+inShutdown+"/scanning="+inScan);
 	}
 
-	private boolean processQueue() throws java.io.IOException
+	private boolean processQueue() throws IOException
 	{
 		if (CHECK_OFFLINE) {
 			// abort if no interfaces up, so that we don't clock up spurious retry failures when offline
@@ -374,7 +394,7 @@ public final class Forwarder
 				if (recip.domain_to == null) {
 					// local recipient
 					if (recip.qstatus != MessageRecip.STATUS_READY) continue; //probably a redundant check
-					java.nio.file.Path fh = qmgr.getMessage(recip.spid, recip.qid);
+					Path fh = qmgr.getMessage(recip.spid, recip.qid);
 					try {
 						ms.deliver(recip.mailbox_to, fh.toFile());
 						if (audit != null) audit.log("Delivered", recip, false, dsptch.getSystemTime(), qmgr.externalSPID(recip.spid));
@@ -685,22 +705,22 @@ public final class Forwarder
 	}
 
 	@Override
-	public CharSequence handleNAFManCommand(com.grey.naf.nafman.NafManCommand cmd) throws java.io.IOException
+	public CharSequence handleNAFManCommand(NafManCommand cmd)
 	{
 		tmpsb.setLength(0);
-		if (cmd.getCommandDef().code.equals(com.grey.mailismus.nafman.Loader.CMD_COUNTERS)) {
+		if (cmd.getCommandDef().code.equals(Loader.CMD_COUNTERS)) {
 			tmpsb.append("Delivery stats since ");
 			TimeOps.makeTimeLogger(openStats.start, tmpsb, true, true);
 			tmpsb.append(" - Period=");
 			TimeOps.expandMilliTime(dsptch.getSystemTime() - openStats.start, tmpsb, false);
 			tmpsb.append("<br/>SMTP Connections: ").append(openStats.conncnt);
 			tmpsb.append("<br/>SMTP Messages: ").append(openStats.sendermsgcnt);
-			tmpsb.append("<br/>SMTP Recipients: OK=").append(openStats.remotecnt-openStats.remotefailcnt).append("; Fail="+openStats.remotefailcnt);
-			tmpsb.append("<br/>Local Recipients: OK=").append(openStats.localcnt-openStats.localfailcnt).append("; Fail="+openStats.localfailcnt);
+			tmpsb.append("<br/>SMTP Recipients: OK=").append(openStats.remotecnt-openStats.remotefailcnt).append("; Fail=").append(openStats.remotefailcnt);
+			tmpsb.append("<br/>Local Recipients: OK=").append(openStats.localcnt-openStats.localfailcnt).append("; Fail=").append(openStats.localfailcnt);
 			tmpsb.append("<br/>Current SMTP Connections: ").append(connectionsCount());
 			if (active_serverconns != null) tmpsb.append(" (Peers=").append(active_serverconns.size()).append(')');
-			if (StringOps.stringAsBool(cmd.getArg(com.grey.naf.nafman.NafManCommand.ATTR_RESET))) openStats.reset();
-		} else if (cmd.getCommandDef().code.equals(com.grey.mailismus.nafman.Loader.CMD_SENDQ)) {
+			if (StringOps.stringAsBool(cmd.getArg(NafManCommand.ATTR_RESET))) openStats.reset();
+		} else if (cmd.getCommandDef().code.equals(Loader.CMD_SENDQ)) {
 			if (tmr_qpoll != null) tmr_qpoll.reset(0);
 			sendDeferred = true;
 		} else {

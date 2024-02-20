@@ -1,19 +1,26 @@
 /*
- * Copyright 2015-2018 Yusef Badri - All rights reserved.
+ * Copyright 2015-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.deliver;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
 import com.grey.base.utils.ByteChars;
 import com.grey.base.utils.EmailAddress;
 import com.grey.base.utils.IP;
+import com.grey.base.config.XmlConfig;
+import com.grey.naf.NAFConfig;
+import com.grey.logging.Logger;
 import com.grey.mailismus.errors.MailismusConfigException;
 
 public class Routing
 {
-	private final java.util.HashMap<ByteChars,Relay> byDestDomain = new java.util.HashMap<ByteChars,Relay>();
-	private final java.util.HashMap<ByteChars,Relay> bySrcDomain = new java.util.HashMap<ByteChars,Relay>();
-	private final java.util.HashMap<ByteChars,Relay> bySrcAddress = new java.util.HashMap<ByteChars,Relay>();
+	private final Map<ByteChars,Relay> byDestDomain = new HashMap<>();
+	private final Map<ByteChars,Relay> bySrcDomain = new HashMap<>();
+	private final Map<ByteChars,Relay> bySrcAddress = new HashMap<>();
 	private final Relay dflt; //default relay-server - possibly the only one (ie. if in slave-relay mode)
 	private final Relay interceptor;
 
@@ -22,11 +29,10 @@ public class Routing
 	public boolean hasRoute(ByteChars destdomain) {return (byDestDomain.containsKey(destdomain));}
 	public Relay getInterceptor() {return interceptor;}
 
-	public Routing(com.grey.base.config.XmlConfig relaycfg, com.grey.naf.NAFConfig nafcfg, com.grey.logging.Logger logger)
-		throws java.io.IOException
+	public Routing(XmlConfig relaycfg, NAFConfig nafcfg, Logger logger) throws IOException
 	{
 		Relay rlysrvr = null;
-		com.grey.base.config.XmlConfig[] cfgnodes = relaycfg.getSections("relay");
+		XmlConfig[] cfgnodes = relaycfg.getSections("relay");
 		if (cfgnodes != null) {
 			for (int idx = 0; idx != cfgnodes.length; idx++) {
 				Relay relay = new Relay(cfgnodes[idx], false, nafcfg, logger);

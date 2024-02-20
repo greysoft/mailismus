@@ -1,5 +1,5 @@
 <!--
-  Copyright 2010-2018 Yusef Badri - All rights reserved.
+  Copyright 2010-2024 Yusef Badri - All rights reserved.
   Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -14,7 +14,7 @@
 	<name>Mailismus Server</name>
 	<properties>
 		<grey.manifest.name>com/grey/mailismus/</grey.manifest.name>
-		<grey.manifest.mainclass>com.grey.mailismus.App</grey.manifest.mainclass>
+		<grey.manifest.mainclass>com.grey.mailismus.MailismusApp</grey.manifest.mainclass>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -25,12 +25,17 @@
 		<dependency>
 			<groupId>com.github.greysoft.naf</groupId>
 			<artifactId>greynaf-dns</artifactId>
-			<version>${grey.version.naf}</version>
+			<version>dev-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>com.github.greysoft.naf</groupId>
 			<artifactId>greylog-slf4j</artifactId>
 			<version>${grey.version.naf}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.github.greysoft.naf</groupId>
+			<artifactId>greybase</artifactId>
+			<version>dev-SNAPSHOT</version>
 		</dependency>
 	</dependencies>
 	<build>

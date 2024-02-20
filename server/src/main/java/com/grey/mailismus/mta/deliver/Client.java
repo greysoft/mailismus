@@ -1,32 +1,72 @@
 /*
- * Copyright 2010-2021 Yusef Badri - All rights reserved.
+ * Copyright 2010-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.deliver;
 
-import com.grey.mailismus.AppConfig;
-import com.grey.mailismus.Task;
-import com.grey.mailismus.errors.MailismusConfigException;
-import com.grey.mailismus.errors.MailismusException;
-import com.grey.mailismus.mta.Protocol;
-import com.grey.naf.dns.resolver.ResolverDNS;
-import com.grey.naf.reactor.config.SSLConfig;
-import com.grey.base.utils.FileOps;
-import com.grey.base.utils.ByteArrayRef;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.GeneralSecurityException;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.grey.base.utils.IP;
+import com.grey.base.utils.TSAP;
 import com.grey.base.utils.EmailAddress;
+import com.grey.base.utils.ByteArrayRef;
+import com.grey.base.utils.ByteChars;
+import com.grey.base.utils.TimeOps;
+import com.grey.base.utils.FileOps;
+import com.grey.base.collections.GenericFactory;
+import com.grey.base.collections.HashedMapIntInt;
+import com.grey.base.config.XmlConfig;
+import com.grey.base.sasl.CramMD5Client;
+import com.grey.base.sasl.ExternalClient;
+import com.grey.base.sasl.PlainClient;
+import com.grey.base.sasl.SaslEntity;
+import com.grey.base.ExceptionUtils;
 import com.grey.logging.Logger.LEVEL;
 
+import com.grey.naf.BufferGenerator;
+import com.grey.naf.EntityReaper;
+import com.grey.naf.reactor.CM_Client;
+import com.grey.naf.reactor.Dispatcher;
+import com.grey.naf.reactor.TimerNAF;
+import com.grey.naf.reactor.config.SSLConfig;
+import com.grey.naf.dns.resolver.ResolverDNS;
+import com.grey.naf.dns.resolver.engine.ResolverAnswer;
+import com.grey.naf.dns.resolver.engine.ResourceData;
+
+import com.grey.mailismus.AppConfig;
+import com.grey.mailismus.Task;
+import com.grey.mailismus.Transcript;
+import com.grey.mailismus.mta.Protocol;
+import com.grey.mailismus.mta.queue.MessageRecip;
+import com.grey.mailismus.errors.MailismusConfigException;
+import com.grey.mailismus.errors.MailismusException;
+
+/**
+ * Each instance of this class handles one SMTP connection, and can be reused.
+ * This is a single-threaded class which runs in the context of a Dispatcher.
+ */
 final class Client
-	extends com.grey.naf.reactor.CM_Client
+	extends CM_Client
 	implements Delivery.MessageSender,
-		com.grey.naf.dns.resolver.ResolverDNS.Client,
-		com.grey.naf.EntityReaper, //only the prototype Client acts as reaper (for the active Clients)
-		com.grey.naf.reactor.TimerNAF.Handler
+		ResolverDNS.Client,
+		EntityReaper, //only the prototype Client acts as reaper (for the active Clients)
+		TimerNAF.Handler
 {
 	private static final byte OPEN_ANGLE = '<';
 	private static final byte CLOSE_ANGLE = '>';
-	private static final com.grey.base.utils.ByteChars SMTPREQ_MAILFROM = new com.grey.base.utils.ByteChars(Protocol.CMDREQ_MAILFROM).append(OPEN_ANGLE);
-	private static final com.grey.base.utils.ByteChars SMTPREQ_MAILTO = new com.grey.base.utils.ByteChars(Protocol.CMDREQ_MAILTO).append(OPEN_ANGLE);
+	private static final ByteChars SMTPREQ_MAILFROM = new ByteChars(Protocol.CMDREQ_MAILFROM).append(OPEN_ANGLE);
+	private static final ByteChars SMTPREQ_MAILTO = new ByteChars(Protocol.CMDREQ_MAILTO).append(OPEN_ANGLE);
 
 	private static final int TMRTYPE_SESSIONTMT = 1;
 	private static final int TMRTYPE_DISCON = 2;
@@ -35,7 +75,7 @@ final class Client
 									S_QUIT, S_RESET, S_END}
 	private enum PROTO_EVENT {E_CONNECTED, E_DISCONNECTED, E_REPLY, E_LOCALERROR, E_DISCONNECT, E_SSL}
 	private enum PROTO_ACTION {A_CONNECT, A_DISCONNECT, A_HELO, A_EHLO, A_MAILFROM, A_MAILTO, A_DATA, A_MAILBODY,
-									A_QUIT, A_RESET, A_ENDMESSAGE, A_STARTSESSION, A_ENDSESSION, A_LOGIN, A_STLS};
+									A_QUIT, A_RESET, A_ENDMESSAGE, A_STARTSESSION, A_ENDSESSION, A_LOGIN, A_STLS}
 
 	private static final byte S2_DNSWAIT = 1 << 0;
 	private static final byte S2_REPLYCONTD = 1 << 1;
@@ -46,17 +86,17 @@ final class Client
 	private static final byte S2_ABORT = 1 << 6;
 	private static final byte S2_CNXLIMIT = (byte)(1 << 7); //this is 8-bit, but overflows Byte.MAX_VALUE
 
-	private static final com.grey.base.utils.ByteChars FAILMSG_TMT = new com.grey.base.utils.ByteChars("SMTP session timed out");
-	private static final com.grey.base.utils.ByteChars FAILMSG_NOSSL = new com.grey.base.utils.ByteChars("Remote MTA doesn't support SSL");
-	private static final com.grey.base.utils.ByteChars FAILMSG_NORECIPS = new com.grey.base.utils.ByteChars("No valid recipients specified");
-	private static final com.grey.base.utils.ByteChars FAILMSG_NOSPOOL = new com.grey.base.utils.ByteChars("Message deleted from queue");
+	private static final ByteChars FAILMSG_TMT = new ByteChars("SMTP session timed out");
+	private static final ByteChars FAILMSG_NOSSL = new ByteChars("Remote MTA doesn't support SSL");
+	private static final ByteChars FAILMSG_NORECIPS = new ByteChars("No valid recipients specified");
+	private static final ByteChars FAILMSG_NOSPOOL = new ByteChars("Message deleted from queue");
 
 	// config to apply on a per-connection basis, depending who we're talking to
 	private static final class ConnectionConfig
 	{
-		final com.grey.base.utils.IP.Subnet[] ipnets;
+		final IP.Subnet[] ipnets;
 		final long tmtprotocol;
-		final long minrate_data;
+		final long minrate_data; //bits per second
 		final long nanosecs_per_byte;
 		final long delay_chanclose; //has solved abort-on-close issues in the past
 		final String announcehost;	//hostname to announce in HELO/EHLO
@@ -65,24 +105,23 @@ final class Client
 		final boolean sendQUIT;
 		final boolean awaitQUIT;
 		final int max_pipe; //max requests that can be pipelined in one send
-		final com.grey.naf.reactor.config.SSLConfig anonssl; //controls SSL behaviour with respect to servers other than the configured relays
+		final SSLConfig anonssl; //controls SSL behaviour with respect to servers other than the configured relays
 
 		// read-only buffers - pre-allocated and pre-populated buffers, for efficient sending of canned replies
-		final java.nio.ByteBuffer reqbuf_helo;
-		final java.nio.ByteBuffer reqbuf_ehlo;
+		final ByteBuffer reqbuf_helo;
+		final ByteBuffer reqbuf_ehlo;
 
-		public ConnectionConfig(int id, com.grey.base.config.XmlConfig cfg, SharedFields common, ConnectionConfig dflts,
-				com.grey.naf.reactor.Dispatcher dsptch, String logpfx) throws java.io.IOException
-		{
+		public ConnectionConfig(int id, XmlConfig cfg, SharedFields common, ConnectionConfig dflts, Dispatcher dsptch, String logpfx) throws IOException {
+			AppConfig appConfig = common.controller.getAppConfig();
 			String label = logpfx+"remotenets #"+id+" connection config";
 			if (id == 0) {
 				ipnets = null;
 			} else {
-				ipnets = parseSubnets(cfg, "@ip", common.appConfig);
+				ipnets = parseSubnets(cfg, "@ip", appConfig);
 				if (ipnets == null) throw new MailismusConfigException(label+": missing 'ip' attribute");
 			}
-			announcehost = common.appConfig.getAnnounceHost(cfg, dflts==null ? common.appConfig.getAnnounceHost() : dflts.announcehost);
-			tmtprotocol = cfg.getTime("timeout", dflts==null ? com.grey.base.utils.TimeOps.parseMilliTime("1m") : dflts.tmtprotocol);
+			announcehost = appConfig.getAnnounceHost(cfg, dflts==null ? appConfig.getAnnounceHost() : dflts.announcehost);
+			tmtprotocol = cfg.getTime("timeout", dflts==null ? TimeOps.parseMilliTime("1m") : dflts.tmtprotocol);
 			minrate_data = cfg.getSize("mindatarate", dflts==null ? 1024*1024 : dflts.minrate_data);
 			delay_chanclose = cfg.getTime("delay_close", dflts==null ? 0 : dflts.delay_chanclose);
 			sayHELO = cfg.getBool("sayHELO", dflts==null ? false : dflts.sayHELO);
@@ -90,7 +129,7 @@ final class Client
 			sendQUIT = cfg.getBool("sendQUIT", dflts==null ? true : dflts.sendQUIT);
 			awaitQUIT = (sendQUIT ? cfg.getBool("waitQUIT", dflts==null ? true : dflts.awaitQUIT) : false);
 
-			com.grey.base.config.XmlConfig sslcfg = cfg.getSection("anonssl");
+			XmlConfig sslcfg = cfg.getSection("anonssl");
 			if (sslcfg == null || !sslcfg.exists()) {
 				anonssl = null;
 			} else {
@@ -111,10 +150,8 @@ final class Client
 			if (tmtprotocol == 0 || minrate_data == 0) {
 				throw new MailismusConfigException(logpfx+"Idle timeout and mindatarate cannot be zero");
 			}
-			long nanosecs = ( 8L * 1000L * 1000L * 1000L ) / minrate_data;
-			if (nanosecs == 0) nanosecs = 0;
-			nanosecs_per_byte = nanosecs;
-			java.text.DecimalFormat commafmt = new java.text.DecimalFormat("#,###");
+			nanosecs_per_byte = 8_000_000_000L / minrate_data;
+			DecimalFormat commafmt = new DecimalFormat("#,###");
 
 			if (ipnets == null) {
 				dsptch.getLogger().info(logpfx+"Default connection config:");
@@ -122,7 +159,7 @@ final class Client
 				String txt = "Subnets="+ipnets.length;
 				String dlm = ": ";
 				for (int idx = 0; idx != ipnets.length; idx++) {
-					txt += dlm+com.grey.base.utils.IP.displayDottedIP(ipnets[idx].ip, null)+"/"+ipnets[idx].netprefix;
+					txt += dlm+IP.displayDottedIP(ipnets[idx].ip, null)+"/"+ipnets[idx].netprefix;
 					dlm = ", ";
 				}
 				dsptch.getLogger().info(label+" - "+txt);
@@ -132,7 +169,7 @@ final class Client
 					+ "; sayHELO="+sayHELO+"; fallbackHELO="+fallbackHELO
 					+ "; sendQUIT="+sendQUIT + "; waitQUIT="+awaitQUIT);
 			if (anonssl != null) dsptch.getLogger().info(pfx+anonssl);
-			dsptch.getLogger().info(pfx+"timeout="+com.grey.base.utils.TimeOps.expandMilliTime(tmtprotocol)
+			dsptch.getLogger().info(pfx+"timeout="+TimeOps.expandMilliTime(tmtprotocol)
 					+"; mindatarate="+commafmt.format(minrate_data)+" bps"
 					+"; pipelining-max="+max_pipe);
 			dsptch.getLogger().trace(pfx+"delay_close="+delay_chanclose);
@@ -141,68 +178,65 @@ final class Client
 
 	private static final class SharedFields
 	{
+		final Client prototype_client;
 		final ConnectionConfig defaultcfg;
 		final ConnectionConfig[] remotecfg;
-		final com.grey.naf.BufferGenerator bufspec;
 		final boolean fallback_mx_a; //MX queries fall back to simple hostname lookup if no MX RRs exist
-		final Client prototype_client;
+		final int max_serverconns; //max simultaneous connections to any one server
 
 		// assorted shareable objects
-		final AppConfig appConfig;
 		final Delivery.Controller controller;
 		final Routing routing;
-		final com.grey.base.sasl.PlainClient sasl_plain = new com.grey.base.sasl.PlainClient(true);
-		final com.grey.base.sasl.CramMD5Client sasl_cmd5 = new com.grey.base.sasl.CramMD5Client(true);
-		final com.grey.base.sasl.ExternalClient sasl_external = new com.grey.base.sasl.ExternalClient(true);
-		final java.util.HashMap<com.grey.base.utils.ByteChars, com.grey.base.sasl.SaslEntity.MECH> authtypes_supported;
-		final com.grey.mailismus.Transcript transcript;
-		private final com.grey.base.collections.HashedMapIntInt active_serverconns; //maps server IP to current connection count
-		private final int max_serverconns; //max simultaneous connections to any one server
+		final PlainClient sasl_plain = new PlainClient(true);
+		final CramMD5Client sasl_cmd5 = new CramMD5Client(true);
+		final ExternalClient sasl_external = new ExternalClient(true);
+		final Map<ByteChars, SaslEntity.MECH> authtypes_supported;
+		final Transcript transcript;
+		final BufferGenerator bufspec;
+		private final HashedMapIntInt active_serverconns; //maps server IP to current connection count
 
 		// read-only buffers - pre-allocated and pre-populated buffers, for efficient sending of canned commands
-		final java.nio.ByteBuffer reqbuf_data;
-		final java.nio.ByteBuffer reqbuf_quit;
-		final java.nio.ByteBuffer reqbuf_reset;
-		final java.nio.ByteBuffer reqbuf_eom;
-		final java.nio.ByteBuffer reqbuf_stls;
+		final ByteBuffer reqbuf_data;
+		final ByteBuffer reqbuf_quit;
+		final ByteBuffer reqbuf_reset;
+		final ByteBuffer reqbuf_eom;
+		final ByteBuffer reqbuf_stls;
 
 		// temp work areas pre-allocated for efficiency
-		final com.grey.base.utils.ByteChars pipebuf = new com.grey.base.utils.ByteChars(); //used up in one callback, so safe to share
+		final ByteChars pipebuf = new ByteChars(); //used up in one callback, so safe to share
 		final StringBuilder disconnect_msg_buf = new StringBuilder();
-		final com.grey.base.utils.TSAP tmptsap = new com.grey.base.utils.TSAP();
-		final byte[] ipbuf = com.grey.base.utils.IP.ip2net(0, null, 0);
-		final com.grey.base.utils.ByteChars failbc = new com.grey.base.utils.ByteChars();
-		final com.grey.base.utils.ByteChars failbc2 = new com.grey.base.utils.ByteChars();
+		final TSAP tmptsap = new TSAP();
+		final byte[] ipbuf = IP.ip2net(0, null, 0);
+		final ByteChars failbc = new ByteChars();
+		final ByteChars failbc2 = new ByteChars();
 		final StringBuilder tmpsb = new StringBuilder();
 		final StringBuilder tmpsb2 = new StringBuilder();
-		final com.grey.base.utils.ByteChars tmpbc = new com.grey.base.utils.ByteChars();
-		final com.grey.base.utils.ByteChars tmplightbc = new com.grey.base.utils.ByteChars(-1); //lightweight object without own storage
-		java.nio.ByteBuffer tmpniobuf;
+		final ByteChars tmpbc = new ByteChars();
+		final ByteChars tmplightbc = new ByteChars(-1); //lightweight object without own storage
+		ByteBuffer tmpniobuf;
 
-		public SharedFields(com.grey.base.config.XmlConfig cfg, com.grey.naf.reactor.Dispatcher dsptch,
-				Delivery.Controller ctl, Client proto, String logpfx, int maxconns)
-			throws java.io.IOException, java.security.GeneralSecurityException
+		public SharedFields(XmlConfig cfg, Dispatcher dsptch, Delivery.Controller ctl, Client proto, String logpfx, int maxconns)
+			throws IOException, GeneralSecurityException
 		{
 			prototype_client = proto;
 			controller = ctl;
 			routing = ctl.getRouting();
-			appConfig = ctl.getAppConfig();
 
-			transcript = com.grey.mailismus.Transcript.create(dsptch, cfg, "transcript");
-			bufspec = new com.grey.naf.BufferGenerator(cfg, "niobuffers", 256, 128);
+			transcript = Transcript.create(dsptch, cfg, "transcript");
+			bufspec = new BufferGenerator(cfg, "niobuffers", 256, 128);
 			fallback_mx_a = cfg.getBool("fallbackMX_A", false);
 			boolean nocnxlimit = cfg.getBool("nomaxsrvconns", false);
 			if (bufspec.rcvbufsiz < 40) throw new MailismusConfigException(logpfx+"recvbuf="+bufspec.rcvbufsiz+" is too small");
 
-			authtypes_supported = new java.util.HashMap<com.grey.base.utils.ByteChars, com.grey.base.sasl.SaslEntity.MECH>();
-			com.grey.base.sasl.SaslEntity.MECH[] methods = new com.grey.base.sasl.SaslEntity.MECH[] {com.grey.base.sasl.SaslEntity.MECH.PLAIN,
-					com.grey.base.sasl.SaslEntity.MECH.CRAM_MD5, com.grey.base.sasl.SaslEntity.MECH.EXTERNAL};
+			authtypes_supported = new HashMap<>();
+			SaslEntity.MECH[] methods = new SaslEntity.MECH[] {SaslEntity.MECH.PLAIN,
+					SaslEntity.MECH.CRAM_MD5, SaslEntity.MECH.EXTERNAL};
 			for (int idx = 0; idx != methods.length; idx++) {
-				authtypes_supported.put(new com.grey.base.utils.ByteChars(methods[idx].toString().replace('_', '-')), methods[idx]);
+				authtypes_supported.put(new ByteChars(methods[idx].toString().replace('_', '-')), methods[idx]);
 			}
 
 			max_serverconns = (nocnxlimit ? 0 : maxconns);
-			active_serverconns = (max_serverconns == 0 ? null : new com.grey.base.collections.HashedMapIntInt());
+			active_serverconns = (max_serverconns == 0 ? null : new HashedMapIntInt());
 
 			reqbuf_data = Task.constBuffer(Protocol.CMDREQ_DATA+Protocol.EOL);
 			reqbuf_quit = Task.constBuffer(Protocol.CMDREQ_QUIT+Protocol.EOL);
@@ -212,7 +246,7 @@ final class Client
 
 			// read the per-connection config
 			defaultcfg = new ConnectionConfig(0, cfg, this, null, dsptch, logpfx);
-			com.grey.base.config.XmlConfig[] cfgnodes = cfg.getSections("remotenets/remotenet");
+			XmlConfig[] cfgnodes = cfg.getSections("remotenets/remotenet");
 			if (cfgnodes == null) {
 				remotecfg = null;
 			} else {
@@ -225,8 +259,7 @@ final class Client
 			dsptch.getLogger().trace(logpfx+bufspec);
 		}
 
-		public boolean incrementServerConnections(int ip)
-		{
+		public boolean incrementServerConnections(int ip) {
 			if (active_serverconns == null) return true;
 			int cnt = active_serverconns.get(ip);
 			if (cnt == max_serverconns) return false;
@@ -234,8 +267,7 @@ final class Client
 			return true;
 		}
 
-		public void decrementServerConnections(int ip)
-		{
+		public void decrementServerConnections(int ip) {
 			if (active_serverconns == null || ip == 0) return;
 			int cnt = active_serverconns.get(ip);
 			if (--cnt == 0) {
@@ -247,8 +279,7 @@ final class Client
 	}
 
 	static final class Factory
-		implements com.grey.base.collections.GenericFactory<Delivery.MessageSender>
-	{
+		implements GenericFactory<Delivery.MessageSender> {
 		private final Client prototype;
 		public Factory(Client p) {prototype=p;}
 		@Override
@@ -257,16 +288,16 @@ final class Client
 
 	private final Delivery.MessageParams msgparams = new Delivery.MessageParams();
 	private final SharedFields shared;
-	private final com.grey.base.utils.TSAP remote_tsap_buf;
+	private final TSAP remote_tsap_buf;
 	private final ResolverDNS resolver;
-	private final java.util.ArrayList<com.grey.naf.dns.resolver.engine.ResourceData> dnsInfo = new java.util.ArrayList<com.grey.naf.dns.resolver.engine.ResourceData>();
+	private final List<ResourceData> dnsInfo = new ArrayList<>();
 	private ConnectionConfig conncfg; //config to apply to current connection
 	private Relay active_relay;
-	private com.grey.base.utils.TSAP remote_tsap;
+	private TSAP remote_tsap;
 	private PROTO_STATE pstate;
 	private byte state2; //secondary-state, qualifying some of the pstate phases
-	private com.grey.naf.reactor.TimerNAF tmr_exit;
-	private com.grey.naf.reactor.TimerNAF tmr_sesstmt;
+	private TimerNAF tmr_exit;
+	private TimerNAF tmr_sesstmt;
 	private long alt_tmtprotocol; //if non-zero, this overrides ConnectionConfig.tmtprotocol
 	private int mxptr; //indicates which dnsInfo.rrlist node we're currently connecting/connected to - only valid if dnsInfo non-empty
 	private int recip_id; //indicates which recipient we're currently awaiting a response for
@@ -277,7 +308,7 @@ final class Client
 	private short disconnect_status;
 	private int pipe_cap; //max pipeline for current connection - 1 means pipelining not enabled
 	private int pipe_count; //number of requests in current pipelined send
-	private com.grey.base.sasl.SaslEntity.MECH auth_method;
+	private SaslEntity.MECH auth_method;
 	private byte auth_step;
 	private int cnxid; //increments with each incarnation - useful for distinguishing Transcript logs
 	private String pfx_log;
@@ -288,23 +319,21 @@ final class Client
 
 	private void setFlag(byte f, boolean b) {if (b) {setFlag(f);} else {clearFlag(f);}}
 	private void setFlag(byte f) {state2 |= f;}
-	private void clearFlag(byte f) {state2 &= ~f;}
+	private void clearFlag(byte f) {state2 &= (byte) ~f;}
 	private boolean isFlagSet(byte f) {return ((state2 & f) == f);}
 
 	@Override
-	protected com.grey.naf.reactor.config.SSLConfig getSSLConfig() {return (active_relay == null ? conncfg.anonssl : active_relay.sslconfig);}
+	protected SSLConfig getSSLConfig() {return (active_relay == null ? conncfg.anonssl : active_relay.sslconfig);}
 
 	// this is a prototype instance which provides configuration info for the others
-	public Client(Delivery.Controller ctl, com.grey.naf.reactor.Dispatcher d, ResolverDNS dns, com.grey.base.config.XmlConfig cfg, int maxconns)
-		throws java.io.IOException
-	{
+	public Client(Delivery.Controller ctl, Dispatcher d, ResolverDNS dns, XmlConfig cfg, int maxconns) {
 		super(d, null, null);
 		String pfx = "SMTP-Client";
 		pfx_log = pfx+"/E"+getCMID();
 		pfx += ": ";
 		try {
 			shared = new SharedFields(cfg, getDispatcher(), ctl, this, pfx, maxconns);
-		} catch (java.security.GeneralSecurityException ex) {
+		} catch (Exception ex) {
 			throw new MailismusConfigException("Failed to create shared config", ex);
 		}
 		resolver = dns;
@@ -312,18 +341,16 @@ final class Client
 	}
 
 	// this is an actual client which participates in SMTP connections
-	Client(Client proto)
-	{
+	private Client(Client proto) {
 		super(proto.getDispatcher(), proto.shared.bufspec, proto.shared.bufspec);
 		shared = proto.shared;
 		resolver = proto.resolver;
 		setLogPrefix();
 		//will need to build addresses at connect time if we don't have a default relay
-		remote_tsap_buf = (shared.routing.haveDefaultRelay() ? null : new com.grey.base.utils.TSAP());
+		remote_tsap_buf = (shared.routing.haveDefaultRelay() ? null : new TSAP());
 	}
 
-	private ConnectionConfig getConnectionConfig(int remote_ip)
-	{
+	private ConnectionConfig getConnectionConfig(int remote_ip) {
 		int cnt = (shared.remotecfg == null ? 0 : shared.remotecfg.length);
 		for (int idx = 0; idx != cnt; idx++) {
 			ConnectionConfig cnxcfg = shared.remotecfg[idx];
@@ -334,22 +361,19 @@ final class Client
 		return shared.defaultcfg;
 	}
 
-	private void transitionState(PROTO_STATE newstate)
-	{
+	private void transitionState(PROTO_STATE newstate) {
 		pstate = newstate;
 	}
 
 	@Override
-	public void start(Delivery.Controller ctl) throws java.io.IOException
-	{
+	public void start(Delivery.Controller ctl) throws IOException {
 		setReaper(shared.prototype_client);
 		initConnection();
 		issueAction(PROTO_ACTION.A_CONNECT, PROTO_STATE.S_CONN);
 	}
 
 	@Override
-	public boolean stop()
-	{
+	public boolean stop() {
 		if (this == shared.prototype_client) {
 			if (shared.transcript != null) {
 				shared.transcript.close(getSystemTime());
@@ -363,14 +387,12 @@ final class Client
 	}
 
 	@Override
-	public void entityStopped(Object obj)
-	{
+	public void entityStopped(Object obj) {
 		shared.controller.senderCompleted((Client)obj);
 	}
 
 	@Override
-	public void ioReceived(ByteArrayRef rcvdata) throws java.io.IOException
-	{
+	public void ioReceived(ByteArrayRef rcvdata) throws IOException {
 		if (pstate == PROTO_STATE.S_DISCON) return; //this method can be called in a loop, so skip it after a disconnect
 		if (shared.transcript != null) shared.transcript.data_in(pfx_transcript, rcvdata, getSystemTime());
 		alt_tmtprotocol = 0;
@@ -378,18 +400,15 @@ final class Client
 	}
 
 	@Override
-	public void ioDisconnected(CharSequence diagnostic)
-	{
+	public void ioDisconnected(CharSequence diagnostic) {
 		raiseSafeEvent(PROTO_EVENT.E_DISCONNECTED, null, diagnostic);
 	}
 
-	private PROTO_STATE issueDisconnect(int statuscode, CharSequence diagnostic)
-	{
+	private PROTO_STATE issueDisconnect(int statuscode, CharSequence diagnostic) {
 		return issueDisconnect(statuscode, diagnostic, null);
 	}
 
-	private PROTO_STATE issueDisconnect(int statuscode, CharSequence diagnostic, ByteArrayRef failmsg)
-	{
+	private PROTO_STATE issueDisconnect(int statuscode, CharSequence diagnostic, ByteArrayRef failmsg) {
 		if (pstate == PROTO_STATE.S_DISCON) return pstate;
 		CharSequence discmsg = "Disconnect";
 
@@ -409,8 +428,7 @@ final class Client
 	}
 
 	@Override
-	public void timerIndication(com.grey.naf.reactor.TimerNAF tmr, com.grey.naf.reactor.Dispatcher d)
-	{
+	public void timerIndication(TimerNAF tmr, Dispatcher d) {
 		switch (tmr.getType())
 		{
 		case TMRTYPE_DISCON:
@@ -429,12 +447,11 @@ final class Client
 		}
 	}
 
-	private void dnsLookup(boolean as_host) throws java.io.IOException
-	{
+	private void dnsLookup(boolean as_host) throws IOException {
 		mxptr = 0;
 		dnsInfo.clear();
 		setFlag(S2_DNSWAIT);
-		com.grey.naf.dns.resolver.engine.ResolverAnswer answer;
+		ResolverAnswer answer;
 		if (as_host) {
 			answer = resolver.resolveHostname(msgparams.getDestination(), this, null, 0);
 		} else {
@@ -444,31 +461,29 @@ final class Client
 	}
 
 	@Override
-	public void dnsResolved(com.grey.naf.reactor.Dispatcher d, com.grey.naf.dns.resolver.engine.ResolverAnswer answer, Object callerparam)
-	{
+	public void dnsResolved(Dispatcher d, ResolverAnswer answer, Object callerparam) {
 		try {
 			handleDnsResult(answer);
 		} catch (Throwable ex) {
 			if (!isBrokenPipe()) getLogger().log(LEVEL.ERR, ex, true, pfx_log+" failed on DNS response - "+answer);
-			raiseSafeEvent(PROTO_EVENT.E_LOCALERROR, null, "Failed to process DNS response - "+com.grey.base.ExceptionUtils.summary(ex));
+			raiseSafeEvent(PROTO_EVENT.E_LOCALERROR, null, "Failed to process DNS response - "+ExceptionUtils.summary(ex));
 		}
 	}
 
-	private void handleDnsResult(com.grey.naf.dns.resolver.engine.ResolverAnswer answer) throws java.net.UnknownHostException
-	{
+	private void handleDnsResult(ResolverAnswer answer) throws UnknownHostException {
 		clearFlag(S2_DNSWAIT);
 		int statuscode = 0;
 		CharSequence diagnostic = null;
 
 		if (shared.fallback_mx_a) {
-			if (answer.result == com.grey.naf.dns.resolver.engine.ResolverAnswer.STATUS.NODOMAIN
-					&& answer.qtype == com.grey.naf.dns.resolver.ResolverDNS.QTYPE_MX) {
+			if (answer.result == ResolverAnswer.STATUS.NODOMAIN
+					&& answer.qtype == ResolverDNS.QTYPE_MX) {
 				try {
 					dnsLookup(true);
 					return;
 				} catch (Exception ex) {
 					getLogger().log(LEVEL.ERR, ex, false, pfx_log+" failed on DNS-A lookup");
-					answer.result = com.grey.naf.dns.resolver.engine.ResolverAnswer.STATUS.BADNAME;
+					answer.result = ResolverAnswer.STATUS.BADNAME;
 				}
 			}
 		}
@@ -476,7 +491,7 @@ final class Client
 		switch (answer.result)
 		{
 		case OK:
-			if (answer.qtype == com.grey.naf.dns.resolver.ResolverDNS.QTYPE_MX) {
+			if (answer.qtype == ResolverDNS.QTYPE_MX) {
 				for (int idx = 0; idx != answer.size(); idx++) {
 					dnsInfo.add(answer.getMX(idx));
 				}
@@ -503,25 +518,21 @@ final class Client
 	}
 
 	@Override
-	public void eventError(Throwable ex)
-	{
+	public void eventError(Throwable ex) {
 		eventErrorIndication(ex, null);
 	}
 
 	@Override
-	public void eventError(com.grey.naf.reactor.TimerNAF tmr, com.grey.naf.reactor.Dispatcher d, Throwable ex)
-	{
+	public void eventError(TimerNAF tmr, Dispatcher d, Throwable ex) {
 		eventErrorIndication(ex, tmr);
 	}
 
 	// error already logged by Dispatcher
-	private void eventErrorIndication(Throwable ex, com.grey.naf.reactor.TimerNAF tmr)
-	{
-		raiseSafeEvent(PROTO_EVENT.E_LOCALERROR, null, "State="+pstate+" - "+com.grey.base.ExceptionUtils.summary(ex));
+	private void eventErrorIndication(Throwable ex, TimerNAF tmr) {
+		raiseSafeEvent(PROTO_EVENT.E_LOCALERROR, null, "State="+pstate+" - "+ExceptionUtils.summary(ex));
 	}
 
-	private void issueConnect() throws java.io.IOException
-	{
+	private void issueConnect() throws IOException {
 		active_relay = msgparams.getRelay();
 		if (active_relay != null) remote_tsap = active_relay.tsap;
 
@@ -541,16 +552,14 @@ final class Client
 
 	// This is only called as the result of a DNS lookup on the destination domain, and is the only route via
 	// which DNS lookups lead to the connect() method below.
-	private void connect(int remote_ip) throws java.net.UnknownHostException
-	{
+	private void connect(int remote_ip) throws UnknownHostException {
 		remote_tsap = remote_tsap_buf;
 		remote_tsap.set(remote_ip, Protocol.TCP_PORT, getLogger().isActive(LEVEL.TRC2) || (shared.transcript != null));
 		connect();
 	}
 
 	// This is the only route via which ChannelMonitor.connect() gets called
-	private void connect() throws java.net.UnknownHostException
-	{
+	private void connect() throws UnknownHostException {
 		if (!shared.incrementServerConnections(remote_tsap.ip)) {
 			if (++mxptr < dnsInfo.size()) {
 				connect(dnsInfo.get(mxptr).getIP());
@@ -561,7 +570,7 @@ final class Client
 			return;
 		}
 		conncfg = getConnectionConfig(remote_tsap.ip); //update from initial default or previous IP
-		com.grey.base.utils.TSAP tsap = remote_tsap;
+		TSAP tsap = remote_tsap;
 		Relay interceptor = shared.routing.getInterceptor();
 
 		if (interceptor != null) {
@@ -581,8 +590,7 @@ final class Client
 	}
 
 	@Override
-	protected void connected(boolean success, CharSequence diag, Throwable exconn) throws java.io.IOException
-	{
+	protected void connected(boolean success, CharSequence diag, Throwable exconn) throws IOException {
 		if (isFlagSet(S2_ABORT)) return; //we must be waiting for exit timer - will close the connection then
 		if (!success) {
 			connectionFailed(0, diag==null?"connect-fail":diag, exconn);
@@ -590,7 +598,7 @@ final class Client
 		}
 		LEVEL lvl = LEVEL.TRC2;
 		if (getLogger().isActive(lvl) || (shared.transcript != null)) {
-			com.grey.base.utils.TSAP local_tsap = com.grey.base.utils.TSAP.get(getLocalIP(), getLocalPort(), shared.tmptsap, true);
+			TSAP local_tsap = TSAP.get(getLocalIP(), getLocalPort(), shared.tmptsap, true);
 			if (getLogger().isActive(lvl)) {
 				StringBuilder sb = shared.tmpsb;
 				sb.setLength(0);
@@ -614,8 +622,7 @@ final class Client
 	// If statuscode is non-zero, then we're giving up on this destination domain (for now anyway, not necessarily a perm
 	// error) and 'diagnostic' gives the reason.
 	// statuscode zero therefore also means that remote_tsap is non-null, as we have attempted a connection.
-	private void connectionFailed(int statuscode, CharSequence diagnostic, Throwable exconn) throws java.net.UnknownHostException
-	{
+	private void connectionFailed(int statuscode, CharSequence diagnostic, Throwable exconn) throws UnknownHostException {
 		CharSequence extspid = null;
 		StringBuilder sb = shared.tmpsb;
 
@@ -690,8 +697,7 @@ final class Client
 	// discmsg is a Transcript-friendly reason for the disconnect and failmsg is the provisional NDR diagnostic, which may
 	// consist of a reject response from the remote server or a locally generated problem description (provisional because
 	// we don't decide here whether any failure is transient or final).
-	private void endConnection(CharSequence discmsg, ByteArrayRef failmsg)
-	{
+	private void endConnection(CharSequence discmsg, ByteArrayRef failmsg) {
 		LEVEL lvl = LEVEL.TRC2;
 		if (getLogger().isActive(lvl)) {
 			shared.tmpsb.setLength(0);
@@ -752,20 +758,18 @@ final class Client
 	}
 
 	// this eliminate the Throws declaration for events that are known not to throw
-	private PROTO_STATE raiseSafeEvent(PROTO_EVENT evt, ByteArrayRef rspdata, CharSequence discmsg)
-	{
+	private PROTO_STATE raiseSafeEvent(PROTO_EVENT evt, ByteArrayRef rspdata, CharSequence discmsg) {
 		try {
 			eventRaised(evt, rspdata, discmsg);
 		} catch (Throwable ex) {
 			//broken pipe would already have been logged
 			if (!isBrokenPipe()) getLogger().log(LEVEL.ERR, ex, true, pfx_log+" failed to issue event="+evt);
-			endConnection("Failed to issue event="+evt+" - "+com.grey.base.ExceptionUtils.summary(ex), null);
+			endConnection("Failed to issue event="+evt+" - "+ExceptionUtils.summary(ex), null);
 		}
 		return pstate;
 	}
 
-	private PROTO_STATE eventRaised(PROTO_EVENT evt, ByteArrayRef rspdata, CharSequence discmsg) throws java.io.IOException
-	{
+	private PROTO_STATE eventRaised(PROTO_EVENT evt, ByteArrayRef rspdata, CharSequence discmsg) throws IOException {
 		switch (evt)
 		{
 		case E_CONNECTED:
@@ -833,8 +837,7 @@ final class Client
 		return pstate;
 	}
 
-	private PROTO_STATE handleReply(ByteArrayRef rspdata) throws java.io.IOException
-	{
+	private PROTO_STATE handleReply(ByteArrayRef rspdata) throws IOException {
 		// We don't expect continued replies for any command except EHLO, but they are always legal, so if we do receive a continued reply
 		// in response to anything else then we discard the leading lines and wait for the final one, taking its reply code as the
 		// definitive one. CORRECTION!! AOL sends a multi-line Greeting, so just as well we handle continued replies anywhere.
@@ -883,7 +886,7 @@ final class Client
 						shared.tmplightbc.set(rspdata.buffer(), off, off2-off);
 						auth_method = shared.authtypes_supported.get(shared.tmplightbc);
 						//server might advertise EXTERNAL anyway without meaning it unless in SSL mode, so keep scanning for better option
-						if (auth_method != null && auth_method != com.grey.base.sasl.SaslEntity.MECH.EXTERNAL) break;
+						if (auth_method != null && auth_method != SaslEntity.MECH.EXTERNAL) break;
 						off = off2;
 						while (rspdata.buffer()[off] == ' ') off++;
 					}
@@ -944,9 +947,7 @@ final class Client
 		return pstate;
 	}
 
-	private PROTO_STATE issueAction(PROTO_ACTION action, PROTO_STATE newstate, int okreply, CharSequence discmsg, ByteArrayRef rspdata)
-		throws java.io.IOException
-	{
+	private PROTO_STATE issueAction(PROTO_ACTION action, PROTO_STATE newstate, int okreply, CharSequence discmsg, ByteArrayRef rspdata) throws IOException {
 		if (okreply != 0 && reply_status != okreply) {
 			//note that okreply will already have been reset in state S_MAILTO
 			LEVEL lvl = LEVEL.TRC;
@@ -982,7 +983,7 @@ final class Client
 			break;
 
 		case A_STARTSESSION:
-			com.grey.naf.reactor.config.SSLConfig activessl = getSSLConfig();
+			SSLConfig activessl = getSSLConfig();
 			if (activessl != null && !usingSSL()) {
 				if (isFlagSet(S2_SERVER_STLS)) {
 					return issueAction(PROTO_ACTION.A_STLS, PROTO_STATE.S_STLS);
@@ -1008,7 +1009,7 @@ final class Client
 					issueAction(PROTO_ACTION.A_DATA, null);
 					break;
 				}
-				com.grey.mailismus.mta.queue.MessageRecip recip = msgparams.getRecipient(recips_sent);
+				MessageRecip recip = msgparams.getRecipient(recips_sent);
 				if (recip.spid != msgparams.getSPID()) {
 					throw new IllegalStateException(pfx_log+" has mismatched SPID on recip "+recips_sent+"="
 							+recip.domain_to+"/"+recip.qid
@@ -1031,15 +1032,15 @@ final class Client
 			break;
 
 		case A_MAILBODY:
-			java.nio.file.Path fh_msg = shared.controller.getQueue().getMessage(msgparams.getSPID(), msgparams.getRecipient(0).qid);
-			long msgbytes = java.nio.file.Files.size(fh_msg);
+			Path fh_msg = shared.controller.getQueue().getMessage(msgparams.getSPID(), msgparams.getRecipient(0).qid);
+			long msgbytes = Files.size(fh_msg);
 			long tmtnano = msgbytes * conncfg.nanosecs_per_byte;
 			alt_tmtprotocol = tmtnano / (1000L * 1000L); //convert to millisecs
 			if (alt_tmtprotocol < conncfg.tmtprotocol) alt_tmtprotocol = 0;
 			try {
 				getWriter().transmit(fh_msg);
-			} catch (java.io.IOException ex) {
-				if (java.nio.file.Files.exists(fh_msg, FileOps.LINKOPTS_NONE)) throw ex; //prob some temporary comms issue
+			} catch (IOException ex) {
+				if (Files.exists(fh_msg, FileOps.LINKOPTS_NONE)) throw ex; //prob some temporary comms issue
 				return issueDisconnect(Protocol.REPLYCODE_PERMERR_MISC, "Spool file missing", FAILMSG_NOSPOOL);
 			}
 			transmit(shared.reqbuf_eom);
@@ -1100,22 +1101,18 @@ final class Client
 		return pstate;
 	}
 
-	private PROTO_STATE issueAction(PROTO_ACTION action, PROTO_STATE newstate)
-		throws java.io.IOException
-	{
+	private PROTO_STATE issueAction(PROTO_ACTION action, PROTO_STATE newstate) throws IOException {
 		return issueAction(action, newstate, 0, null, null);
 	}
 
 	@Override
-	protected void startedSSL() throws java.io.IOException
-	{
+	protected void startedSSL() throws IOException {
 		if (pstate == PROTO_STATE.S_DISCON) return; //we are about to close the connection
 		eventRaised(PROTO_EVENT.E_SSL, null, null);
 	}
 
 	@Override
-	protected void disconnectLingerDone(boolean ok, CharSequence info, Throwable ex)
-	{
+	protected void disconnectLingerDone(boolean ok, CharSequence info, Throwable ex) {
 		if (shared.transcript == null) return;
 		StringBuilder sb = shared.tmpsb;
 		sb.setLength(0);
@@ -1130,13 +1127,12 @@ final class Client
 		shared.transcript.event(pfx_transcript, sb, getSystemTime());
 	}
 
-	private PROTO_STATE sendAuth(ByteArrayRef rspdata) throws java.io.IOException
-	{
-		com.grey.base.utils.ByteChars rspbuf = shared.tmpbc.clear();
+	private PROTO_STATE sendAuth(ByteArrayRef rspdata) throws IOException {
+		ByteChars rspbuf = shared.tmpbc.clear();
 		boolean auth_done = false;
 		int step = auth_step++;
 
-		if (auth_method == com.grey.base.sasl.SaslEntity.MECH.PLAIN) {
+		if (auth_method == SaslEntity.MECH.PLAIN) {
 			int finalstep = (active_relay.auth_initrsp ? 1 : 2);
 			auth_done = (step == finalstep);
 			if (step == 0) {
@@ -1150,7 +1146,7 @@ final class Client
 				shared.sasl_plain.init();
 				shared.sasl_plain.setResponse(null, active_relay.usrnam, active_relay.passwd, rspbuf);
 			}
-		} else if (auth_method == com.grey.base.sasl.SaslEntity.MECH.EXTERNAL) {
+		} else if (auth_method == SaslEntity.MECH.EXTERNAL) {
 			// we send a zero-length response (whether initial or not), to assume the derived authorization ID
 			int finalstep = (active_relay.auth_initrsp ? 1 : 2);
 			auth_done = (step == finalstep);
@@ -1163,7 +1159,7 @@ final class Client
 				shared.sasl_external.init();
 				shared.sasl_external.setResponse(null, rspbuf);
 			}
-		} else if (auth_method == com.grey.base.sasl.SaslEntity.MECH.CRAM_MD5) {
+		} else if (auth_method == SaslEntity.MECH.CRAM_MD5) {
 			if (step == 0) {
 				rspbuf.append(Protocol.CMDREQ_SASL_CMD5);
 			} else if (step == 1) {
@@ -1186,17 +1182,16 @@ final class Client
 		return pstate;
 	}
 
-	private void setRecipientStatus(int idx, short statuscode, ByteArrayRef failmsg, boolean remote_rsp) throws java.io.IOException
-	{
+	private void setRecipientStatus(int idx, short statuscode, ByteArrayRef failmsg, boolean remote_rsp) throws IOException {
 		if (idx == -1) {
 			// apply this status to all recipients
 			if (isFlagSet(S2_ABORT)) {
 				// Any recipients who've already failed remain as failures, but recipients who had been marked as OK revert to
 				// an unprocessed status, as we've clearly been interrupted before completing the message send.
 				for (int idx2 = 0; idx2 != msgparams.recipCount(); idx2++) {
-					com.grey.mailismus.mta.queue.MessageRecip recip = msgparams.getRecipient(idx2);
+					MessageRecip recip = msgparams.getRecipient(idx2);
 					if (recip.smtp_status == Protocol.REPLYCODE_OK) {
-						recip.qstatus = com.grey.mailismus.mta.queue.MessageRecip.STATUS_READY;
+						recip.qstatus = MessageRecip.STATUS_READY;
 					}
 				}
 				return;
@@ -1207,8 +1202,8 @@ final class Client
 			}
 			return;
 		}
-		com.grey.mailismus.mta.queue.MessageRecip recip = msgparams.getRecipient(idx);
-		if (!isFlagSet(S2_ABORT)) recip.qstatus = com.grey.mailismus.mta.queue.MessageRecip.STATUS_DONE;
+		MessageRecip recip = msgparams.getRecipient(idx);
+		if (!isFlagSet(S2_ABORT)) recip.qstatus = MessageRecip.STATUS_DONE;
 		if (shared.routing.getInterceptor() != null) {
 			//even though we generally log the theoretical destination address, we must audit the actual one
 			recip.ip_send = shared.routing.getInterceptor().tsap.ip;
@@ -1226,7 +1221,7 @@ final class Client
 			// Note that we don't create the diagnostic-message file for NDRs themselves.
 			if (recip.smtp_status == Protocol.REPLYCODE_OK) {
 				if (recip.sender != null && recip.retrycnt != 0) {
-					java.nio.file.Path fh = shared.controller.getQueue().getDiagnosticFile(recip.spid, recip.qid);
+					Path fh = shared.controller.getQueue().getDiagnosticFile(recip.spid, recip.qid);
 					Exception ex = FileOps.deleteFile(fh);
 					if (ex != null) getLogger().warn(pfx_log+" failed to delete NDR-diagnostic="+fh.getFileName()+" - "+ex);
 				}
@@ -1246,12 +1241,12 @@ final class Client
 				if (recip.sender == null || recip.smtp_status <= Protocol.REPLYCODE_OK) diaglen = 0;
 				while (diaglen != 0 && failmsg.buffer()[failmsg.offset()+diaglen-1] <= ' ') diaglen--;
 				if (diaglen != 0) {
-					java.io.OutputStream fstrm = null;
+					OutputStream fstrm = null;
 					try {
 						fstrm = shared.controller.getQueue().createDiagnosticFile(recip.spid, recip.qid);
 						if (failmsg.byteAt(0) >= '1' && failmsg.byteAt(0) <= '5') {
 							//prefix message with the IP address we failed to send to
-							com.grey.base.utils.IP.ip2net(recip.ip_send, shared.ipbuf, 0);
+							IP.ip2net(recip.ip_send, shared.ipbuf, 0);
 							fstrm.write(1);
 							fstrm.write(shared.ipbuf);
 						}
@@ -1267,10 +1262,9 @@ final class Client
 	}
 
 	// NB: We can use shared.pipebuf because the pipeline is always built up and sent within one callback
-	private boolean sendPipelinedRequest(com.grey.base.utils.ByteChars cmd, boolean flush, com.grey.base.utils.ByteChars addr,
-			com.grey.base.utils.ByteChars domain, boolean close_brace) throws java.io.IOException
-	{
-		com.grey.base.utils.ByteChars rspbuf = shared.pipebuf;
+	private boolean sendPipelinedRequest(ByteChars cmd, boolean flush, ByteChars addr,
+			ByteChars domain, boolean close_brace) throws IOException {
+		ByteChars rspbuf = shared.pipebuf;
 		if (pipe_count == 0) rspbuf.clear();
 		rspbuf.append(cmd);
 
@@ -1290,14 +1284,12 @@ final class Client
 		return (pipe_count == 0);
 	}
 
-	private void transmit(com.grey.base.utils.ByteChars data) throws java.io.IOException
-	{
+	private void transmit(ByteChars data) throws IOException {
 		shared.tmpniobuf = shared.bufspec.encode(data, shared.tmpniobuf);
 		transmit(shared.tmpniobuf);
 	}
 
-	private void transmit(java.nio.ByteBuffer xmtbuf) throws java.io.IOException
-	{
+	private void transmit(ByteBuffer xmtbuf) throws IOException {
 		if (shared.transcript != null && pstate != PROTO_STATE.S_MAILBODY) {
 			shared.transcript.data_out(pfx_transcript, xmtbuf, 0, getSystemTime());
 		}
@@ -1306,17 +1298,15 @@ final class Client
 		dataWait++;
 	}
 
-	private short getReplyCode(ByteArrayRef rsp)
-	{
+	private short getReplyCode(ByteArrayRef rsp) {
 		int off = rsp.offset();
 		short statuscode = (short)((rsp.buffer()[off++] - '0') * 100);
-		statuscode += (rsp.buffer()[off++] - '0') * 10;
-		statuscode += (rsp.buffer()[off] - '0');
+		statuscode += (short) ((rsp.buffer()[off++] - '0') * 10);
+		statuscode += (short) (rsp.buffer()[off] - '0');
 		return statuscode;
 	}
 
-	private boolean matchesExtension(ByteArrayRef data, char[] cmd, boolean with_equals)
-	{
+	private boolean matchesExtension(ByteArrayRef data, char[] cmd, boolean with_equals) {
 		int off = Protocol.REPLY_CODELEN + 1; //+1 for the hyphen or space following the "250"
 		int len = data.size() - off - Protocol.EOL.length();
 		if (len < cmd.length) return false;
@@ -1336,8 +1326,7 @@ final class Client
 		return matches;
 	}
 
-	private void initConnection()
-	{
+	private void initConnection() {
 		conncfg = shared.defaultcfg;
 		pipe_cap = 1;
 		remote_tsap = null;
@@ -1354,8 +1343,7 @@ final class Client
 		setLogPrefix();
 	}
 
-	private void initMessage()
-	{
+	private void initMessage() {
 		state2 = 0;
 		recip_id = 0;
 		recips_sent = 0;
@@ -1375,14 +1363,12 @@ final class Client
 	}
 
 	@Override
-	public short getDomainError()
-	{
+	public short getDomainError() {
 		if (!isFlagSet(S2_DOMAIN_ERR)) return 0;
 		return msgparams.getRecipient(0).smtp_status;
 	}
 
-	private void recordConnection(StringBuilder sb, com.grey.base.utils.TSAP local_tsap)
-	{
+	private void recordConnection(StringBuilder sb, TSAP local_tsap) {
 		sb.append(remote_tsap.dotted_ip).append(':').append(remote_tsap.port);
 		if (local_tsap != null) sb.append(" on ").append(local_tsap.dotted_ip).append(':').append(local_tsap.port);
 		sb.append(" for ");
@@ -1391,8 +1377,7 @@ final class Client
 		sb.append(", recips=").append(msgparams.recipCount());
 	}
 
-	private void peerDescription(StringBuilder sb)
-	{
+	private void peerDescription(StringBuilder sb) {
 		if (msgparams.getRelay() != null) {
 			sb.append("relay=").append(msgparams.getRelay().display());
 		} else {
@@ -1400,25 +1385,22 @@ final class Client
 		}
 	}
 
-	static com.grey.base.utils.IP.Subnet[] parseSubnets(com.grey.base.config.XmlConfig cfg, String fldnam, AppConfig appConfig)
-		throws java.net.UnknownHostException
-	{
+	static IP.Subnet[] parseSubnets(XmlConfig cfg, String fldnam, AppConfig appConfig) throws UnknownHostException {
 		String[] arr = cfg.getTuple(fldnam, "|", false, null);
 		if (arr == null) return null;
-		java.util.ArrayList<com.grey.base.utils.IP.Subnet> lst = new java.util.ArrayList<com.grey.base.utils.IP.Subnet>();
+		List<IP.Subnet> lst = new ArrayList<>();
 		for (int idx = 0; idx != arr.length; idx++) {
 			String val = arr[idx].trim();
-			if (val.length() == 0) continue;
+			if (val.isEmpty()) continue;
 			if (appConfig != null) val = appConfig.parseHost(null, null, false, val);
-			lst.add(com.grey.base.utils.IP.parseSubnet(val));
+			lst.add(IP.parseSubnet(val));
 		}
-		if (lst.size() == 0) return null;
-		return lst.toArray(new com.grey.base.utils.IP.Subnet[lst.size()]);
+		if (lst.isEmpty()) return null;
+		return lst.toArray(new IP.Subnet[0]);
 	}
 
 	@Override
-	public StringBuilder dumpAppState(StringBuilder sb)
-	{
+	public StringBuilder dumpAppState(StringBuilder sb) {
 		if (sb == null) sb = new StringBuilder();
 		sb.append(pfx_log).append('/').append(pstate).append("/0x").append(Integer.toHexString(state2)).append(": ");
 		peerDescription(sb);

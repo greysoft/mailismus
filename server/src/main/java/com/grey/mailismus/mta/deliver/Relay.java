@@ -1,14 +1,23 @@
 /*
- * Copyright 2012-2021 Yusef Badri - All rights reserved.
+ * Copyright 2012-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.deliver;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.grey.base.config.XmlConfig;
+import com.grey.base.sasl.SaslEntity;
 import com.grey.base.utils.ByteChars;
 import com.grey.base.utils.EmailAddress;
 import com.grey.base.utils.IP;
 import com.grey.base.utils.TSAP;
+import com.grey.logging.Logger;
 import com.grey.mailismus.errors.MailismusConfigException;
+import com.grey.mailismus.mta.Protocol;
+import com.grey.naf.NAFConfig;
 import com.grey.naf.reactor.config.SSLConfig;
 
 /*
@@ -17,11 +26,11 @@ import com.grey.naf.reactor.config.SSLConfig;
 public final class Relay
 {
 	public final TSAP tsap;
-	public final com.grey.naf.reactor.config.SSLConfig sslconfig;
+	public final SSLConfig sslconfig;
 	public final boolean auth_enabled;
 	public final boolean auth_initrsp;
 	public final boolean auth_compat; //handle Protocol.EXT_AUTH_COMPAT responses from this server
-	public final com.grey.base.sasl.SaslEntity.MECH auth_override;
+	public final SaslEntity.MECH auth_override;
 	public final String usrnam;
 	public final ByteChars passwd;
 	public final boolean dns_only; //only relevant for interceptor mode - true means don't intercept statically configured servers
@@ -34,12 +43,11 @@ public final class Relay
 	@Override public String toString() {return relay_string;}
 	public String display() {return display_txt;}
 
-	public Relay(com.grey.base.config.XmlConfig cfg, boolean interceptor, com.grey.naf.NAFConfig nafcfg, com.grey.logging.Logger log)
-		throws java.io.IOException
+	public Relay(XmlConfig cfg, boolean interceptor, NAFConfig nafcfg, Logger log) throws IOException
 	{
-		java.util.ArrayList<ByteChars> lst_destdoms = new java.util.ArrayList<ByteChars>();
-		java.util.ArrayList<EmailAddress> lst_senders = new java.util.ArrayList<EmailAddress>();
-		java.util.ArrayList<IP.Subnet> lst_subnets = new java.util.ArrayList<IP.Subnet>();
+		List<ByteChars> lst_destdoms = new ArrayList<>();
+		List<EmailAddress> lst_senders = new ArrayList<>();
+		List<IP.Subnet> lst_subnets = new ArrayList<>();
 		if (interceptor) {
 			dns_only = cfg.getBool("@dns", false);
 		} else {
@@ -49,7 +57,7 @@ public final class Relay
 				String[] arr = s.split(",");
 				for (int idx = 0; idx != arr.length; idx++) {
 					s = arr[idx].trim();
-					if (s.length() == 0) continue;
+					if (s.isEmpty()) continue;
 					if (s.indexOf(EmailAddress.DLM_DOM) != -1) throw new MailismusConfigException("Relay destination must be domain name - "+s);
 					lst_destdoms.add(new ByteChars(s.toLowerCase()));
 				}
@@ -57,11 +65,11 @@ public final class Relay
 
 			s = cfg.getValue("@senders", false, null);
 			if (s != null) {
-				java.util.ArrayList<ByteChars> doms = new java.util.ArrayList<ByteChars>();
+				List<ByteChars> doms = new ArrayList<>();
 				String[] arr = s.split(",");
 				for (int idx = 0; idx != arr.length; idx++) {
 					s = arr[idx].trim();
-					if (s.length() == 0) continue;
+					if (s.isEmpty()) continue;
 					EmailAddress emaddr = new EmailAddress(s.toLowerCase());
 					emaddr.decompose(true);
 					if (lst_senders.contains(emaddr)) continue;
@@ -74,11 +82,11 @@ public final class Relay
 				}
 			}
 		}
-		destdomains = (lst_destdoms.size() == 0 ? null : lst_destdoms.toArray(new ByteChars[lst_destdoms.size()]));
-		senders = (lst_senders.size() == 0 ? null : lst_senders.toArray(new EmailAddress[lst_senders.size()]));
+		destdomains = (lst_destdoms.isEmpty() ? null : lst_destdoms.toArray(new ByteChars[lst_destdoms.size()]));
+		senders = (lst_senders.isEmpty() ? null : lst_senders.toArray(new EmailAddress[lst_senders.size()]));
 
 		String ipspec = cfg.getValue("@address", true, null);
-		tsap = TSAP.build(ipspec, com.grey.mailismus.mta.Protocol.TCP_PORT, true);
+		tsap = TSAP.build(ipspec, Protocol.TCP_PORT, true);
 
 		if (senders != null) {
 			String s = cfg.getValue("@sendernets", false, null);
@@ -86,13 +94,13 @@ public final class Relay
 				String[] arr = s.split(",");
 				for (int idx = 0; idx != arr.length; idx++) {
 					s = arr[idx].trim();
-					if (s.length() == 0) continue;
+					if (s.isEmpty()) continue;
 					IP.Subnet ipnet = IP.parseSubnet(s);
 					lst_subnets.add(ipnet);
 				}
 			}
 		}
-		sender_ipnets = (lst_subnets.size() == 0 ? null : lst_subnets.toArray(new IP.Subnet[lst_subnets.size()]));
+		sender_ipnets = (lst_subnets.isEmpty() ? null : lst_subnets.toArray(new IP.Subnet[lst_subnets.size()]));
 
 		auth_enabled = cfg.getBool("auth/@enabled", false);
 		auth_initrsp = cfg.getBool("auth/@initrsp", false);
@@ -105,10 +113,10 @@ public final class Relay
 			usrnam = cfg.getValue("auth/username", false, null);
 			passwd = new ByteChars(cfg.getValue("auth/password", false, null));
 			String val = cfg.getValue("auth/@override", false, null);
-			auth_override = (val == null ? null : com.grey.base.sasl.SaslEntity.MECH.valueOf(val.toUpperCase()));
+			auth_override = (val == null ? null : SaslEntity.MECH.valueOf(val.toUpperCase()));
 		}
 
-		com.grey.base.config.XmlConfig sslcfg = cfg.getSection("ssl");
+		XmlConfig sslcfg = cfg.getSection("ssl");
 		if (sslcfg == null || !sslcfg.exists()) {
 			sslconfig = null;
 		} else {

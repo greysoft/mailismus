@@ -1,22 +1,25 @@
 /*
- * Copyright 2010-2021 Yusef Badri - All rights reserved.
+ * Copyright 2010-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.deliver;
 
 import com.grey.base.config.XmlConfig;
+import com.grey.naf.EntityReaper;
 import com.grey.naf.reactor.Dispatcher;
+import com.grey.mailismus.mta.MTA_Task;
+import com.grey.mailismus.nafman.Loader;
 
 public final class DeliverTask
-	extends com.grey.mailismus.mta.MTA_Task
-	implements com.grey.naf.EntityReaper
+	extends MTA_Task
+	implements EntityReaper
 {
 	private final Forwarder sender;
 
 	public DeliverTask(String name, Dispatcher dsptch, XmlConfig cfg) throws java.io.IOException {
 		super(name, dsptch, cfg, null, DFLT_FACT_MS, DFLT_FACT_QUEUE, createResolverDNS(dsptch));
 		sender = new Forwarder(dsptch, this, taskConfig(), this);
-		registerQueueOps(com.grey.mailismus.nafman.Loader.PREF_SHOWQ_DELIVER);
+		registerQueueOps(Loader.PREF_SHOWQ_DELIVER);
 	}
 
 	@Override
