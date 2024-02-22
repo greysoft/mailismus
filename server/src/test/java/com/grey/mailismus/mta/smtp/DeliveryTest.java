@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2021 Yusef Badri - All rights reserved.
+ * Copyright 2013-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.smtp;
@@ -414,15 +414,10 @@ public class DeliveryTest
 		// set up the SMTP delivery component
 		cfg = XmlConfig.makeSection(nafxml_client, "x");
 		DeliverTask dtask = new DeliverTask("utest_smtpc", dsptch, cfg);
+		if (maxsrvconns != 0) dtask.taskConfig().setOverride("maxconnections", String.valueOf(maxsrvconns));
+		if (maxmsgrecips != 0) dtask.taskConfig().setOverride("maxrecips", String.valueOf(maxmsgrecips));
 		Forwarder smtp_sender = new Forwarder(dsptch, dtask, dtask.taskConfig(), dtask, null, this);
 		DynLoader.setField(dtask, "sender", smtp_sender);
-		if (maxsrvconns != 0) {
-			Object cproto = DynLoader.getField(smtp_sender, "protoClient");
-			Object cshared = DynLoader.getField(cproto, "shared");
-			DynLoader.setField(smtp_sender, "max_serverconns", maxsrvconns);
-			DynLoader.setField(cshared, "max_serverconns", maxsrvconns);
-		}
-		if (maxmsgrecips != 0) DynLoader.setField(smtp_sender, "max_msgrecips", maxmsgrecips);
 		if (interceptor_spec != null) {
 			String ixml = "<intercept dns=\"Y\" address=\""+interceptor_spec+"\"/>";
 			cfg = XmlConfig.makeSection(ixml, "intercept");
@@ -569,14 +564,14 @@ public class DeliveryTest
 				if (stats.remotefailcnt != expect.stats.remotefailcnt) msg += "; relayfail="+stats.remotefailcnt+" vs "+expect.stats.remotefailcnt;
 				if (stats.localcnt != expect.stats.localcnt) msg += "; local="+stats.localcnt+" vs "+expect.stats.localcnt;
 				if (stats.localfailcnt != expect.stats.localfailcnt) msg += "; localfail="+stats.localfailcnt+" vs "+expect.stats.localfailcnt;
-				if (msg.length() != 0) fwd_errmsg = "Forwarder batch="+(actual_fwdbatchcnt+1)+": "+msg.substring(1);
+				if (!msg.isEmpty()) fwd_errmsg = "Forwarder batch="+(actual_fwdbatchcnt+1)+": "+msg.substring(1);
 			}
 			actual_fwdbatchcnt++;
 		}
 	}
 
 	@Override
-	public void timerIndication(TimerNAF tmr, Dispatcher d) throws java.io.IOException {
+	public void timerIndication(TimerNAF tmr, Dispatcher d) {
 		if (tmr.getType() == TMRTYPE_STOP) d.stop();
 	}
 

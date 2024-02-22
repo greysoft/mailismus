@@ -1,5 +1,5 @@
 <!--
-  Copyright 2013-2021 Yusef Badri - All rights reserved.
+  Copyright 2013-2024 Yusef Badri - All rights reserved.
   Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
 -->
 <mailserver>
@@ -166,6 +166,11 @@
 			<client>
 				<transcript>%DIRLOG%/transcripts/client.log</transcript>
 				<maxpipeline>4</maxpipeline>
+				<remotenets>
+					<remotenet ip="192.168.200/24 | 192.168.201.1">
+						<announcehost>test-host-1</announcehost>
+					</remotenet>
+				</remotenets>
 			</client>
 		</deliver>
 		<report>
