@@ -437,7 +437,8 @@ public class DeliveryTest
 		Dispatcher.STOPSTATUS stopsts = dsptch.waitStopped(MAXRUNTIME, true);
 		org.junit.Assert.assertEquals(Dispatcher.STOPSTATUS.STOPPED, stopsts);
 		org.junit.Assert.assertTrue(dsptch.completedOK());
-		org.junit.Assert.assertEquals(0, smtp_sender.connectionsCount());
+		org.junit.Assert.assertEquals(0, smtp_sender.activeSendersCount());
+		org.junit.Assert.assertEquals(0, smtp_sender.activeConnectionsCount());
 
 		// This is really a check on Dispatcher correctness, rather than the MTA
 		@SuppressWarnings("unchecked")

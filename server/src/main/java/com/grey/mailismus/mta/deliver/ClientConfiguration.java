@@ -98,6 +98,7 @@ public class ClientConfiguration {
 		if (idleTimeout != 0) bldr = bldr.setIdleTimeout(Duration.ofMillis(idleTimeout));
 		if (minRateData != 0) bldr = bldr.setMinRateData(minRateData);
 		ConnectionConfig conncfg = bldr.build();
+
 		dsptch.getLogger().info(LOG_PREFIX+": Node-"+id+"="+conncfg.toString());
 		return conncfg;
 	}

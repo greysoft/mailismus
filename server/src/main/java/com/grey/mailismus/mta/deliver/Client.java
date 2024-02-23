@@ -32,7 +32,6 @@ import com.grey.base.ExceptionUtils;
 import com.grey.logging.Logger.LEVEL;
 
 import com.grey.naf.BufferGenerator;
-import com.grey.naf.EntityReaper;
 import com.grey.naf.reactor.CM_Client;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.TimerNAF;
@@ -55,7 +54,6 @@ class Client
 	extends CM_Client
 	implements Delivery.MessageSender,
 		ResolverDNS.Client,
-		EntityReaper, //each Client instance acts as its ownreaper
 		TimerNAF.Handler
 {
 	private static final String LOG_PREFIX = "SMTP-Client";
@@ -257,7 +255,6 @@ class Client
 
 	@Override
 	public void start(Delivery.Controller ctl) throws IOException {
-		setReaper(this);
 		initConnection();
 		issueAction(PROTO_ACTION.A_CONNECT, PROTO_STATE.S_CONN);
 	}
@@ -267,12 +264,7 @@ class Client
 		setFlag(S2_ABORT);
 		if (pstate == PROTO_STATE.S_DISCON) return (tmr_exit == null); // we're already completely stopped
 		issueDisconnect(0, "Forcibly halted");
-		return false; //the disconnect() will call the reaper when its done
-	}
-
-	@Override
-	public void entityStopped(Object obj) {
-		shared.controller.senderCompleted((Client)obj);
+		return false;
 	}
 
 	@Override
