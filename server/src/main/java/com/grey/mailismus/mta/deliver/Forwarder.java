@@ -7,6 +7,7 @@ package com.grey.mailismus.mta.deliver;
 import java.util.ArrayList;
 import java.util.List;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.io.IOException;
 
 import com.grey.base.collections.GenericFactory;
@@ -32,22 +33,32 @@ import com.grey.naf.nafman.NafManRegistry;
 
 import com.grey.mailismus.AppConfig;
 import com.grey.mailismus.Audit;
+import com.grey.mailismus.Transcript;
 import com.grey.mailismus.mta.MTA_Task;
 import com.grey.mailismus.mta.Protocol;
+import com.grey.mailismus.mta.deliver.Client.SharedFields;
 import com.grey.mailismus.mta.queue.Cache;
 import com.grey.mailismus.mta.queue.MessageRecip;
 import com.grey.mailismus.mta.queue.QueueManager;
 import com.grey.mailismus.ms.MessageStore;
 import com.grey.mailismus.nafman.Loader;
 
-public final class Forwarder
+public class Forwarder
 	implements Delivery.Controller,
 		TimerNAF.Handler,
 		NafManCommand.Handler
 {
-	public interface BatchCallback
-	{
+	public interface BatchCallback {
 		void batchCompleted(int qsize, Delivery.Stats stats);
+	}
+
+	private static class ClientFactory implements GenericFactory<Delivery.MessageSender> {
+		private final SharedFields shared;
+		public ClientFactory(SharedFields shared) {
+			this.shared = shared;
+		}
+		@Override
+		public Client factory_create() {return new Client(shared);}
 	}
 
 	private static final boolean CHECK_OFFLINE = SysProps.get("grey.mta.smtpclient.offlinecheck", false);
@@ -78,7 +89,7 @@ public final class Forwarder
 	private final QueueManager qmgr;
 	private final MessageStore ms;
 	private final Routing routing;
-	private final Client protoClient; //prototype client object used to construct the rest
+	private final Transcript transcript;
 	private final Audit audit;
 	private final EntityReaper reaper;
 	private final BatchCallback batchCallback;
@@ -127,24 +138,16 @@ public final class Forwarder
 	@Override public Routing getRouting() {return routing;}
 	@Override public void senderCompleted(Delivery.MessageSender sender) {senderCompleted(sender, false);}
 	@Override public CharSequence nafmanHandlerID() {return "SMTP-Forwarder";}
-	private int connectionsCount() {return activesenders.size();}
+	public int connectionsCount() {return activesenders.size();}
 
-	public Forwarder(Dispatcher d, MTA_Task task, XmlConfig cfg, EntityReaper rpr) throws IOException
-	{
-		this(d, task, cfg, rpr, null, null);
-	}
-
-	public Forwarder(Dispatcher d, MTA_Task task, XmlConfig cfg, EntityReaper rpr,
-			GenericFactory<Delivery.MessageSender> sender_fact,
-			BatchCallback bcb) throws IOException
-	{
-		this(d, cfg, task.getAppConfig(), task.getQueue(), task.getMS(), rpr, sender_fact, bcb, task.getResolverDNS());
+	public Forwarder(Dispatcher d, MTA_Task task, XmlConfig cfg, EntityReaper rpr, BatchCallback bcb) throws IOException, GeneralSecurityException {
+		this(d, cfg, task.getAppConfig(), task.getQueue(), task.getMS(), rpr, null, bcb, task.getResolverDNS());
 	}
 
 	public Forwarder(Dispatcher d, XmlConfig cfg, AppConfig appConfig,
 			QueueManager qm, MessageStore mstore,
-			EntityReaper rpr, GenericFactory<Delivery.MessageSender> sender_fact,
-			BatchCallback bcb, ResolverDNS dnsResolver) throws IOException
+			EntityReaper rpr, GenericFactory<Delivery.MessageSender> senderFactory,
+			BatchCallback bcb, ResolverDNS dnsResolver) throws IOException, GeneralSecurityException
 	{
 		this.appConfig = appConfig;
 		dsptch = d;
@@ -195,14 +198,16 @@ public final class Forwarder
 		batchStats = new Delivery.Stats(dsptch);
 		openStats = new Delivery.Stats(dsptch);
 
-		if (sender_fact == null) {
-			XmlConfig smtpcfg = cfg.getSection("client");
-			protoClient = new Client(this, dsptch, dnsResolver, smtpcfg, max_serverconns);
-			sender_fact = new Client.Factory(protoClient);
+		XmlConfig smtpcfg = cfg.getSection("client");
+		if (senderFactory == null) {
+			Client.SharedFields sharedFields = ClientConfiguration.createSharedFields(smtpcfg, this, dnsResolver, _max_serverconns);
+			senderFactory = new ClientFactory(sharedFields);
+			transcript = sharedFields.getTranscript();
 		} else {
-			protoClient = null;
+			// sender-factory is only supplied in some test modes, never in production mode
+			transcript = null;
 		}
-		sparesenders = new ObjectWell<>(sender_fact, "SmtpFwd");
+		sparesenders = new ObjectWell<>(senderFactory, "SmtpFwd");
 		active_serverconns = (max_serverconns == 0 ? null : new HashedMapIntValue<>());
 
 		log.info("SMTP-Delivery: slave-relay mode="+routing.modeSlaveRelay());
@@ -266,7 +271,7 @@ public final class Forwarder
 	{
 		if (has_stopped) return;
 		dsptch.getLogger().info("SMTP-Delivery: Shutdown - notify="+notify);
-		if (protoClient != null) protoClient.stop();
+		if (transcript != null) transcript.close(dsptch.getSystemTime());
 		qmgr.stop();
 		if (audit != null) audit.close();
 		if (active_serverconns != null) active_serverconns.clear();

@@ -11,7 +11,6 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -24,9 +23,7 @@ import com.grey.base.utils.EmailAddress;
 import com.grey.base.utils.ByteArrayRef;
 import com.grey.base.utils.ByteChars;
 import com.grey.base.utils.FileOps;
-import com.grey.base.collections.GenericFactory;
 import com.grey.base.collections.HashedMapIntInt;
-import com.grey.base.config.XmlConfig;
 import com.grey.base.sasl.CramMD5Client;
 import com.grey.base.sasl.ExternalClient;
 import com.grey.base.sasl.PlainClient;
@@ -44,40 +41,43 @@ import com.grey.naf.dns.resolver.ResolverDNS;
 import com.grey.naf.dns.resolver.engine.ResolverAnswer;
 import com.grey.naf.dns.resolver.engine.ResourceData;
 
-import com.grey.mailismus.AppConfig;
 import com.grey.mailismus.Task;
 import com.grey.mailismus.Transcript;
 import com.grey.mailismus.mta.Protocol;
 import com.grey.mailismus.mta.queue.MessageRecip;
-import com.grey.mailismus.errors.MailismusConfigException;
 import com.grey.mailismus.errors.MailismusException;
 
 /**
  * Each instance of this class handles one SMTP connection, and can be reused.
  * This is a single-threaded class which runs in the context of a Dispatcher.
  */
-final class Client
+class Client
 	extends CM_Client
 	implements Delivery.MessageSender,
 		ResolverDNS.Client,
-		EntityReaper, //only the prototype Client acts as reaper (for the active Clients)
+		EntityReaper, //each Client instance acts as its ownreaper
 		TimerNAF.Handler
 {
 	private static final String LOG_PREFIX = "SMTP-Client";
+
+	private enum PROTO_STATE {S_DISCON, S_CONN, S_READY, S_AUTH, S_STLS, S_HELO, S_EHLO, S_MAILFROM, S_MAILTO, S_DATA, S_MAILBODY,
+		S_QUIT, S_RESET, S_END}
+	private enum PROTO_EVENT {E_CONNECTED, E_DISCONNECTED, E_REPLY, E_LOCALERROR, E_DISCONNECT, E_SSL}
+	private enum PROTO_ACTION {A_CONNECT, A_DISCONNECT, A_HELO, A_EHLO, A_MAILFROM, A_MAILTO, A_DATA, A_MAILBODY,
+		A_QUIT, A_RESET, A_ENDMESSAGE, A_STARTSESSION, A_ENDSESSION, A_LOGIN, A_STLS}
 
 	private static final byte OPEN_ANGLE = '<';
 	private static final byte CLOSE_ANGLE = '>';
 	private static final ByteChars SMTPREQ_MAILFROM = new ByteChars(Protocol.CMDREQ_MAILFROM).append(OPEN_ANGLE);
 	private static final ByteChars SMTPREQ_MAILTO = new ByteChars(Protocol.CMDREQ_MAILTO).append(OPEN_ANGLE);
 
+	private static final ByteChars FAILMSG_TMT = new ByteChars("SMTP session timed out");
+	private static final ByteChars FAILMSG_NOSSL = new ByteChars("Remote MTA doesn't support SSL");
+	private static final ByteChars FAILMSG_NORECIPS = new ByteChars("No valid recipients specified");
+	private static final ByteChars FAILMSG_NOSPOOL = new ByteChars("Message deleted from queue");
+
 	private static final int TMRTYPE_SESSIONTMT = 1;
 	private static final int TMRTYPE_DISCON = 2;
-
-	private enum PROTO_STATE {S_DISCON, S_CONN, S_READY, S_AUTH, S_STLS, S_HELO, S_EHLO, S_MAILFROM, S_MAILTO, S_DATA, S_MAILBODY,
-									S_QUIT, S_RESET, S_END}
-	private enum PROTO_EVENT {E_CONNECTED, E_DISCONNECTED, E_REPLY, E_LOCALERROR, E_DISCONNECT, E_SSL}
-	private enum PROTO_ACTION {A_CONNECT, A_DISCONNECT, A_HELO, A_EHLO, A_MAILFROM, A_MAILTO, A_DATA, A_MAILBODY,
-									A_QUIT, A_RESET, A_ENDMESSAGE, A_STARTSESSION, A_ENDSESSION, A_LOGIN, A_STLS}
 
 	private static final byte S2_DNSWAIT = 1 << 0;
 	private static final byte S2_REPLYCONTD = 1 << 1;
@@ -88,91 +88,29 @@ final class Client
 	private static final byte S2_ABORT = 1 << 6;
 	private static final byte S2_CNXLIMIT = (byte)(1 << 7); //this is 8-bit, but overflows Byte.MAX_VALUE
 
-	private static final ByteChars FAILMSG_TMT = new ByteChars("SMTP session timed out");
-	private static final ByteChars FAILMSG_NOSSL = new ByteChars("Remote MTA doesn't support SSL");
-	private static final ByteChars FAILMSG_NORECIPS = new ByteChars("No valid recipients specified");
-	private static final ByteChars FAILMSG_NOSPOOL = new ByteChars("Message deleted from queue");
-
-	private static ConnectionConfig createConnectionConfig(int id,
-			XmlConfig cfg,
-			SharedFields common,
-			ConnectionConfig dflts,
-			Dispatcher dsptch,
-			int max_serverconns,
-			boolean fallback_mx_a,
-			String logpfx) throws IOException {
-		AppConfig appConfig = common.controller.getAppConfig();
-
-		IP.Subnet[] ipnets = null;
-		if (id != 0) {
-			String label = logpfx+"remotenets-"+id+"-ConnectionConfig";
-			ipnets = parseSubnets(cfg, "@ip", appConfig);
-			if (ipnets == null) throw new MailismusConfigException(label+": missing 'ip' attribute");
-		}
-		String announceHost = appConfig.getAnnounceHost(cfg, dflts==null ? appConfig.getAnnounceHost() : dflts.getAnnouncehost());
-		long idleTimeout = cfg.getTime("timeout", dflts==null ? 0 : dflts.getIdleTimeout().toMillis());
-		long minRateData = cfg.getSize("mindatarate", dflts==null ? 0 : dflts.getMinRateData());
-		long delayChannelClose = cfg.getTime("delay_close", dflts==null ? 0 : dflts.getDelayChannelClose().toMillis());
-		boolean sayHELO = cfg.getBool("sayHELO", dflts==null ? false : dflts.isSayHelo());
-		boolean fallbackHELO = cfg.getBool("fallbackHELO", dflts==null ? false : dflts.isFallbackHelo());
-		boolean sendQUIT = cfg.getBool("sendQUIT", dflts==null ? true : dflts.isSendQuit());
-		boolean awaitQUIT = (sendQUIT ? cfg.getBool("waitQUIT", dflts==null ? true : dflts.isAwaitQuit()) : false);
-
-		// ESMTP settings
-		int max_pipe = cfg.getInt("maxpipeline", false, dflts==null ? 25 : dflts.getMaxPipeline());
-		if (max_pipe == 0) max_pipe = 1;
-
-		SSLConfig anonssl = null;
-		XmlConfig sslcfg = cfg.getSection("anonssl");
-		if (sslcfg != null && sslcfg.exists()) {
-			anonssl = new SSLConfig.Builder()
-					.withIsClient(true)
-					.withXmlConfig(sslcfg, dsptch.getApplicationContext().getConfig())
-					.build();
-		}
-
-		ConnectionConfig.Builder bldr = ConnectionConfig.builder()
-				.setAnnouncehost(announceHost)
-				.setSayHelo(sayHELO)
-				.setFallbackHelo(fallbackHELO)
-				.setSendQuit(sendQUIT)
-				.setAwaitQuit(awaitQUIT)
-				.setFallbackMX2A(fallback_mx_a)
-				.setMaxServerConnections(max_serverconns)
-				.setMaxPipeline(max_pipe)
-				.setDelayChannelClose(Duration.ofMillis(delayChannelClose))
-				.setAnonSSL(anonssl)
-				.setIpNets(ipnets);
-		if (idleTimeout != 0) bldr = bldr.setIdleTimeout(Duration.ofMillis(idleTimeout));
-		if (minRateData != 0) bldr = bldr.setMinRateData(minRateData);
-		ConnectionConfig conncfg = bldr.build();
-		dsptch.getLogger().info(logpfx+conncfg.toString());
-		return conncfg;
-	}
-
-	private static final class SharedFields
-	{
-		private final Client prototype_client;
-		private final ConnectionConfig defaultcfg;
-		private final ConnectionConfig[] remotecfg;
+	static class SharedFields {
+		private final ConnectionConfig defaultConfig;
+		private final ConnectionConfig[] remotesConfig;
 
 		// assorted shareable objects
 		private final Delivery.Controller controller;
-		private final Routing routing;
-		private final PlainClient sasl_plain = new PlainClient(true);
-		private final CramMD5Client sasl_cmd5 = new CramMD5Client(true);
-		private final ExternalClient sasl_external = new ExternalClient(true);
-		private final Map<ByteChars, SaslEntity.MECH> authtypes_supported;
+		private final ResolverDNS resolver;
 		private final Transcript transcript;
-		private final BufferGenerator bufspec;
-		private final HashedMapIntInt active_serverconns; //maps server IP to current connection count
+		private final BufferGenerator bufferGenerator;
+
+		private final PlainClient saslPlain = new PlainClient(true);
+		private final CramMD5Client saslCramMD5 = new CramMD5Client(true);
+		private final ExternalClient saslExternal = new ExternalClient(true);
+		private final Map<ByteChars, SaslEntity.MECH> authTypesSupported;
+
+		private final HashedMapIntInt activeServerConns = new HashedMapIntInt(); //maps server IP to current connection count
 
 		// read-only buffers - pre-allocated and pre-populated buffers, for efficient sending of canned commands
-		private final ByteBuffer smtpRequestData;
-		private final ByteBuffer smtpRequestQuit;
-		private final ByteBuffer smtpRequestReset;
-		private final ByteBuffer smtpRequestEOM;
-		private final ByteBuffer smtpRequestSTLS;
+		private final ByteBuffer smtpRequestData = Task.constBuffer(Protocol.CMDREQ_DATA+Protocol.EOL);
+		private final ByteBuffer smtpRequestQuit = Task.constBuffer(Protocol.CMDREQ_QUIT+Protocol.EOL);
+		private final ByteBuffer smtpRequestReset = Task.constBuffer(Protocol.CMDREQ_RESET+Protocol.EOL);
+		private final ByteBuffer smtpRequestEOM = Task.constBuffer(Protocol.EOM);
+		private final ByteBuffer smtpRequestSTLS = Task.constBuffer(Protocol.CMDREQ_STLS+Protocol.EOL);
 		private final Map<String,ByteBuffer> smtpRequestHelo = new HashMap<>(); //keyed on announce-host
 		private final Map<String,ByteBuffer> smtpRequestEhlo = new HashMap<>(); //keyed on announce-host
 
@@ -187,43 +125,28 @@ final class Client
 		private final StringBuilder tmpsb2 = new StringBuilder();
 		private final ByteChars tmpbc = new ByteChars();
 		private final ByteChars tmplightbc = new ByteChars(-1); //lightweight object without own storage
+
 		private ByteBuffer tmpniobuf; //grows on demand
 
-		public SharedFields(XmlConfig cfg, Dispatcher dsptch, Delivery.Controller ctl, Client proto, String logpfx, int max_serverconns)
-				throws IOException, GeneralSecurityException
-		{
-			prototype_client = proto;
-			controller = ctl;
-			routing = ctl.getRouting();
+		public SharedFields(Delivery.Controller ctl, ResolverDNS dns, BufferGenerator bufferGenerator, Transcript transcript,
+				ConnectionConfig defaultConfig, ConnectionConfig[] remotesConfig) throws GeneralSecurityException {
+			this.controller = ctl;
+			this.resolver = dns;
+			this.bufferGenerator = bufferGenerator;
+			this.transcript = transcript;
+			this.defaultConfig = defaultConfig;
+			this.remotesConfig = remotesConfig;
 
-			transcript = Transcript.create(dsptch, cfg, "transcript");
-			bufspec = new BufferGenerator(cfg, "niobuffers", 256, 128);
-			if (bufspec.rcvbufsiz < 40) throw new MailismusConfigException(logpfx+"recvbuf="+bufspec.rcvbufsiz+" is too small");
-
-			// read the per-connection config
-			boolean fallback_mx_a = cfg.getBool("fallbackMX_A", false);
-			defaultcfg = createConnectionConfig(0, cfg, this, null, dsptch, max_serverconns, fallback_mx_a, logpfx);
-			XmlConfig[] cfgnodes = cfg.getSections("remotenets/remotenet");
-			if (cfgnodes == null) {
-				remotecfg = null;
-			} else {
-				remotecfg = new ConnectionConfig[cfgnodes.length];
-				for (int idx = 0; idx != cfgnodes.length; idx++) {
-					remotecfg[idx] = createConnectionConfig(idx+1, cfgnodes[idx], this, defaultcfg, dsptch, max_serverconns, fallback_mx_a, logpfx);
-				}
-			}
-			active_serverconns = new HashedMapIntInt();
-
-			authtypes_supported = new HashMap<>();
+			authTypesSupported = new HashMap<>();
 			SaslEntity.MECH[] methods = new SaslEntity.MECH[] {SaslEntity.MECH.PLAIN,
 					SaslEntity.MECH.CRAM_MD5, SaslEntity.MECH.EXTERNAL};
 			for (int idx = 0; idx != methods.length; idx++) {
-				authtypes_supported.put(new ByteChars(methods[idx].toString().replace('_', '-')), methods[idx]);
+				authTypesSupported.put(new ByteChars(methods[idx].toString().replace('_', '-')), methods[idx]);
 			}
 
 			List<ConnectionConfig> conncfgs = new ArrayList<>();
-			conncfgs.add(defaultcfg);
-			if (remotecfg != null) conncfgs.addAll(Arrays.asList(remotecfg));
+			conncfgs.add(defaultConfig);
+			if (remotesConfig != null) conncfgs.addAll(Arrays.asList(remotesConfig));
 			for (ConnectionConfig conncfg : conncfgs) {
 				String host = conncfg.getAnnouncehost();
 				if (host == null) host = "";
@@ -235,13 +158,6 @@ final class Client
 					smtpRequestEhlo.put(host, ehlobuf);
 				}
 			}
-			smtpRequestData = Task.constBuffer(Protocol.CMDREQ_DATA+Protocol.EOL);
-			smtpRequestQuit = Task.constBuffer(Protocol.CMDREQ_QUIT+Protocol.EOL);
-			smtpRequestReset = Task.constBuffer(Protocol.CMDREQ_RESET+Protocol.EOL);
-			smtpRequestEOM = Task.constBuffer(Protocol.EOM);
-			smtpRequestSTLS = Task.constBuffer(Protocol.CMDREQ_STLS+Protocol.EOL);
-
-			dsptch.getLogger().info(logpfx+bufspec);
 		}
 
 		public ByteBuffer getHeloBuffer(ConnectionConfig conncfg, boolean ehlo) {
@@ -253,36 +169,35 @@ final class Client
 		public boolean incrementServerConnections(int ip, ConnectionConfig conncfg) {
 			int max_serverconns = (conncfg == null ? 0 : conncfg.getMaxServerConnections());
 			if (max_serverconns == 0) return true;
-			int cnt = active_serverconns.get(ip);
+			int cnt = activeServerConns.get(ip);
 			if (cnt == max_serverconns) return false;
-			active_serverconns.put(ip, cnt+1);
+			activeServerConns.put(ip, cnt+1);
 			return true;
 		}
 
 		public void decrementServerConnections(int ip, ConnectionConfig conncfg) {
 			if (conncfg == null || conncfg.getMaxServerConnections() == 0) return;
 			if (ip == 0) return;
-			int cnt = active_serverconns.get(ip);
+			int cnt = activeServerConns.get(ip);
 			if (--cnt == 0) {
-				active_serverconns.remove(ip);
+				activeServerConns.remove(ip);
 			} else {
-				active_serverconns.put(ip, cnt);
+				activeServerConns.put(ip, cnt);
 			}
 		}
-	}
 
-	static final class Factory
-		implements GenericFactory<Delivery.MessageSender> {
-		private final Client prototype;
-		public Factory(Client p) {prototype=p;}
-		@Override
-		public Client factory_create() {return new Client(prototype);}
+		public Transcript getTranscript() {
+			return transcript;
+		}
+
+		public int getActiveServerConnections() {
+			return activeServerConns.size();
+		}
 	}
 
 	private final Delivery.MessageParams msgparams = new Delivery.MessageParams();
 	private final SharedFields shared;
 	private final TSAP remote_tsap_buf;
-	private final ResolverDNS resolver;
 	private final List<ResourceData> dnsInfo = new ArrayList<>();
 	private ConnectionConfig conncfg; //config to apply to current connection
 	private Relay active_relay;
@@ -317,39 +232,23 @@ final class Client
 	@Override
 	protected SSLConfig getSSLConfig() {return (active_relay == null ? conncfg.getAnonSSL() : active_relay.sslconfig);}
 
-	// this is a prototype instance which provides configuration info for the others
-	public Client(Delivery.Controller ctl, Dispatcher d, ResolverDNS dns, XmlConfig cfg, int maxconns) {
-		super(d, null, null);
-		pfx_log = LOG_PREFIX+"-proto";
-		String pfx = LOG_PREFIX+": ";
-		try {
-			shared = new SharedFields(cfg, getDispatcher(), ctl, this, pfx, maxconns);
-		} catch (Exception ex) {
-			throw new MailismusConfigException("Failed to create shared config", ex);
-		}
-		resolver = dns;
-		remote_tsap_buf = null;
-	}
-
-	// this is an actual client which participates in SMTP connections
-	private Client(Client proto) {
-		super(proto.getDispatcher(), proto.shared.bufspec, proto.shared.bufspec);
+	Client(SharedFields shared) {
+		super(shared.controller.getDispatcher(), shared.bufferGenerator, shared.bufferGenerator);
 		pfx_log = LOG_PREFIX+": ";
-		shared = proto.shared;
-		resolver = proto.resolver;
+		this.shared = shared;
 		//will need to build addresses at connect time if we don't have a default relay
-		remote_tsap_buf = (shared.routing.haveDefaultRelay() ? null : new TSAP());
+		remote_tsap_buf = (shared.controller.getRouting().haveDefaultRelay() ? null : new TSAP());
 	}
 
 	private ConnectionConfig getConnectionConfig(int remote_ip) {
-		int cnt = (shared.remotecfg == null ? 0 : shared.remotecfg.length);
+		int cnt = (shared.remotesConfig == null ? 0 : shared.remotesConfig.length);
 		for (int idx = 0; idx != cnt; idx++) {
-			ConnectionConfig cnxcfg = shared.remotecfg[idx];
+			ConnectionConfig cnxcfg = shared.remotesConfig[idx];
 			for (int idx2 = 0; idx2 != cnxcfg.getIpNets().length; idx2++) {
 				if (cnxcfg.getIpNets()[idx2].isMember(remote_ip)) return cnxcfg;
 			}
 		}
-		return shared.defaultcfg;
+		return shared.defaultConfig;
 	}
 
 	private void transitionState(PROTO_STATE newstate) {
@@ -358,19 +257,13 @@ final class Client
 
 	@Override
 	public void start(Delivery.Controller ctl) throws IOException {
-		setReaper(shared.prototype_client);
+		setReaper(this);
 		initConnection();
 		issueAction(PROTO_ACTION.A_CONNECT, PROTO_STATE.S_CONN);
 	}
 
 	@Override
 	public boolean stop() {
-		if (this == shared.prototype_client) {
-			if (shared.transcript != null) {
-				shared.transcript.close(getSystemTime());
-			}
-			return true;
-		}
 		setFlag(S2_ABORT);
 		if (pstate == PROTO_STATE.S_DISCON) return (tmr_exit == null); // we're already completely stopped
 		issueDisconnect(0, "Forcibly halted");
@@ -444,9 +337,9 @@ final class Client
 		setFlag(S2_DNSWAIT);
 		ResolverAnswer answer;
 		if (as_host) {
-			answer = resolver.resolveHostname(msgparams.getDestination(), this, null, 0);
+			answer = shared.resolver.resolveHostname(msgparams.getDestination(), this, null, 0);
 		} else {
-			answer = resolver.resolveMailDomain(msgparams.getDestination(), this, null, 0);
+			answer = shared.resolver.resolveMailDomain(msgparams.getDestination(), this, null, 0);
 		}
 		if (answer != null) dnsResolved(getDispatcher(), answer, null);
 	}
@@ -562,7 +455,7 @@ final class Client
 			return;
 		}
 		TSAP tsap = remote_tsap;
-		Relay interceptor = shared.routing.getInterceptor();
+		Relay interceptor = shared.controller.getRouting().getInterceptor();
 
 		if (interceptor != null) {
 			//active_relay==interceptor will be true if we we are trying additional MX relays because first one failed
@@ -732,7 +625,7 @@ final class Client
 
 		if (isFlagSet(S2_DNSWAIT)) {
 			try {
-				resolver.cancel(this);
+				shared.resolver.cancel(this);
 			} catch (Exception ex) {
 				getLogger().log(LEVEL.INFO, ex, false, pfx_log+" failed to cancel DNS ops");
 			}
@@ -875,7 +768,7 @@ final class Client
 						int off2 = off;
 						while (rspdata.buffer()[off2] > ' ') off2++;
 						shared.tmplightbc.set(rspdata.buffer(), off, off2-off);
-						auth_method = shared.authtypes_supported.get(shared.tmplightbc);
+						auth_method = shared.authTypesSupported.get(shared.tmplightbc);
 						//server might advertise EXTERNAL anyway without meaning it unless in SSL mode, so keep scanning for better option
 						if (auth_method != null && auth_method != SaslEntity.MECH.EXTERNAL) break;
 						off = off2;
@@ -1132,12 +1025,12 @@ final class Client
 				rspbuf.append(Protocol.CMDREQ_SASL_PLAIN);
 				if (active_relay.auth_initrsp) {
 					rspbuf.append(' ');
-					shared.sasl_plain.init();
-					shared.sasl_plain.setResponse(null, active_relay.usrnam, active_relay.passwd, rspbuf);
+					shared.saslPlain.init();
+					shared.saslPlain.setResponse(null, active_relay.usrnam, active_relay.passwd, rspbuf);
 				}
 			} else if (!auth_done) {
-				shared.sasl_plain.init();
-				shared.sasl_plain.setResponse(null, active_relay.usrnam, active_relay.passwd, rspbuf);
+				shared.saslPlain.init();
+				shared.saslPlain.setResponse(null, active_relay.usrnam, active_relay.passwd, rspbuf);
 			}
 		} else if (auth_method == SaslEntity.MECH.EXTERNAL) {
 			// we send a zero-length response (whether initial or not), to assume the derived authorization ID
@@ -1149,8 +1042,8 @@ final class Client
 					rspbuf.append(' ').append(Protocol.AUTH_EMPTY);
 				}
 			} else if (!auth_done) {
-				shared.sasl_external.init();
-				shared.sasl_external.setResponse(null, rspbuf);
+				shared.saslExternal.init();
+				shared.saslExternal.setResponse(null, rspbuf);
 			}
 		} else if (auth_method == SaslEntity.MECH.CRAM_MD5) {
 			if (step == 0) {
@@ -1158,7 +1051,7 @@ final class Client
 			} else if (step == 1) {
 				rspdata.advance(Protocol.AUTH_CHALLENGE.length()); //advance past prefix
 				rspdata.incrementSize(-Protocol.EOL.length()); //strip CRLF
-				shared.sasl_cmd5.setResponse(active_relay.usrnam, active_relay.passwd, rspdata, rspbuf);
+				shared.saslCramMD5.setResponse(active_relay.usrnam, active_relay.passwd, rspdata, rspbuf);
 			} else {
 				auth_done = true;
 			}
@@ -1196,10 +1089,12 @@ final class Client
 			return;
 		}
 		MessageRecip recip = msgparams.getRecipient(idx);
+		Relay interceptor = shared.controller.getRouting().getInterceptor();
+		
 		if (!isFlagSet(S2_ABORT)) recip.qstatus = MessageRecip.STATUS_DONE;
-		if (shared.routing.getInterceptor() != null) {
+		if (interceptor != null) {
 			//even though we generally log the theoretical destination address, we must audit the actual one
-			recip.ip_send = shared.routing.getInterceptor().tsap.ip;
+			recip.ip_send = interceptor.tsap.ip;
 		} else {
 			recip.ip_send = (remote_tsap == null ? 0 : remote_tsap.ip);
 		}
@@ -1278,7 +1173,7 @@ final class Client
 	}
 
 	private void transmit(ByteChars data) throws IOException {
-		shared.tmpniobuf = shared.bufspec.encode(data, shared.tmpniobuf);
+		shared.tmpniobuf = shared.bufferGenerator.encode(data, shared.tmpniobuf);
 		transmit(shared.tmpniobuf);
 	}
 
@@ -1325,7 +1220,7 @@ final class Client
 		initChannelMonitor();
 		initMessage();
 		dnsInfo.clear();
-		conncfg = shared.defaultcfg;
+		conncfg = shared.defaultConfig;
 		pipe_cap = 1;
 		remote_tsap = null;
 		active_relay = null;
@@ -1369,20 +1264,6 @@ final class Client
 		} else {
 			sb.append("domain=").append(msgparams.getDestination());
 		}
-	}
-
-	private static IP.Subnet[] parseSubnets(XmlConfig cfg, String fldnam, AppConfig appConfig) throws UnknownHostException {
-		String[] arr = cfg.getTuple(fldnam, "|", false, null);
-		if (arr == null) return null;
-		List<IP.Subnet> lst = new ArrayList<>();
-		for (int idx = 0; idx != arr.length; idx++) {
-			String val = arr[idx].trim();
-			if (val.isEmpty()) continue;
-			if (appConfig != null) val = appConfig.parseHost(null, null, false, val);
-			lst.add(IP.parseSubnet(val));
-		}
-		if (lst.isEmpty()) return null;
-		return lst.toArray(new IP.Subnet[0]);
 	}
 
 	// given a minimum bits per second, calculate the max time expected to send this many bytes (in milliseconds)

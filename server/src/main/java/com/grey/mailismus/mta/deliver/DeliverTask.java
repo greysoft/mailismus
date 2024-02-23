@@ -4,6 +4,9 @@
  */
 package com.grey.mailismus.mta.deliver;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+
 import com.grey.base.config.XmlConfig;
 import com.grey.naf.EntityReaper;
 import com.grey.naf.reactor.Dispatcher;
@@ -16,9 +19,9 @@ public final class DeliverTask
 {
 	private final Forwarder sender;
 
-	public DeliverTask(String name, Dispatcher dsptch, XmlConfig cfg) throws java.io.IOException {
+	public DeliverTask(String name, Dispatcher dsptch, XmlConfig cfg) throws IOException, GeneralSecurityException {
 		super(name, dsptch, cfg, null, DFLT_FACT_MS, DFLT_FACT_QUEUE, createResolverDNS(dsptch));
-		sender = new Forwarder(dsptch, this, taskConfig(), this);
+		sender = new Forwarder(dsptch, this, taskConfig(), this, null);
 		registerQueueOps(Loader.PREF_SHOWQ_DELIVER);
 	}
 

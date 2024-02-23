@@ -5,6 +5,7 @@
 package com.grey.mailismus.mta.smtp;
 
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.time.Clock;
 import java.util.ArrayList;
 
@@ -18,7 +19,6 @@ import com.grey.base.utils.TSAP;
 import com.grey.base.utils.EmailAddress;
 import com.grey.base.utils.DynLoader;
 import com.grey.base.collections.Circulist;
-import com.grey.base.collections.HashedMapIntInt;
 import com.grey.base.collections.HashedMapIntKey;
 import com.grey.base.collections.ObjectQueue;
 import com.grey.naf.ApplicationContextNAF;
@@ -333,25 +333,25 @@ public class DeliveryTest
 		runtest(msgs, 0, 0);
 	}
 
-	private void runtest(MessageSpec[] msgs, int server_submitcnt, int server_spoolcnt) throws java.io.IOException
+	private void runtest(MessageSpec[] msgs, int server_submitcnt, int server_spoolcnt) throws java.io.IOException, GeneralSecurityException
 	{
 		runtest(msgs, server_submitcnt, server_spoolcnt, null);
 	}
 
 	private void runtest(MessageSpec[] msgs, int server_submitcnt, int server_spoolcnt, String interceptor_spec)
-	        throws java.io.IOException
+	        throws java.io.IOException, GeneralSecurityException
 	{
 		runtest(msgs, server_submitcnt, server_spoolcnt, 0, 0, interceptor_spec);
 	}
 
 	private void runtest(MessageSpec[] msgs, int server_submitcnt, int server_spoolcnt, int maxdomconns, int maxmsgrecips)
-	        throws java.io.IOException
+	        throws java.io.IOException, GeneralSecurityException
 	{
 		runtest(msgs, server_submitcnt, server_spoolcnt, maxdomconns, maxmsgrecips, null);
 	}
 
 	private void runtest(MessageSpec[] msgs, int server_submitcnt, int server_spoolcnt, int maxsrvconns, int maxmsgrecips, String interceptor_spec)
-			throws java.io.IOException
+			throws java.io.IOException, GeneralSecurityException
 	{
 		String pthnam_appcfg = (altcfg_path == null ? appcfg_path : altcfg_path);
 		altcfg_path = null;
@@ -416,7 +416,7 @@ public class DeliveryTest
 		DeliverTask dtask = new DeliverTask("utest_smtpc", dsptch, cfg);
 		if (maxsrvconns != 0) dtask.taskConfig().setOverride("maxconnections", String.valueOf(maxsrvconns));
 		if (maxmsgrecips != 0) dtask.taskConfig().setOverride("maxrecips", String.valueOf(maxmsgrecips));
-		Forwarder smtp_sender = new Forwarder(dsptch, dtask, dtask.taskConfig(), dtask, null, this);
+		Forwarder smtp_sender = new Forwarder(dsptch, dtask, dtask.taskConfig(), dtask, this);
 		DynLoader.setField(dtask, "sender", smtp_sender);
 		if (interceptor_spec != null) {
 			String ixml = "<intercept dns=\"Y\" address=\""+interceptor_spec+"\"/>";
@@ -437,11 +437,7 @@ public class DeliveryTest
 		Dispatcher.STOPSTATUS stopsts = dsptch.waitStopped(MAXRUNTIME, true);
 		org.junit.Assert.assertEquals(Dispatcher.STOPSTATUS.STOPPED, stopsts);
 		org.junit.Assert.assertTrue(dsptch.completedOK());
-
-		Object cproto = DynLoader.getField(smtp_sender, "protoClient");
-		Object cshared = DynLoader.getField(cproto, "shared");
-		HashedMapIntInt activesrvconns = (HashedMapIntInt)DynLoader.getField(cshared, "active_serverconns");
-		if (activesrvconns != null) org.junit.Assert.assertEquals(0, activesrvconns.size());
+		org.junit.Assert.assertEquals(0, smtp_sender.connectionsCount());
 
 		// This is really a check on Dispatcher correctness, rather than the MTA
 		@SuppressWarnings("unchecked")
