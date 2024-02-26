@@ -10,12 +10,8 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.GeneralSecurityException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import com.grey.base.utils.IP;
 import com.grey.base.utils.TSAP;
@@ -23,15 +19,9 @@ import com.grey.base.utils.EmailAddress;
 import com.grey.base.utils.ByteArrayRef;
 import com.grey.base.utils.ByteChars;
 import com.grey.base.utils.FileOps;
-import com.grey.base.collections.HashedMapIntInt;
-import com.grey.base.sasl.CramMD5Client;
-import com.grey.base.sasl.ExternalClient;
-import com.grey.base.sasl.PlainClient;
 import com.grey.base.sasl.SaslEntity;
 import com.grey.base.ExceptionUtils;
 import com.grey.logging.Logger.LEVEL;
-
-import com.grey.naf.BufferGenerator;
 import com.grey.naf.reactor.CM_Client;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.TimerNAF;
@@ -41,7 +31,6 @@ import com.grey.naf.dns.resolver.engine.ResolverAnswer;
 import com.grey.naf.dns.resolver.engine.ResourceData;
 
 import com.grey.mailismus.Task;
-import com.grey.mailismus.Transcript;
 import com.grey.mailismus.mta.Protocol;
 import com.grey.mailismus.mta.queue.MessageRecip;
 import com.grey.mailismus.errors.MailismusException;
@@ -86,113 +75,6 @@ class Client
 	private static final byte S2_ABORT = 1 << 6;
 	private static final byte S2_CNXLIMIT = (byte)(1 << 7); //this is 8-bit, but overflows Byte.MAX_VALUE
 
-	static class SharedFields {
-		private final ConnectionConfig defaultConfig;
-		private final ConnectionConfig[] remotesConfig;
-
-		// assorted shareable objects
-		private final Delivery.Controller controller;
-		private final ResolverDNS resolver;
-		private final Transcript transcript;
-		private final BufferGenerator bufferGenerator;
-
-		private final PlainClient saslPlain = new PlainClient(true);
-		private final CramMD5Client saslCramMD5 = new CramMD5Client(true);
-		private final ExternalClient saslExternal = new ExternalClient(true);
-		private final Map<ByteChars, SaslEntity.MECH> authTypesSupported;
-
-		private final HashedMapIntInt activeServerConns = new HashedMapIntInt(); //maps server IP to current connection count
-
-		// read-only buffers - pre-allocated and pre-populated buffers, for efficient sending of canned commands
-		private final ByteBuffer smtpRequestData = Task.constBuffer(Protocol.CMDREQ_DATA+Protocol.EOL);
-		private final ByteBuffer smtpRequestQuit = Task.constBuffer(Protocol.CMDREQ_QUIT+Protocol.EOL);
-		private final ByteBuffer smtpRequestReset = Task.constBuffer(Protocol.CMDREQ_RESET+Protocol.EOL);
-		private final ByteBuffer smtpRequestEOM = Task.constBuffer(Protocol.EOM);
-		private final ByteBuffer smtpRequestSTLS = Task.constBuffer(Protocol.CMDREQ_STLS+Protocol.EOL);
-		private final Map<String,ByteBuffer> smtpRequestHelo = new HashMap<>(); //keyed on announce-host
-		private final Map<String,ByteBuffer> smtpRequestEhlo = new HashMap<>(); //keyed on announce-host
-
-		// temp work areas pre-allocated for efficiency
-		private final ByteChars pipebuf = new ByteChars(); //used up in one callback, so safe to share
-		private final StringBuilder disconnect_msg_buf = new StringBuilder();
-		private final TSAP tmptsap = new TSAP();
-		private final byte[] ipbuf = IP.ip2net(0, null, 0);
-		private final ByteChars failbc = new ByteChars();
-		private final ByteChars failbc2 = new ByteChars();
-		private final StringBuilder tmpsb = new StringBuilder();
-		private final StringBuilder tmpsb2 = new StringBuilder();
-		private final ByteChars tmpbc = new ByteChars();
-		private final ByteChars tmplightbc = new ByteChars(-1); //lightweight object without own storage
-
-		private ByteBuffer tmpniobuf; //grows on demand
-
-		public SharedFields(Delivery.Controller ctl, ResolverDNS dns, BufferGenerator bufferGenerator, Transcript transcript,
-				ConnectionConfig defaultConfig, ConnectionConfig[] remotesConfig) throws GeneralSecurityException {
-			this.controller = ctl;
-			this.resolver = dns;
-			this.bufferGenerator = bufferGenerator;
-			this.transcript = transcript;
-			this.defaultConfig = defaultConfig;
-			this.remotesConfig = remotesConfig;
-
-			authTypesSupported = new HashMap<>();
-			SaslEntity.MECH[] methods = new SaslEntity.MECH[] {SaslEntity.MECH.PLAIN,
-					SaslEntity.MECH.CRAM_MD5, SaslEntity.MECH.EXTERNAL};
-			for (int idx = 0; idx != methods.length; idx++) {
-				authTypesSupported.put(new ByteChars(methods[idx].toString().replace('_', '-')), methods[idx]);
-			}
-
-			List<ConnectionConfig> conncfgs = new ArrayList<>();
-			conncfgs.add(defaultConfig);
-			if (remotesConfig != null) conncfgs.addAll(Arrays.asList(remotesConfig));
-			for (ConnectionConfig conncfg : conncfgs) {
-				String host = conncfg.getAnnouncehost();
-				if (host == null) host = "";
-				if (!smtpRequestHelo.containsKey(host)) {
-					String announce = (host.isEmpty() ? "" : " " + host);
-					ByteBuffer helobuf = Task.constBuffer(Protocol.CMDREQ_HELO+announce+Protocol.EOL);
-					ByteBuffer ehlobuf = Task.constBuffer(Protocol.CMDREQ_EHLO+announce+Protocol.EOL);
-					smtpRequestHelo.put(host, helobuf);
-					smtpRequestEhlo.put(host, ehlobuf);
-				}
-			}
-		}
-
-		public ByteBuffer getHeloBuffer(ConnectionConfig conncfg, boolean ehlo) {
-			String host = conncfg.getAnnouncehost();
-			if (host == null) host = "";
-			return (ehlo ? smtpRequestEhlo.get(host) : smtpRequestHelo.get(host));
-		}
-
-		public boolean incrementServerConnections(int ip, ConnectionConfig conncfg) {
-			int max_serverconns = (conncfg == null ? 0 : conncfg.getMaxServerConnections());
-			if (max_serverconns == 0) return true;
-			int cnt = activeServerConns.get(ip);
-			if (cnt == max_serverconns) return false;
-			activeServerConns.put(ip, cnt+1);
-			return true;
-		}
-
-		public void decrementServerConnections(int ip, ConnectionConfig conncfg) {
-			if (conncfg == null || conncfg.getMaxServerConnections() == 0) return;
-			if (ip == 0) return;
-			int cnt = activeServerConns.get(ip);
-			if (--cnt == 0) {
-				activeServerConns.remove(ip);
-			} else {
-				activeServerConns.put(ip, cnt);
-			}
-		}
-
-		public Transcript getTranscript() {
-			return transcript;
-		}
-
-		public int getActiveServerConnections() {
-			return activeServerConns.size();
-		}
-	}
-
 	private final Delivery.MessageParams msgparams = new Delivery.MessageParams();
 	private final SharedFields shared;
 	private final TSAP remote_tsap_buf;
@@ -231,22 +113,22 @@ class Client
 	protected SSLConfig getSSLConfig() {return (active_relay == null ? conncfg.getAnonSSL() : active_relay.sslconfig);}
 
 	Client(SharedFields shared) {
-		super(shared.controller.getDispatcher(), shared.bufferGenerator, shared.bufferGenerator);
+		super(shared.getController().getDispatcher(), shared.getBufferGenerator(), shared.getBufferGenerator());
 		pfx_log = LOG_PREFIX+": ";
 		this.shared = shared;
 		//will need to build addresses at connect time if we don't have a default relay
-		remote_tsap_buf = (shared.controller.getRouting().haveDefaultRelay() ? null : new TSAP());
+		remote_tsap_buf = (shared.getController().getRouting().haveDefaultRelay() ? null : new TSAP());
 	}
 
 	private ConnectionConfig getConnectionConfig(int remote_ip) {
-		int cnt = (shared.remotesConfig == null ? 0 : shared.remotesConfig.length);
-		for (int idx = 0; idx != cnt; idx++) {
-			ConnectionConfig cnxcfg = shared.remotesConfig[idx];
-			for (int idx2 = 0; idx2 != cnxcfg.getIpNets().length; idx2++) {
-				if (cnxcfg.getIpNets()[idx2].isMember(remote_ip)) return cnxcfg;
+		for (ConnectionConfig cnxcfg : shared.getRemotesConfig()) {
+			for (IP.Subnet ipnet : cnxcfg.getIpNets()) {
+				if (ipnet.isMember(remote_ip)) {
+					return cnxcfg;
+				}
 			}
 		}
-		return shared.defaultConfig;
+		return shared.getDefaultConfig();
 	}
 
 	private void transitionState(PROTO_STATE newstate) {
@@ -270,7 +152,7 @@ class Client
 	@Override
 	public void ioReceived(ByteArrayRef rcvdata) throws IOException {
 		if (pstate == PROTO_STATE.S_DISCON) return; //this method can be called in a loop, so skip it after a disconnect
-		if (shared.transcript != null) shared.transcript.data_in(pfx_log, rcvdata, getSystemTime());
+		if (shared.getTranscript() != null) shared.getTranscript().data_in(pfx_log, rcvdata, getSystemTime());
 		alt_tmtprotocol = 0;
 		eventRaised(PROTO_EVENT.E_REPLY, rcvdata, null);
 	}
@@ -288,13 +170,13 @@ class Client
 		if (pstate == PROTO_STATE.S_DISCON) return pstate;
 		CharSequence discmsg = "Disconnect";
 
-		if (shared.transcript != null) {
+		if (shared.getTranscript() != null) {
 			// We will transcript this at the actual point of closing the connection.
 			// The POP3 client does this more cleanly, as it doesn't finalise the message until it transcripts it.
 			if (diagnostic != null) {
-				shared.disconnect_msg_buf.setLength(0);
-				shared.disconnect_msg_buf.append(discmsg).append(" - ").append(diagnostic);
-				discmsg = shared.disconnect_msg_buf;
+				shared.getDisconnectMsgBuf().setLength(0);
+				shared.getDisconnectMsgBuf().append(discmsg).append(" - ").append(diagnostic);
+				discmsg = shared.getDisconnectMsgBuf();
 			}
 		}
 		if (pstate == PROTO_STATE.S_RESET) statuscode = 0; // failed on transition to new message, so don't assign the blame to its recips
@@ -329,9 +211,9 @@ class Client
 		setFlag(S2_DNSWAIT);
 		ResolverAnswer answer;
 		if (as_host) {
-			answer = shared.resolver.resolveHostname(msgparams.getDestination(), this, null, 0);
+			answer = shared.getDnsResolver().resolveHostname(msgparams.getDestination(), this, null, 0);
 		} else {
-			answer = shared.resolver.resolveMailDomain(msgparams.getDestination(), this, null, 0);
+			answer = shared.getDnsResolver().resolveMailDomain(msgparams.getDestination(), this, null, 0);
 		}
 		if (answer != null) dnsResolved(getDispatcher(), answer, null);
 	}
@@ -385,10 +267,10 @@ class Client
 			break;
 		}
 
-		if (getLogger().isActive(LEVEL.TRC) || shared.transcript != null) {
-			shared.disconnect_msg_buf.setLength(0);
-			shared.disconnect_msg_buf.append("DNS=").append(answer.result);
-			diagnostic = shared.disconnect_msg_buf;
+		if (getLogger().isActive(LEVEL.TRC) || shared.getTranscript() != null) {
+			shared.getDisconnectMsgBuf().setLength(0);
+			shared.getDisconnectMsgBuf().append("DNS=").append(answer.result);
+			diagnostic = shared.getDisconnectMsgBuf();
 		}
 		connectionFailed(statuscode, diagnostic, null);
 	}
@@ -430,7 +312,7 @@ class Client
 	// which DNS lookups lead to the connect() method below.
 	private void connect(int remote_ip) throws UnknownHostException {
 		remote_tsap = remote_tsap_buf;
-		remote_tsap.set(remote_ip, Protocol.TCP_PORT, getLogger().isActive(LEVEL.TRC2) || (shared.transcript != null));
+		remote_tsap.set(remote_ip, Protocol.TCP_PORT, getLogger().isActive(LEVEL.TRC2) || (shared.getTranscript() != null));
 		connect();
 	}
 
@@ -447,7 +329,7 @@ class Client
 			return;
 		}
 		TSAP tsap = remote_tsap;
-		Relay interceptor = shared.controller.getRouting().getInterceptor();
+		Relay interceptor = shared.getController().getRouting().getInterceptor();
 
 		if (interceptor != null) {
 			//active_relay==interceptor will be true if we we are trying additional MX relays because first one failed
@@ -473,19 +355,19 @@ class Client
 			return;
 		}
 		LEVEL lvl = LEVEL.TRC2;
-		if (getLogger().isActive(lvl) || (shared.transcript != null)) {
-			TSAP local_tsap = TSAP.get(getLocalIP(), getLocalPort(), shared.tmptsap, true);
+		if (getLogger().isActive(lvl) || (shared.getTranscript() != null)) {
+			TSAP local_tsap = TSAP.get(getLocalIP(), getLocalPort(), shared.getTmpTSAP(), true);
 			if (getLogger().isActive(lvl)) {
-				StringBuilder sb = shared.tmpsb;
+				StringBuilder sb = shared.getTmpSB();
 				sb.setLength(0);
 				sb.append(pfx_log).append(" connected to ");
 				recordConnection(sb, local_tsap);
 				getLogger().log(lvl, sb);
 			}
-			if (shared.transcript != null) {
+			if (shared.getTranscript() != null) {
 				Relay rly = msgparams.getRelay();
 				CharSequence remote = (rly == null ? msgparams.getDestination() : rly.display());
-				shared.transcript.connection_out(pfx_log, local_tsap.dotted_ip, local_tsap.port,
+				shared.getTranscript().connection_out(pfx_log, local_tsap.dotted_ip, local_tsap.port,
 												remote_tsap.dotted_ip, remote_tsap.port, getSystemTime(),
 												remote, usingSSL());
 			}
@@ -500,13 +382,13 @@ class Client
 	// statuscode zero therefore also means that remote_tsap is non-null, as we have attempted a connection.
 	private void connectionFailed(int statuscode, CharSequence diagnostic, Throwable exconn) throws UnknownHostException {
 		CharSequence extspid = null;
-		StringBuilder sb = shared.tmpsb;
+		StringBuilder sb = shared.getTmpSB();
 
 		if (statuscode == 0) {
-			if (shared.transcript != null) {
+			if (shared.getTranscript() != null) {
 				Relay rly = msgparams.getRelay();
 				CharSequence remote = (rly == null ? msgparams.getDestination() : rly.display());
-				shared.transcript.connection_out(pfx_log, null, 0, remote_tsap.dotted_ip, remote_tsap.port,
+				shared.getTranscript().connection_out(pfx_log, null, 0, remote_tsap.dotted_ip, remote_tsap.port,
 						getSystemTime(), remote, usingSSL());
 			}
 			LEVEL lvl = (MailismusException.isError(exconn) ? LEVEL.WARN : LEVEL.TRC2);
@@ -542,13 +424,13 @@ class Client
 		disconnect_status = (short)statuscode;
 		setFlag(S2_DOMAIN_ERR);
 		LEVEL lvl = LEVEL.TRC;
-		StringBuilder sbfail = shared.tmpsb2;
+		StringBuilder sbfail = shared.getTmpSB2();
 		sbfail.setLength(0);
 		peerDescription(sbfail);
 
-		if (getLogger().isActive(lvl) || (shared.transcript != null)) {
+		if (getLogger().isActive(lvl) || (shared.getTranscript() != null)) {
 			if (extspid == null) extspid = formatSPID(msgparams.getSPID());
-			StringBuilder sbdisc = shared.disconnect_msg_buf;
+			StringBuilder sbdisc = shared.getDisconnectMsgBuf();
 			if (diagnostic == sbdisc) {
 				sb.setLength(0);
 				sb.append(sbdisc);
@@ -565,9 +447,9 @@ class Client
 				getLogger().log(lvl, sb);
 			}
 		}
-		shared.failbc2.populate("Cannot connect to ").append(sbfail);
-		if (exconn != null) shared.failbc2.append(" - ").append(exconn.toString());
-		raiseSafeEvent(PROTO_EVENT.E_DISCONNECTED, shared.failbc2, diagnostic);
+		shared.getFailMsgBuffer2().populate("Cannot connect to ").append(sbfail);
+		if (exconn != null) shared.getFailMsgBuffer2().append(" - ").append(exconn.toString());
+		raiseSafeEvent(PROTO_EVENT.E_DISCONNECTED, shared.getFailMsgBuffer2(), diagnostic);
 	}
 
 	// discmsg is a Transcript-friendly reason for the disconnect and failmsg is the provisional NDR diagnostic, which may
@@ -576,13 +458,13 @@ class Client
 	private void endConnection(CharSequence discmsg, ByteArrayRef failmsg) {
 		LEVEL lvl = LEVEL.TRC2;
 		if (getLogger().isActive(lvl)) {
-			shared.tmpsb.setLength(0);
-			shared.tmpsb.append(pfx_log).append(" ending with state=").append(pstate).append("/0x").append(Integer.toHexString(state2));
-			shared.tmpsb.append(", remote=").append(remote_tsap).append("/dns=").append(dnsInfo.size());
-			shared.tmpsb.append(", msgcnt=").append(msgparams.messageCount());
-			if (discmsg != null) shared.tmpsb.append(" - reason=").append(discmsg);
-			if (failmsg != null) shared.tmpsb.append(" - diagnostic=").append(shared.tmpbc.populateBytes(failmsg));
-			getLogger().log(lvl, shared.tmpsb);
+			shared.getTmpSB().setLength(0);
+			shared.getTmpSB().append(pfx_log).append(" ending with state=").append(pstate).append("/0x").append(Integer.toHexString(state2));
+			shared.getTmpSB().append(", remote=").append(remote_tsap).append("/dns=").append(dnsInfo.size());
+			shared.getTmpSB().append(", msgcnt=").append(msgparams.messageCount());
+			if (discmsg != null) shared.getTmpSB().append(" - reason=").append(discmsg);
+			if (failmsg != null) shared.getTmpSB().append(" - diagnostic=").append(shared.getTmpBC().populateBytes(failmsg));
+			getLogger().log(lvl, shared.getTmpSB());
 		}
 		if (tmr_sesstmt != null) {
 			tmr_sesstmt.cancel();
@@ -607,7 +489,7 @@ class Client
 		}
 
 		try {
-			if (failmsg == null && discmsg != null) failmsg = shared.failbc.populate(discmsg);
+			if (failmsg == null && discmsg != null) failmsg = shared.getFailMsgBuffer().populate(discmsg);
 			setRecipientStatus(-1, disconnect_status, failmsg, false);
 		} catch (Exception ex) {
 			getLogger().log(LEVEL.WARN, ex, false, pfx_log+" failed to set final recipients status");
@@ -617,7 +499,7 @@ class Client
 
 		if (isFlagSet(S2_DNSWAIT)) {
 			try {
-				shared.resolver.cancel(this);
+				shared.getDnsResolver().cancel(this);
 			} catch (Exception ex) {
 				getLogger().log(LEVEL.INFO, ex, false, pfx_log+" failed to cancel DNS ops");
 			}
@@ -626,7 +508,7 @@ class Client
 		dnsInfo.clear();
 
 		// don't call disconnect() till next Dispatcher callback, to prevent reentrancy issues
-		if (shared.transcript != null && discmsg != null) shared.transcript.event(pfx_log, discmsg, getSystemTime());
+		if (shared.getTranscript() != null && discmsg != null) shared.getTranscript().event(pfx_log, discmsg, getSystemTime());
 		long delay = (isFlagSet(S2_ABORT) ? 0 : conncfg.getDelayChannelClose().toMillis());
 		dataWait = 0;
 		transitionState(PROTO_STATE.S_DISCON);
@@ -673,7 +555,7 @@ class Client
 			break;
 
 		case E_SSL:
-			if (shared.transcript != null) shared.transcript.event(pfx_log, "Switched to SSL mode", getSystemTime());
+			if (shared.getTranscript() != null) shared.getTranscript().event(pfx_log, "Switched to SSL mode", getSystemTime());
 			initMessage();
 			pipe_cap = 1; //we will go through EHLO response again
 			issueAction(PROTO_ACTION.A_EHLO, PROTO_STATE.S_EHLO);
@@ -759,8 +641,8 @@ class Client
 					while (off != lmt) {
 						int off2 = off;
 						while (rspdata.buffer()[off2] > ' ') off2++;
-						shared.tmplightbc.set(rspdata.buffer(), off, off2-off);
-						auth_method = shared.authTypesSupported.get(shared.tmplightbc);
+						shared.getTmpLightBC().set(rspdata.buffer(), off, off2-off);
+						auth_method = shared.getAuthTypesSupported().get(shared.getTmpLightBC());
 						//server might advertise EXTERNAL anyway without meaning it unless in SSL mode, so keep scanning for better option
 						if (auth_method != null && auth_method != SaslEntity.MECH.EXTERNAL) break;
 						off = off2;
@@ -830,11 +712,11 @@ class Client
 			if (getLogger().isActive(lvl)) {
 				int len = rspdata.size();
 				while (rspdata.buffer()[rspdata.offset()+len-1] < ' ') len--; //strip trailing CRLF
-				StringBuilder sb = shared.tmpsb;
+				StringBuilder sb = shared.getTmpSB();
 				sb.setLength(0);
 				sb.append(pfx_log).append(" rejected in state=").append(pstate).append(" - ");
 				peerDescription(sb);
-				sb.append(" replied: ").append(shared.tmplightbc.set(rspdata.buffer(), rspdata.offset(), len));
+				sb.append(" replied: ").append(shared.getTmpLightBC().set(rspdata.buffer(), rspdata.offset(), len));
 				getLogger().log(lvl, sb);
 			}
 			return issueDisconnect(reply_status, "Server rejection", rspdata);
@@ -905,13 +787,13 @@ class Client
 				//in pipelined send-ahead mode - forego canned ByteBuffer, to piggyback reply on the buffered pipeline
 				sendPipelinedRequest(Protocol.CMDREQ_DATA, true, null, null, false);
 			} else {
-				transmit(shared.smtpRequestData);
+				transmit(shared.getSmtpRequestData());
 			}
 			setFlag(S2_SENT_DATACMD);
 			break;
 
 		case A_MAILBODY:
-			Path fh_msg = shared.controller.getQueue().getMessage(msgparams.getSPID(), msgparams.getRecipient(0).qid);
+			Path fh_msg = shared.getController().getQueue().getMessage(msgparams.getSPID(), msgparams.getRecipient(0).qid);
 			long msgbytes = Files.size(fh_msg);
 			alt_tmtprotocol = calculateMaxTime(msgbytes, conncfg.getMinRateData());
 			if (alt_tmtprotocol < conncfg.getIdleTimeout().toMillis()) alt_tmtprotocol = 0;
@@ -921,37 +803,37 @@ class Client
 				if (Files.exists(fh_msg, FileOps.LINKOPTS_NONE)) throw ex; //prob some temporary comms issue
 				return issueDisconnect(Protocol.REPLYCODE_PERMERR_MISC, "Spool file missing", FAILMSG_NOSPOOL);
 			}
-			transmit(shared.smtpRequestEOM);
+			transmit(shared.getSmtpRequestEOM());
 
-			if (shared.transcript != null) {
-				shared.tmpsb.setLength(0);
-				shared.tmpsb.append("Sent message-body octets=").append(msgbytes).append(" for msgid=");
-				shared.tmpsb.append(formatSPID(msgparams.getSPID()));
-				shared.transcript.event(pfx_log, shared.tmpsb, getSystemTime());
+			if (shared.getTranscript() != null) {
+				shared.getTmpSB().setLength(0);
+				shared.getTmpSB().append("Sent message-body octets=").append(msgbytes).append(" for msgid=");
+				shared.getTmpSB().append(formatSPID(msgparams.getSPID()));
+				shared.getTranscript().event(pfx_log, shared.getTmpSB(), getSystemTime());
 			}
 			break;
 
 		case A_ENDMESSAGE:
-			shared.controller.messageCompleted(this);
+			shared.getController().messageCompleted(this);
 			if (msgparams.recipCount() == 0) return issueAction(PROTO_ACTION.A_QUIT, PROTO_STATE.S_QUIT);
 			initMessage();
 			LEVEL lvl = LEVEL.TRC2;
 			if (getLogger().isActive(lvl)) {
-				shared.tmpsb.setLength(0);
-				shared.tmpsb.append(pfx_log).append(" follow-on msg #").append(msgparams.messageCount()).append(" - msgid=");
-				shared.tmpsb.append(formatSPID(msgparams.getSPID())).append(", recips=").append(msgparams.recipCount());
-				getLogger().log(lvl, shared.tmpsb);
+				shared.getTmpSB().setLength(0);
+				shared.getTmpSB().append(pfx_log).append(" follow-on msg #").append(msgparams.messageCount()).append(" - msgid=");
+				shared.getTmpSB().append(formatSPID(msgparams.getSPID())).append(", recips=").append(msgparams.recipCount());
+				getLogger().log(lvl, shared.getTmpSB());
 			}
 			issueAction(PROTO_ACTION.A_RESET, PROTO_STATE.S_RESET);
 			break;
 
 		case A_QUIT:
-			if (conncfg.isSendQuit()) transmit(shared.smtpRequestQuit);
+			if (conncfg.isSendQuit()) transmit(shared.getSmtpRequestQuit());
 			if (!conncfg.isAwaitQuit()) issueDisconnect(0, "A_QUIT");
 			break;
 
 		case A_RESET:
-			transmit(shared.smtpRequestReset);
+			transmit(shared.getSmtpRequestReset());
 			break;
 
 		case A_ENDSESSION:
@@ -963,7 +845,7 @@ class Client
 			break;
 
 		case A_STLS:
-			transmit(shared.smtpRequestSTLS);
+			transmit(shared.getSmtpRequestSTLS());
 			break;
 
 		case A_LOGIN:
@@ -991,8 +873,8 @@ class Client
 
 	@Override
 	protected void disconnectLingerDone(boolean ok, CharSequence info, Throwable ex) {
-		if (shared.transcript == null) return;
-		StringBuilder sb = shared.tmpsb;
+		if (shared.getTranscript() == null) return;
+		StringBuilder sb = shared.getTmpSB();
 		sb.setLength(0);
 		sb.append("Disconnect linger ");
 		if (ok) {
@@ -1002,11 +884,11 @@ class Client
 			if (info != null) sb.append(" - ").append(info);
 			if (ex != null) sb.append(" - ").append(ex);
 		}
-		shared.transcript.event(pfx_log, sb, getSystemTime());
+		shared.getTranscript().event(pfx_log, sb, getSystemTime());
 	}
 
 	private PROTO_STATE sendAuth(ByteArrayRef rspdata) throws IOException {
-		ByteChars rspbuf = shared.tmpbc.clear();
+		ByteChars rspbuf = shared.getTmpBC().clear();
 		boolean auth_done = false;
 		int step = auth_step++;
 
@@ -1017,12 +899,12 @@ class Client
 				rspbuf.append(Protocol.CMDREQ_SASL_PLAIN);
 				if (active_relay.auth_initrsp) {
 					rspbuf.append(' ');
-					shared.saslPlain.init();
-					shared.saslPlain.setResponse(null, active_relay.usrnam, active_relay.passwd, rspbuf);
+					shared.getSaslPlain().init();
+					shared.getSaslPlain().setResponse(null, active_relay.usrnam, active_relay.passwd, rspbuf);
 				}
 			} else if (!auth_done) {
-				shared.saslPlain.init();
-				shared.saslPlain.setResponse(null, active_relay.usrnam, active_relay.passwd, rspbuf);
+				shared.getSaslPlain().init();
+				shared.getSaslPlain().setResponse(null, active_relay.usrnam, active_relay.passwd, rspbuf);
 			}
 		} else if (auth_method == SaslEntity.MECH.EXTERNAL) {
 			// we send a zero-length response (whether initial or not), to assume the derived authorization ID
@@ -1034,8 +916,8 @@ class Client
 					rspbuf.append(' ').append(Protocol.AUTH_EMPTY);
 				}
 			} else if (!auth_done) {
-				shared.saslExternal.init();
-				shared.saslExternal.setResponse(null, rspbuf);
+				shared.getSaslExternal().init();
+				shared.getSaslExternal().setResponse(null, rspbuf);
 			}
 		} else if (auth_method == SaslEntity.MECH.CRAM_MD5) {
 			if (step == 0) {
@@ -1043,7 +925,7 @@ class Client
 			} else if (step == 1) {
 				rspdata.advance(Protocol.AUTH_CHALLENGE.length()); //advance past prefix
 				rspdata.incrementSize(-Protocol.EOL.length()); //strip CRLF
-				shared.saslCramMD5.setResponse(active_relay.usrnam, active_relay.passwd, rspdata, rspbuf);
+				shared.getSaslCramMD5().setResponse(active_relay.usrnam, active_relay.passwd, rspdata, rspbuf);
 			} else {
 				auth_done = true;
 			}
@@ -1081,7 +963,7 @@ class Client
 			return;
 		}
 		MessageRecip recip = msgparams.getRecipient(idx);
-		Relay interceptor = shared.controller.getRouting().getInterceptor();
+		Relay interceptor = shared.getController().getRouting().getInterceptor();
 		
 		if (!isFlagSet(S2_ABORT)) recip.qstatus = MessageRecip.STATUS_DONE;
 		if (interceptor != null) {
@@ -1101,7 +983,7 @@ class Client
 			// Note that we don't create the diagnostic-message file for NDRs themselves.
 			if (recip.smtp_status == Protocol.REPLYCODE_OK) {
 				if (recip.sender != null && recip.retrycnt != 0) {
-					Path fh = shared.controller.getQueue().getDiagnosticFile(recip.spid, recip.qid);
+					Path fh = shared.getController().getQueue().getDiagnosticFile(recip.spid, recip.qid);
 					Exception ex = FileOps.deleteFile(fh);
 					if (ex != null) getLogger().warn(pfx_log+" failed to delete NDR-diagnostic="+fh.getFileName()+" - "+ex);
 				}
@@ -1110,11 +992,11 @@ class Client
 				if (remote_rsp && getLogger().isActive(lvl)) {
 					int len = failmsg.size();
 					while (failmsg.buffer()[failmsg.offset()+len-1] < ' ') len--; //strip trailing CRLF
-					StringBuilder sb = shared.tmpsb;
+					StringBuilder sb = shared.getTmpSB();
 					sb.setLength(0);
 					sb.append(pfx_log).append(" rejected on recip ").append(idx+1).append('/').append(msgparams.recipCount());
 					sb.append('=').append(msgparams.getRecipient(idx).mailbox_to).append(EmailAddress.DLM_DOM).append(msgparams.getRecipient(idx).domain_to);
-					sb.append(" - ").append(shared.tmplightbc.set(failmsg.buffer(), failmsg.offset(), len));
+					sb.append(" - ").append(shared.getTmpLightBC().set(failmsg.buffer(), failmsg.offset(), len));
 					getLogger().log(lvl, sb);
 				}
 				int diaglen = (failmsg == null ? 0 : failmsg.size());
@@ -1123,12 +1005,12 @@ class Client
 				if (diaglen != 0) {
 					OutputStream fstrm = null;
 					try {
-						fstrm = shared.controller.getQueue().createDiagnosticFile(recip.spid, recip.qid);
+						fstrm = shared.getController().getQueue().createDiagnosticFile(recip.spid, recip.qid);
 						if (failmsg.byteAt(0) >= '1' && failmsg.byteAt(0) <= '5') {
 							//prefix message with the IP address we failed to send to
-							IP.ip2net(recip.ip_send, shared.ipbuf, 0);
+							IP.ip2net(recip.ip_send, shared.getTmpIP(), 0);
 							fstrm.write(1);
-							fstrm.write(shared.ipbuf);
+							fstrm.write(shared.getTmpIP());
 						}
 						fstrm.write(failmsg.buffer(), failmsg.offset(), diaglen);
 					} catch (Exception ex) {
@@ -1144,7 +1026,7 @@ class Client
 	// NB: We can use shared.pipebuf because the pipeline is always built up and sent within one callback
 	private boolean sendPipelinedRequest(ByteChars cmd, boolean flush, ByteChars addr,
 			ByteChars domain, boolean close_brace) throws IOException {
-		ByteChars rspbuf = shared.pipebuf;
+		ByteChars rspbuf = shared.getPipelineBuffer();
 		if (pipe_count == 0) rspbuf.clear();
 		rspbuf.append(cmd);
 
@@ -1165,13 +1047,13 @@ class Client
 	}
 
 	private void transmit(ByteChars data) throws IOException {
-		shared.tmpniobuf = shared.bufferGenerator.encode(data, shared.tmpniobuf);
-		transmit(shared.tmpniobuf);
+		ByteBuffer buf = shared.encodeData(data);
+		transmit(buf);
 	}
 
 	private void transmit(ByteBuffer xmtbuf) throws IOException {
-		if (shared.transcript != null && pstate != PROTO_STATE.S_MAILBODY) {
-			shared.transcript.data_out(pfx_log, xmtbuf, 0, getSystemTime());
+		if (shared.getTranscript() != null && pstate != PROTO_STATE.S_MAILBODY) {
+			shared.getTranscript().data_out(pfx_log, xmtbuf, 0, getSystemTime());
 		}
 		xmtbuf.position(0);
 		getWriter().transmit(xmtbuf);
@@ -1212,7 +1094,7 @@ class Client
 		initChannelMonitor();
 		initMessage();
 		dnsInfo.clear();
-		conncfg = shared.defaultConfig;
+		conncfg = shared.getDefaultConfig();
 		pipe_cap = 1;
 		remote_tsap = null;
 		active_relay = null;
@@ -1232,7 +1114,7 @@ class Client
 	}
 
 	private CharSequence formatSPID(int spid) {
-		return shared.controller.getQueue().externalSPID(spid);
+		return shared.getController().getQueue().externalSPID(spid);
 	}
 
 	@Override

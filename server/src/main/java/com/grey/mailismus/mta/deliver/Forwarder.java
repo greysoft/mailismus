@@ -23,7 +23,6 @@ import com.grey.base.utils.EmailAddress;
 import com.grey.base.utils.IP;
 import com.grey.logging.Logger;
 import com.grey.logging.Logger.LEVEL;
-import com.grey.naf.AssignableReapable;
 import com.grey.naf.EntityReaper;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.TimerNAF;
@@ -36,7 +35,6 @@ import com.grey.mailismus.Audit;
 import com.grey.mailismus.Transcript;
 import com.grey.mailismus.mta.MTA_Task;
 import com.grey.mailismus.mta.Protocol;
-import com.grey.mailismus.mta.deliver.Client.SharedFields;
 import com.grey.mailismus.mta.queue.Cache;
 import com.grey.mailismus.mta.queue.MessageRecip;
 import com.grey.mailismus.mta.queue.QueueManager;
@@ -98,7 +96,6 @@ public class Forwarder
 	private final long interval_high;
 	private final long interval_err;
 
-	private final AppConfig appConfig;
 	private final Dispatcher dsptch;
 	private final QueueManager qmgr;
 	private final MessageStore ms;
@@ -147,7 +144,6 @@ public class Forwarder
 	private final EmailAddress tmpemaddr = new EmailAddress();
 	private final StringBuilder tmpsb = new StringBuilder();
 
-	@Override public AppConfig getAppConfig() {return appConfig;}
 	@Override public Dispatcher getDispatcher() {return dsptch;}
 	@Override public QueueManager getQueue() {return qmgr;}
 	@Override public Routing getRouting() {return routing;}
@@ -167,16 +163,15 @@ public class Forwarder
 			EntityReaper rpr, GenericFactory<Delivery.MessageSender> senderFactory,
 			BatchCallback bcb, ResolverDNS dnsResolver) throws IOException, GeneralSecurityException
 	{
-		this.appConfig = appConfig;
 		dsptch = d;
 		ms = mstore;
 		qmgr = qm;
 		reaper = rpr;
 		batchCallback = bcb;
 		Logger log = dsptch.getLogger();
+		audit = Audit.create("MTA-Delivery", "audit", dsptch, cfg);
 		XmlConfig relaycfg = cfg.getSection("relays");
 		routing = new Routing(relaycfg, dsptch.getApplicationContext().getConfig(), log);
-		audit = Audit.create("MTA-Delivery", "audit", dsptch, cfg);
 
 		int cap_qcache = 2500;
 		int _max_simulconns = cap_qcache;
@@ -216,10 +211,10 @@ public class Forwarder
 		batchStats = new Delivery.Stats(dsptch);
 		openStats = new Delivery.Stats(dsptch);
 
-		XmlConfig smtpcfg = cfg.getSection("client");
 		sendersReaper = new SenderReaper(this);
 		if (senderFactory == null) {
-			sharedFields = ClientConfiguration.createSharedFields(smtpcfg, this, dnsResolver, _max_serverconns);
+			XmlConfig smtpcfg = cfg.getSection("client");
+			sharedFields = ClientConfiguration.createSharedFields(smtpcfg, this, dnsResolver, appConfig, max_serverconns);
 			senderFactory = new ClientFactory(sharedFields);
 		} else {
 			// sender-factory is only supplied in some test modes, never in production mode
@@ -500,8 +495,7 @@ public class Forwarder
 	private void startSender(Delivery.MessageSender sender)
 	{
 		try {
-			if (sender instanceof AssignableReapable)
-				((AssignableReapable)sender).setReaper(sendersReaper);
+			sender.setReaper(sendersReaper);
 			sender.start(this);
 		} catch (Throwable ex) {
 			dsptch.getLogger().log(LEVEL.TRC, ex, true, "SMTP-Delivery/batch="+batchcnt+": Failed to start Sender="+sender.getLogID()+"/"+sender);
@@ -613,7 +607,9 @@ public class Forwarder
 			tmpsb.append(" for recips=").append(processed_cnt).append('/').append(recipcnt).append('/').append(total_remotecnt);
 			tmpsb.append(" at remote=").append(getPeerText(msgparams));
 			if (domain_error != 0) tmpsb.append("/error=").append(domain_error);
-			tmpsb.append(" - active-conns=").append(activeSendersCount()).append(", pending-recips=").append(pending_recips);
+			tmpsb.append(" - active-conns=").append(activeSendersCount()).append('/').append(activeConnectionsCount())
+				.append('/').append(active_serverconns == null ? 0 : active_serverconns.size());
+			tmpsb.append(", pending-recips=").append(pending_recips);
 		}
 
 		for (int idx = 0; idx != recipcnt; idx++) {
@@ -743,8 +739,9 @@ public class Forwarder
 			tmpsb.append("<br/>SMTP Messages: ").append(openStats.sendermsgcnt);
 			tmpsb.append("<br/>SMTP Recipients: OK=").append(openStats.remotecnt-openStats.remotefailcnt).append("; Fail=").append(openStats.remotefailcnt);
 			tmpsb.append("<br/>Local Recipients: OK=").append(openStats.localcnt-openStats.localfailcnt).append("; Fail=").append(openStats.localfailcnt);
-			tmpsb.append("<br/>Current SMTP Connections: ").append(activeSendersCount());
-			if (active_serverconns != null) tmpsb.append(" (Peers=").append(active_serverconns.size()).append(')');
+			tmpsb.append("<br/>Current SMTP Connections: ").append(activeConnectionsCount());
+			if (active_serverconns != null) tmpsb.append(" (Peers=").append(activeSendersCount())
+				.append('/').append(active_serverconns == null ? 0 : active_serverconns.size()).append(')');
 			if (StringOps.stringAsBool(cmd.getArg(NafManCommand.ATTR_RESET))) openStats.reset();
 		} else if (cmd.getCommandDef().code.equals(Loader.CMD_SENDQ)) {
 			if (tmr_qpoll != null) tmr_qpoll.reset(0);

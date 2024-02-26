@@ -9,9 +9,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.grey.base.utils.ByteChars;
+import com.grey.naf.EntityReaper;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.TimerNAF;
-import com.grey.mailismus.AppConfig;
 import com.grey.mailismus.mta.queue.MessageRecip;
 import com.grey.mailismus.mta.queue.QueueManager;
 
@@ -21,7 +21,6 @@ public interface Delivery
 	{
 		void messageCompleted(MessageSender sender);
 		void senderCompleted(MessageSender sender);
-		AppConfig getAppConfig();
 		Dispatcher getDispatcher();
 		QueueManager getQueue();
 		Routing getRouting();
@@ -35,6 +34,7 @@ public interface Delivery
 		MessageParams getMessageParams();
 		short getDomainError();
 		String getLogID();
+		void setReaper(EntityReaper rpr);
 	}
 
 

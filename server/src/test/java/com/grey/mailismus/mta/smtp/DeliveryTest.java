@@ -20,6 +20,7 @@ import com.grey.base.utils.EmailAddress;
 import com.grey.base.utils.DynLoader;
 import com.grey.base.collections.Circulist;
 import com.grey.base.collections.HashedMapIntKey;
+import com.grey.base.collections.HashedMapIntValue;
 import com.grey.base.collections.ObjectQueue;
 import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.NAFConfig;
@@ -427,6 +428,7 @@ public class DeliveryTest
 		}
 
 		// launch SMTP server and client in same Dispatcher thread
+		@SuppressWarnings("unchecked") HashedMapIntValue<Object> activesrvconns = (HashedMapIntValue<Object>)DynLoader.getField(smtp_sender, "active_serverconns");
 		stopping = false;
 		actual_fwdstats.reset();
 		actual_fwdbatchcnt = 0;
@@ -439,6 +441,7 @@ public class DeliveryTest
 		org.junit.Assert.assertTrue(dsptch.completedOK());
 		org.junit.Assert.assertEquals(0, smtp_sender.activeSendersCount());
 		org.junit.Assert.assertEquals(0, smtp_sender.activeConnectionsCount());
+		if (activesrvconns != null) org.junit.Assert.assertEquals(0, activesrvconns.size());
 
 		// This is really a check on Dispatcher correctness, rather than the MTA
 		@SuppressWarnings("unchecked")

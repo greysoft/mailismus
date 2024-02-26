@@ -12,6 +12,7 @@ import com.grey.base.utils.IP;
 import com.grey.base.utils.DynLoader;
 import com.grey.base.collections.HashedSetInt;
 import com.grey.naf.ApplicationContextNAF;
+import com.grey.naf.EntityReaper;
 import com.grey.naf.NAFConfig;
 import com.grey.naf.dns.resolver.ResolverConfig;
 import com.grey.naf.dns.resolver.ResolverDNS;
@@ -448,6 +449,7 @@ public class ForwarderTest
 		@Override public String getLogID() {return "MySender-"+id;}
 		@Override public Delivery.MessageParams getMessageParams() {return msgparams;}
 		@Override public short getDomainError() {return 0;}
+		@Override public void setReaper(EntityReaper rpr) {}
 		@Override public String toString() {return "MySender="+getLogID();}
 
 		public MySender(int id, SenderFactory fact) {this.id=id; mgr=fact;}

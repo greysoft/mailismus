@@ -5,6 +5,10 @@
 package com.grey.mailismus.mta.deliver;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import com.grey.base.utils.IP;
 import com.grey.mailismus.errors.MailismusConfigException;
@@ -30,9 +34,9 @@ public class ConnectionConfig
 	private final long minRateData; //minimum allowed rate for DATA phase of connection (bits per second)
 
 	private final SSLConfig anonSSL; //controls SSL behaviour with respect to servers other than the configured relays
-	private final IP.Subnet[] ipNets; //the remote subnets to which this ConnectionConfig applies, null for the default config
+	private final List<IP.Subnet> ipNets; //the remote subnets to which this ConnectionConfig applies, null for the default config
 
-	public ConnectionConfig(Builder bldr) {
+	private ConnectionConfig(Builder bldr) {
 		this.announcehost = bldr.announcehost;
 		this.sayHelo = bldr.sayHelo;
 		this.fallbackHelo = bldr.fallbackHelo;
@@ -45,7 +49,7 @@ public class ConnectionConfig
 		this.delayChannelClose = bldr.delayChannelClose;
 		this.minRateData = bldr.minRateData;
 		this.anonSSL = bldr.anonSSL;
-		this.ipNets = bldr.ipNets;
+		this.ipNets = Collections.unmodifiableList(bldr.ipNets);
 
 		if (idleTimeout.toMillis() == 0 || minRateData == 0) {
 			throw new MailismusConfigException("Idle timeout and minimum data rate cannot be zero");
@@ -100,23 +104,20 @@ public class ConnectionConfig
 		return anonSSL;
 	}
 
-	public IP.Subnet[] getIpNets() {
+	public List<IP.Subnet> getIpNets() {
 		return ipNets;
 	}
 
 	@Override
 	public String toString() {
-		StringBuilder sb = null;
-		if (ipNets != null) {
-			sb = new StringBuilder();
-			sb.append(ipNets.length);
-			String dlm = "/[";
-			for (IP.Subnet net : ipNets) {
-				sb.append(dlm).append(net);
-				dlm = ", ";
-			}
-			sb.append(']');
+		StringBuilder sb = new StringBuilder();
+		sb.append(ipNets.size());
+		String dlm = "/[";
+		for (IP.Subnet net : ipNets) {
+			sb.append(dlm).append(net);
+			dlm = ", ";
 		}
+		sb.append(']');
 		return getClass().getSimpleName()+"/"+System.identityHashCode(this)+'{'
 				+"announce-host="+announcehost
 				+", say-HELO="+sayHelo
@@ -152,73 +153,83 @@ public class ConnectionConfig
 		private Duration delayChannelClose = Duration.ZERO;
 		private long minRateData = 1024;
 		private SSLConfig anonSSL;
-		private IP.Subnet[] ipNets;
+		private final List<IP.Subnet> ipNets = new ArrayList<>();
 
 		private Builder() {
 		}
 
-		public Builder setAnnouncehost(String announcehost) {
+		public Builder withAnnouncehost(String announcehost) {
 			this.announcehost = announcehost;
 			return this;
 		}
 
-		public Builder setSayHelo(boolean sayHelo) {
+		public Builder withSayHelo(boolean sayHelo) {
 			this.sayHelo = sayHelo;
 			return this;
 		}
 
-		public Builder setFallbackHelo(boolean fallbackHelo) {
+		public Builder withFallbackHelo(boolean fallbackHelo) {
 			this.fallbackHelo = fallbackHelo;
 			return this;
 		}
 
-		public Builder setSendQuit(boolean sendQuit) {
+		public Builder withSendQuit(boolean sendQuit) {
 			this.sendQuit = sendQuit;
 			return this;
 		}
 
-		public Builder setAwaitQuit(boolean awaitQuit) {
+		public Builder withAwaitQuit(boolean awaitQuit) {
 			this.awaitQuit = awaitQuit;
 			return this;
 		}
 
-		public Builder setFallbackMX2A(boolean val) {
+		public Builder withFallbackMX2A(boolean val) {
 			this.fallbackMX2A = val;
 			return this;
 		}
 
-		public Builder setMaxServerConnections(int val) {
+		public Builder withMaxServerConnections(int val) {
 			this.maxServerConnections = val;
 			return this;
 		}
 
-		public Builder setMaxPipeline(int max) {
+		public Builder withMaxPipeline(int max) {
 			this.maxPipeline = max;
 			return this;
 		}
 
-		public Builder setIdleTimeout(Duration tmt) {
+		public Builder withIdleTimeout(Duration tmt) {
 			this.idleTimeout = tmt;
 			return this;
 		}
 
-		public Builder setDelayChannelClose(Duration delay) {
+		public Builder withDelayChannelClose(Duration delay) {
 			this.delayChannelClose = delay;
 			return this;
 		}
 
-		public Builder setMinRateData(long rate) {
+		public Builder withMinRateData(long rate) {
 			this.minRateData = rate;
 			return this;
 		}
 
-		public Builder setAnonSSL(SSLConfig anonSSL) {
+		public Builder withAnonSSL(SSLConfig anonSSL) {
 			this.anonSSL = anonSSL;
 			return this;
 		}
 
-		public Builder setIpNets(IP.Subnet[] ipNets) {
-			this.ipNets = ipNets;
+		public Builder withIpNet(IP.Subnet ipNet) {
+			this.ipNets.add(ipNet);
+			return this;
+		}
+
+		public Builder withIpNets(List<IP.Subnet> ipNets) {
+			if (ipNets != null) this.ipNets.addAll(ipNets);
+			return this;
+		}
+
+		public Builder withIpNets(IP.Subnet[] ipNets) {
+			if (ipNets != null) this.ipNets.addAll(Arrays.asList(ipNets));
 			return this;
 		}
 

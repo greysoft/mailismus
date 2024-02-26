@@ -17,16 +17,16 @@ import com.grey.mailismus.AppConfig;
 import com.grey.mailismus.Transcript;
 import com.grey.mailismus.errors.MailismusConfigException;
 
-public class ClientConfiguration {
+class ClientConfiguration {
 	private static final String LOG_PREFIX = "SMTP-Client-Config";
 
-	public static Client.SharedFields createSharedFields(XmlConfig xmlcfg,
+	public static SharedFields createSharedFields(XmlConfig xmlcfg,
 			Delivery.Controller ctl,
 			ResolverDNS dns,
+			AppConfig appConfig,
 			int max_serverconns) throws IOException, GeneralSecurityException
 	{
 		Dispatcher dsptch = ctl.getDispatcher();
-		AppConfig appConfig = ctl.getAppConfig();
 
 		boolean fallback_mx_a = xmlcfg.getBool("fallbackMX_A", false);
 		BufferGenerator bufferGenerator = createBufferGenerator(xmlcfg);
@@ -34,18 +34,26 @@ public class ClientConfiguration {
 
 		// read the per-connection config
 		ConnectionConfig defaultConfig = createConnectionConfig(xmlcfg, 0, null, dsptch, appConfig, max_serverconns, fallback_mx_a);
+		List<ConnectionConfig> remotesConfig = null;
 		XmlConfig[] cfgnodes = xmlcfg.getSections("remotenets/remotenet");
-		ConnectionConfig[] remotesConfig;
-		if (cfgnodes == null) {
-			remotesConfig = null;
-		} else {
-			remotesConfig = new ConnectionConfig[cfgnodes.length];
+		if (cfgnodes != null) {
+			remotesConfig = new ArrayList<>();
 			for (int idx = 0; idx != cfgnodes.length; idx++) {
-				remotesConfig[idx] = createConnectionConfig(cfgnodes[idx], idx+1, defaultConfig, dsptch, appConfig, max_serverconns, fallback_mx_a);
+				ConnectionConfig conncfg = createConnectionConfig(cfgnodes[idx], idx+1, defaultConfig, dsptch, appConfig, max_serverconns, fallback_mx_a);
+				remotesConfig.add(conncfg);
 			}
 		}
+
+		SharedFields shared = SharedFields.builder()
+				.withController(ctl)
+				.withDnsResolver(dns)
+				.withBufferGenerator(bufferGenerator)
+				.withTranscript(transcript)
+				.withDefaultConfig(defaultConfig)
+				.withRemoteConfigs(remotesConfig)
+				.build();
 		ctl.getDispatcher().getLogger().info(LOG_PREFIX+": "+bufferGenerator);
-		return new Client.SharedFields(ctl, dns, bufferGenerator, transcript, defaultConfig, remotesConfig);
+		return shared;
 	}
 
 	private static ConnectionConfig createConnectionConfig(XmlConfig xmlcfg,
@@ -84,19 +92,19 @@ public class ClientConfiguration {
 		}
 
 		ConnectionConfig.Builder bldr = ConnectionConfig.builder()
-				.setAnnouncehost(announceHost)
-				.setSayHelo(sayHELO)
-				.setFallbackHelo(fallbackHELO)
-				.setSendQuit(sendQUIT)
-				.setAwaitQuit(awaitQUIT)
-				.setFallbackMX2A(fallback_mx_a)
-				.setMaxServerConnections(max_serverconns)
-				.setMaxPipeline(max_pipe)
-				.setDelayChannelClose(Duration.ofMillis(delayChannelClose))
-				.setAnonSSL(anonssl)
-				.setIpNets(ipnets);
-		if (idleTimeout != 0) bldr = bldr.setIdleTimeout(Duration.ofMillis(idleTimeout));
-		if (minRateData != 0) bldr = bldr.setMinRateData(minRateData);
+				.withAnnouncehost(announceHost)
+				.withSayHelo(sayHELO)
+				.withFallbackHelo(fallbackHELO)
+				.withSendQuit(sendQUIT)
+				.withAwaitQuit(awaitQUIT)
+				.withFallbackMX2A(fallback_mx_a)
+				.withMaxServerConnections(max_serverconns)
+				.withMaxPipeline(max_pipe)
+				.withDelayChannelClose(Duration.ofMillis(delayChannelClose))
+				.withAnonSSL(anonssl)
+				.withIpNets(ipnets);
+		if (idleTimeout != 0) bldr = bldr.withIdleTimeout(Duration.ofMillis(idleTimeout));
+		if (minRateData != 0) bldr = bldr.withMinRateData(minRateData);
 		ConnectionConfig conncfg = bldr.build();
 
 		dsptch.getLogger().info(LOG_PREFIX+": Node-"+id+"="+conncfg.toString());
