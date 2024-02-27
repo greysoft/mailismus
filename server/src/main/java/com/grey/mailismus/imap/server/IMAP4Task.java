@@ -1,10 +1,11 @@
 /*
- * Copyright 2013-2021 Yusef Badri - All rights reserved.
+ * Copyright 2013-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.imap.server;
 
 import com.grey.base.config.XmlConfig;
+import com.grey.naf.EventListenerNAF;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.ListenerSet;
 import com.grey.naf.reactor.config.ConcurrentListenerConfig;
@@ -12,7 +13,7 @@ import com.grey.mailismus.imap.IMAP4Protocol;
 
 public class IMAP4Task
 	extends com.grey.mailismus.Task
-	implements com.grey.naf.EntityReaper
+	implements EventListenerNAF
 {
 	private final ListenerSet listeners;
 
@@ -40,9 +41,12 @@ public class IMAP4Task
 	}
 
 	@Override
-	public void entityStopped(Object obj)
+	public void eventIndication(Object obj, String eventId)
 	{
-		ListenerSet.class.cast(obj); //make sure it's the expected type
+		if (!(obj instanceof ListenerSet) || !EventListenerNAF.EVENTID_ENTITY_STOPPED.equals(eventId)) {
+			getDispatcher().getLogger().info("IMAP4Task="+getName()+" discarding unexpected event="+obj.getClass().getName()+"/"+eventId);
+			return;
+		}
 		nafletStopped();
 	}
 }

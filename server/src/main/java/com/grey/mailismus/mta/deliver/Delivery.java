@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.grey.base.utils.ByteChars;
-import com.grey.naf.EntityReaper;
+import com.grey.naf.EventListenerNAF;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.TimerNAF;
 import com.grey.mailismus.mta.queue.MessageRecip;
@@ -34,7 +34,7 @@ public interface Delivery
 		MessageParams getMessageParams();
 		short getDomainError();
 		String getLogID();
-		void setReaper(EntityReaper rpr);
+		void setEventListener(EventListenerNAF l);
 	}
 
 

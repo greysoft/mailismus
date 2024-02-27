@@ -1,9 +1,10 @@
 /*
- * Copyright 2012-2021 Yusef Badri - All rights reserved.
+ * Copyright 2012-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.pop3.server;
 
+import com.grey.naf.EventListenerNAF;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.ListenerSet;
 import com.grey.naf.reactor.config.ConcurrentListenerConfig;
@@ -12,7 +13,7 @@ import com.grey.mailismus.pop3.POP3Protocol;
 
 public final class POP3Task
 	extends com.grey.mailismus.Task
-	implements com.grey.naf.EntityReaper
+	implements EventListenerNAF
 {
 	private final ListenerSet listeners;
 
@@ -40,8 +41,11 @@ public final class POP3Task
 	}
 
 	@Override
-	public void entityStopped(Object obj) {
-		ListenerSet.class.cast(obj); //make sure it's the expected type
+	public void eventIndication(Object obj, String eventId) {
+		if (!(obj instanceof ListenerSet) || !EventListenerNAF.EVENTID_ENTITY_STOPPED.equals(eventId)) {
+			getDispatcher().getLogger().info("POP3Task="+getName()+" discarding unexpected event="+obj.getClass().getName()+"/"+eventId);
+			return;
+		}
 		nafletStopped();
 	}
 }

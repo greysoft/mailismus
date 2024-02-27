@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2021 Yusef Badri - All rights reserved.
+ * Copyright 2013-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.pop3;
@@ -12,7 +12,7 @@ import com.grey.base.config.XmlConfig;
 import com.grey.base.utils.DynLoader;
 import com.grey.base.utils.FileOps;
 import com.grey.naf.ApplicationContextNAF;
-import com.grey.naf.EntityReaper;
+import com.grey.naf.EventListenerNAF;
 import com.grey.naf.NAFConfig;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.ListenerSet;
@@ -268,7 +268,7 @@ public class POP3Test
 		return cnt;
 	}
 	
-	private static class ClientReaper implements EntityReaper {
+	private static class ClientReaper implements EventListenerNAF {
 		public final List<DownloadClient.Results> results = new ArrayList<DownloadClient.Results>();
 		private final com.grey.naf.reactor.TimerNAF.Handler observer;
 		private final Dispatcher dsptch;
@@ -279,7 +279,7 @@ public class POP3Test
 		}
 
 		@Override
-		public void entityStopped(Object obj) {
+		public void eventIndication(Object obj, String eventId) {
 			if (obj instanceof DownloadTask) {
 				dsptch.setTimer(100, TMRTYPE_STOP, observer); //give server time to receive disconnect event
 				return;
@@ -293,16 +293,16 @@ public class POP3Test
 	}
 
 	private static class TestDownloadTask extends DownloadTask {
-		private final EntityReaper rpr;
-		public TestDownloadTask(String name, Dispatcher d, XmlConfig cfg, int srvport, EntityReaper rpr, List<String> clients)
+		private final EventListenerNAF evtl;
+		public TestDownloadTask(String name, Dispatcher d, XmlConfig cfg, int srvport, EventListenerNAF evtl, List<String> clients)
 				throws java.io.IOException, java.security.GeneralSecurityException {
-			super(name, d, cfg, srvport, rpr, clients);
-			this.rpr = rpr;
+			super(name, d, cfg, srvport, evtl, clients);
+			this.evtl = evtl;
 		}
 		@Override
 		protected void nafletStopped() {
 			super.nafletStopped();
-			rpr.entityStopped(this);
+			evtl.eventIndication(this, EventListenerNAF.EVENTID_ENTITY_STOPPED);
 		}
 	}
 }

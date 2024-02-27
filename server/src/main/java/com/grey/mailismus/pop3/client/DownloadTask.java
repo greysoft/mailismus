@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 Yusef Badri - All rights reserved.
+ * Copyright 2012-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.pop3.client;
@@ -8,18 +8,18 @@ import com.grey.base.utils.TimeOps;
 import com.grey.logging.Logger;
 import com.grey.base.config.XmlConfig;
 import com.grey.mailismus.errors.MailismusConfigException;
+import com.grey.naf.EventListenerNAF;
 
 public class DownloadTask
 	extends com.grey.mailismus.Task
-	implements com.grey.naf.reactor.TimerNAF.Handler,
-		com.grey.naf.EntityReaper
+	implements com.grey.naf.reactor.TimerNAF.Handler, EventListenerNAF
 {
 	private final com.grey.base.collections.HashedSet<DownloadClient> activeClients
 									= new com.grey.base.collections.HashedSet<DownloadClient>();
 	private final com.grey.base.collections.HashedSet<com.grey.naf.reactor.TimerNAF> activeTimers
 									= new com.grey.base.collections.HashedSet<com.grey.naf.reactor.TimerNAF>();
 	private final DownloadClient.Common clientDefs;
-	private final com.grey.naf.EntityReaper observer;
+	private final EventListenerNAF observer;
 	private final Logger logger;
 	private boolean inShutdown;
 
@@ -30,12 +30,12 @@ public class DownloadTask
 	}
 
 	public DownloadTask(String name, com.grey.naf.reactor.Dispatcher d, XmlConfig cfg,
-			int srvport, com.grey.naf.EntityReaper r, java.util.List<String> clients)
+			int srvport, EventListenerNAF evtl, java.util.List<String> clients)
 			throws java.io.IOException, java.security.GeneralSecurityException
 	{
 		super(name, d, cfg, DFLT_FACT_DTORY, DFLT_FACT_MS, null);
 		logger = d.getLogger();
-		observer = r;
+		observer = evtl;
 		com.grey.base.config.XmlConfig taskcfg = taskConfig();
 		XmlConfig[] clientcfg = taskcfg.getSections("clients/client"+XmlConfig.XPATH_ENABLED);
 		if (clientcfg == null) {
@@ -86,11 +86,11 @@ public class DownloadTask
 	}
 
 	@Override
-	public void entityStopped(Object obj)
+	public void eventIndication(Object obj, String eventId)
 	{
 		DownloadClient client = DownloadClient.class.cast(obj);
 		boolean active = activeClients.remove(client);
-		if (observer != null) observer.entityStopped(client);
+		if (observer != null) observer.eventIndication(client, eventId);
 		if (inShutdown) {
 			if (activeClients.size() == 0) stopped();
 			return;

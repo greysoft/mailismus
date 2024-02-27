@@ -1,17 +1,18 @@
 /*
- * Copyright 2010-2021 Yusef Badri - All rights reserved.
+ * Copyright 2010-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.mta.submit;
 
 import com.grey.base.config.XmlConfig;
+import com.grey.naf.EventListenerNAF;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.ListenerSet;
 import com.grey.naf.reactor.config.ConcurrentListenerConfig;
 
 public final class SubmitTask
 	extends com.grey.mailismus.mta.MTA_Task
-	implements com.grey.naf.EntityReaper
+	implements EventListenerNAF
 {
 	private final ListenerSet listeners;
 
@@ -39,8 +40,11 @@ public final class SubmitTask
 	}
 
 	@Override
-	public void entityStopped(Object obj) {
-		ListenerSet.class.cast(obj); //make sure it's the expected type
+	public void eventIndication(Object obj, String eventId) {
+		if (!(obj instanceof ListenerSet) || !EventListenerNAF.EVENTID_ENTITY_STOPPED.equals(eventId)) {
+			getDispatcher().getLogger().info("SubmitTask="+getName()+" discarding unexpected event="+obj.getClass().getName()+"/"+eventId);
+			return;
+		}
 		nafletStopped();
 	}
 }

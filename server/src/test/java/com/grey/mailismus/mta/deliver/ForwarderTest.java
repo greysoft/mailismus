@@ -12,7 +12,7 @@ import com.grey.base.utils.IP;
 import com.grey.base.utils.DynLoader;
 import com.grey.base.collections.HashedSetInt;
 import com.grey.naf.ApplicationContextNAF;
-import com.grey.naf.EntityReaper;
+import com.grey.naf.EventListenerNAF;
 import com.grey.naf.NAFConfig;
 import com.grey.naf.dns.resolver.ResolverConfig;
 import com.grey.naf.dns.resolver.ResolverDNS;
@@ -28,7 +28,7 @@ import com.grey.mailismus.mta.smtp.MockServerDNS;
 // SMTP client and server entities, but it is a blunter interest, and this class allows a more precise exploration of
 // the Forwarder's inputs and outputs.
 public class ForwarderTest
-	implements com.grey.naf.EntityReaper, Forwarder.BatchCallback
+	implements EventListenerNAF, Forwarder.BatchCallback
 {
 	private static final com.grey.logging.Logger logger = com.grey.logging.Factory.getLoggerNoEx("no-such-logger");
 
@@ -119,7 +119,7 @@ public class ForwarderTest
 				.build();
 		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, nafcfg, true);
 		dsptch = Dispatcher.create(appctx, def, logger);
-		dsptch.registerReaper(this);
+		dsptch.registerEventListener(this);
 		dnsResolver = ResolverDNS.create(dsptch, rcfg);
 	}
 
@@ -348,7 +348,7 @@ public class ForwarderTest
 	}
 
 	@Override
-	public void entityStopped(Object obj)
+	public void eventIndication(Object obj, String eventId)
 	{
 		if (obj == dsptch) {
 			halted = fwd.stop();
@@ -449,7 +449,7 @@ public class ForwarderTest
 		@Override public String getLogID() {return "MySender-"+id;}
 		@Override public Delivery.MessageParams getMessageParams() {return msgparams;}
 		@Override public short getDomainError() {return 0;}
-		@Override public void setReaper(EntityReaper rpr) {}
+		@Override public void setEventListener(EventListenerNAF l) {}
 		@Override public String toString() {return "MySender="+getLogID();}
 
 		public MySender(int id, SenderFactory fact) {this.id=id; mgr=fact;}

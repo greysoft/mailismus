@@ -8,14 +8,14 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 
 import com.grey.base.config.XmlConfig;
-import com.grey.naf.EntityReaper;
+import com.grey.naf.EventListenerNAF;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.mailismus.mta.MTA_Task;
 import com.grey.mailismus.nafman.Loader;
 
 public final class DeliverTask
 	extends MTA_Task
-	implements EntityReaper
+	implements EventListenerNAF
 {
 	private final Forwarder sender;
 
@@ -37,7 +37,7 @@ public final class DeliverTask
 
 	// the only entity we launch is the SMTP Sender, so this must be it ... and that means we're now finished as well
 	@Override
-	public void entityStopped(Object obj) {
+	public void eventIndication(Object reportingEntity, String eventId) {
 		nafletStopped();
 	}
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 Yusef Badri - All rights reserved.
+ * Copyright 2012-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.pop3.client;
@@ -14,6 +14,7 @@ import com.grey.base.utils.IP;
 import com.grey.base.config.XmlConfig;
 import com.grey.mailismus.Task;
 import com.grey.mailismus.pop3.POP3Protocol;
+import com.grey.naf.EventListenerNAF;
 import com.grey.naf.reactor.config.SSLConfig;
 import com.grey.mailismus.mta.queue.QueueFactory;
 import com.grey.mailismus.errors.MailismusConfigException;
@@ -300,7 +301,7 @@ public class DownloadClient
 				+"; omit-rcvhdr="+isConfig(CFG_OMITRCVHDR));
 	}
 
-	public void start(com.grey.naf.EntityReaper rpr) throws java.io.IOException
+	public void start(EventListenerNAF evtl) throws java.io.IOException
 	{
 		cnxid++;
 		int pos = pfx_log.lastIndexOf('-');
@@ -313,7 +314,7 @@ public class DownloadClient
 		dataWait = 0;
 		greetmsg.clear();
 		initChannelMonitor();
-		setReaper(rpr);
+		setEventListener(evtl);
 		if (results != null) results.init();
 		runcnt++;
 		issueAction(PROTO_EVENT.E_CONNECT, PROTO_STATE.S_CONN, null, null);

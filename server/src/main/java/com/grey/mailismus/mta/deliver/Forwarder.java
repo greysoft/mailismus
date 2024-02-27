@@ -23,9 +23,10 @@ import com.grey.base.utils.EmailAddress;
 import com.grey.base.utils.IP;
 import com.grey.logging.Logger;
 import com.grey.logging.Logger.LEVEL;
-import com.grey.naf.EntityReaper;
+import com.grey.naf.reactor.ChannelMonitor;
 import com.grey.naf.reactor.Dispatcher;
 import com.grey.naf.reactor.TimerNAF;
+import com.grey.naf.EventListenerNAF;
 import com.grey.naf.dns.resolver.ResolverDNS;
 import com.grey.naf.nafman.NafManCommand;
 import com.grey.naf.nafman.NafManRegistry;
@@ -50,14 +51,16 @@ public class Forwarder
 		void batchCompleted(int qsize, Delivery.Stats stats);
 	}
 
-	private static class SenderReaper implements EntityReaper {
+	private static class SenderReaper implements EventListenerNAF {
 		private final Delivery.Controller ctl;
 		public SenderReaper(Delivery.Controller ctl) {
 			this.ctl = ctl;
 		}
 		@Override
-		public void entityStopped(Object obj) {
-			ctl.senderCompleted((Delivery.MessageSender)obj);
+		public void eventIndication(Object obj, String eventId) {
+			if (obj instanceof Client && ChannelMonitor.EVENTID_CM_DISCONNECTED.equals(eventId)) {
+				ctl.senderCompleted((Delivery.MessageSender)obj);
+			}
 		}
 	}
 
@@ -68,7 +71,7 @@ public class Forwarder
 		}
 		@Override
 		public Client factory_create() {
-			// NB: can't set reaper here, as it gets cleared on ChannelMonitor.disconnect()
+			// NB: can't set eventListener here, as it gets cleared on ChannelMonitor.disconnect()
 			return new Client(shared);
 		}
 	}
@@ -102,8 +105,8 @@ public class Forwarder
 	private final Routing routing;
 	private final SharedFields sharedFields;
 	private final Audit audit;
-	private final EntityReaper reaper;
-	private final EntityReaper sendersReaper;
+	private final EventListenerNAF eventListener;
+	private final EventListenerNAF sendersEventListener;
 	private final BatchCallback batchCallback;
 	private final Cache qcache;
 	private final ObjectWell<Delivery.MessageSender> sparesenders;
@@ -154,19 +157,19 @@ public class Forwarder
 	public int activeSendersCount() {return activesenders.size();}
 	public int activeConnectionsCount() {return sharedFields.getActiveServerConnections();}
 
-	public Forwarder(Dispatcher d, MTA_Task task, XmlConfig cfg, EntityReaper rpr, BatchCallback bcb) throws IOException, GeneralSecurityException {
-		this(d, cfg, task.getAppConfig(), task.getQueue(), task.getMS(), rpr, null, bcb, task.getResolverDNS());
+	public Forwarder(Dispatcher d, MTA_Task task, XmlConfig cfg, EventListenerNAF evtl, BatchCallback bcb) throws IOException, GeneralSecurityException {
+		this(d, cfg, task.getAppConfig(), task.getQueue(), task.getMS(), evtl, null, bcb, task.getResolverDNS());
 	}
 
 	public Forwarder(Dispatcher d, XmlConfig cfg, AppConfig appConfig,
 			QueueManager qm, MessageStore mstore,
-			EntityReaper rpr, GenericFactory<Delivery.MessageSender> senderFactory,
+			EventListenerNAF evtl, GenericFactory<Delivery.MessageSender> senderFactory,
 			BatchCallback bcb, ResolverDNS dnsResolver) throws IOException, GeneralSecurityException
 	{
 		dsptch = d;
 		ms = mstore;
 		qmgr = qm;
-		reaper = rpr;
+		eventListener = evtl;
 		batchCallback = bcb;
 		Logger log = dsptch.getLogger();
 		audit = Audit.create("MTA-Delivery", "audit", dsptch, cfg);
@@ -211,7 +214,7 @@ public class Forwarder
 		batchStats = new Delivery.Stats(dsptch);
 		openStats = new Delivery.Stats(dsptch);
 
-		sendersReaper = new SenderReaper(this);
+		sendersEventListener = new SenderReaper(this);
 		if (senderFactory == null) {
 			XmlConfig smtpcfg = cfg.getSection("client");
 			sharedFields = ClientConfiguration.createSharedFields(smtpcfg, this, dnsResolver, appConfig, max_serverconns);
@@ -291,7 +294,7 @@ public class Forwarder
 		if (active_serverconns != null) active_serverconns.clear();
 		qcache.clear();
 		has_stopped = true;
-		if (notify && reaper != null) reaper.entityStopped(this);
+		if (notify && eventListener != null) eventListener.eventIndication(this, EventListenerNAF.EVENTID_ENTITY_STOPPED);
 	}
 
 	@Override
@@ -495,7 +498,7 @@ public class Forwarder
 	private void startSender(Delivery.MessageSender sender)
 	{
 		try {
-			sender.setReaper(sendersReaper);
+			sender.setEventListener(sendersEventListener);
 			sender.start(this);
 		} catch (Throwable ex) {
 			dsptch.getLogger().log(LEVEL.TRC, ex, true, "SMTP-Delivery/batch="+batchcnt+": Failed to start Sender="+sender.getLogID()+"/"+sender);
