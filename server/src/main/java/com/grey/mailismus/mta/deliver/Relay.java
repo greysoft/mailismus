@@ -6,6 +6,7 @@ package com.grey.mailismus.mta.deliver;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import com.grey.base.config.XmlConfig;
@@ -14,44 +15,38 @@ import com.grey.base.utils.ByteChars;
 import com.grey.base.utils.EmailAddress;
 import com.grey.base.utils.IP;
 import com.grey.base.utils.TSAP;
-import com.grey.logging.Logger;
 import com.grey.mailismus.errors.MailismusConfigException;
 import com.grey.mailismus.mta.Protocol;
+import com.grey.mailismus.mta.deliver.client.SmtpRelay;
 import com.grey.naf.NAFConfig;
 import com.grey.naf.reactor.config.SSLConfig;
 
 /*
  * This class specifies the connection details for a remote SMTP server we use as a relay for specific domains.
  */
-public final class Relay
+public class Relay extends SmtpRelay
 {
-	public final TSAP tsap;
-	public final SSLConfig sslconfig;
-	public final boolean auth_enabled;
-	public final boolean auth_initrsp;
-	public final boolean auth_compat; //handle Protocol.EXT_AUTH_COMPAT responses from this server
-	public final SaslEntity.MECH auth_override;
-	public final String usrnam;
-	public final ByteChars passwd;
-	public final boolean dns_only; //only relevant for interceptor mode - true means don't intercept statically configured servers
-	final ByteChars[] destdomains;
-	final EmailAddress[] senders;
-	final IP.Subnet[] sender_ipnets; //if present, sender connect from one of these IPs, to match a source-Relay
-	private final String relay_string;
-	private final String display_txt;
+	public final ByteChars[] destDomains;
+	public final EmailAddress[] senders;
+	public final IP.Subnet[] senderIpNets; //if present, sender connect from one of these IPs, to match a source-Relay
+	public final boolean dnsOnly; //only relevant for interceptor mode - true means don't intercept statically configured servers
+	private final String relayString;
 
-	@Override public String toString() {return relay_string;}
-	public String display() {return display_txt;}
-
-	public Relay(XmlConfig cfg, boolean interceptor, NAFConfig nafcfg, Logger log) throws IOException
+	public static Relay create(String name, XmlConfig cfg, boolean isInterceptor, NAFConfig nafcfg) throws IOException
 	{
+		String usrnam = null;
+		CharSequence passwd = null;
+		SaslEntity.MECH auth_override = null;
+		SSLConfig sslconfig = null;
+		boolean dns_only = false;
+
 		List<ByteChars> lst_destdoms = new ArrayList<>();
 		List<EmailAddress> lst_senders = new ArrayList<>();
 		List<IP.Subnet> lst_subnets = new ArrayList<>();
-		if (interceptor) {
+
+		if (isInterceptor) {
 			dns_only = cfg.getBool("@dns", false);
 		} else {
-			dns_only = false;
 			String s = cfg.getValue("@destdomains", false, null);
 			if (s != null) {
 				String[] arr = s.split(",");
@@ -82,11 +77,12 @@ public final class Relay
 				}
 			}
 		}
-		destdomains = (lst_destdoms.isEmpty() ? null : lst_destdoms.toArray(new ByteChars[lst_destdoms.size()]));
-		senders = (lst_senders.isEmpty() ? null : lst_senders.toArray(new EmailAddress[lst_senders.size()]));
+		ByteChars[] destdomains = (lst_destdoms.isEmpty() ? null : lst_destdoms.toArray(new ByteChars[lst_destdoms.size()]));
+		EmailAddress[] senders = (lst_senders.isEmpty() ? null : lst_senders.toArray(new EmailAddress[lst_senders.size()]));
 
+		name = cfg.getValue("@name", true, name);
 		String ipspec = cfg.getValue("@address", true, null);
-		tsap = TSAP.build(ipspec, Protocol.TCP_PORT, true);
+		TSAP tsap = TSAP.build(ipspec, Protocol.TCP_PORT, true);
 
 		if (senders != null) {
 			String s = cfg.getValue("@sendernets", false, null);
@@ -100,16 +96,12 @@ public final class Relay
 				}
 			}
 		}
-		sender_ipnets = (lst_subnets.isEmpty() ? null : lst_subnets.toArray(new IP.Subnet[lst_subnets.size()]));
+		IP.Subnet[] sender_ipnets = (lst_subnets.isEmpty() ? null : lst_subnets.toArray(new IP.Subnet[lst_subnets.size()]));
 
-		auth_enabled = cfg.getBool("auth/@enabled", false);
-		auth_initrsp = cfg.getBool("auth/@initrsp", false);
-		auth_compat = cfg.getBool("auth/@compat", false);
-		if (!auth_enabled) {
-			usrnam = null;
-			passwd = null;
-			auth_override = null;
-		} else {
+		boolean auth_enabled = cfg.getBool("auth/@enabled", false);
+		boolean auth_initrsp = cfg.getBool("auth/@initrsp", false);
+		boolean auth_compat = cfg.getBool("auth/@compat", false);
+		if (auth_enabled) {
 			usrnam = cfg.getValue("auth/username", false, null);
 			passwd = new ByteChars(cfg.getValue("auth/password", false, null));
 			String val = cfg.getValue("auth/@override", false, null);
@@ -117,9 +109,7 @@ public final class Relay
 		}
 
 		XmlConfig sslcfg = cfg.getSection("ssl");
-		if (sslcfg == null || !sslcfg.exists()) {
-			sslconfig = null;
-		} else {
+		if (sslcfg != null && sslcfg.exists()) {
 			sslconfig = new SSLConfig.Builder()
 					.withPeerCertName(ipspec)
 					.withIsClient(true)
@@ -127,23 +117,85 @@ public final class Relay
 					.build();
 		}
 
-		String txt = "SMTP-"+(interceptor ? "Interceptor"+(dns_only?"/DNS":"") : "Relay")+"=";
-		if (usrnam != null) txt += usrnam+"@";
-		txt += tsap;
-		if (sslconfig != null) txt += "/SSL";
-		display_txt = txt;
-		if (destdomains != null) txt += "=>"+(destdomains.length==1?destdomains[0]:destdomains.length+"/"+lst_destdoms);
-		if (senders != null) txt += "; Senders="+(senders.length==1?senders[0]:senders.length+"/"+lst_senders);
-		if (sender_ipnets != null) txt += "; SenderNets="+sender_ipnets.length+"/"+lst_subnets;
-		relay_string = txt;
+		return builder()
+				.withName(name)
+				.withAddress(tsap)
+				.withSslConfig(sslconfig)
+				.withAuthRequired(auth_enabled)
+				.withAuthOverride(auth_override)
+				.withAuthCompat(auth_compat)
+				.withAuthInitialResponse(auth_initrsp)
+				.withUsername(usrnam)
+				.withPassword(passwd)
+				.withDestDomains(destdomains)
+				.withSenders(senders)
+				.withSenderIpNets(sender_ipnets)
+				.withDnsOnly(dns_only)
+				.withInterceptor(isInterceptor)
+				.build();
+	}
 
-		if (log != null) {
-			log.info(relay_string);
-			String indent = new String(new char[5]).replace('\0', ' ');
-			if (auth_enabled) {
-				log.info(indent+"Authenticate with override="+auth_override+"/initrsp="+auth_initrsp+(auth_compat?"/compat="+true:""));
-			}
-			if (sslconfig != null) log.info(indent+sslconfig);
+	public Relay(Builder<?> bldr) {
+		super(bldr);
+		this.dnsOnly = bldr.dnsOnly;
+		this.destDomains = bldr.destDomains;
+		this.senders = bldr.senders;
+		this.senderIpNets = bldr.senderIpNets;
+
+		relayString = super.toString()+"=>ForwarderRelay["
+				+(bldr.isInterceptor ? "Interceptor"+(dnsOnly?"/DNS":"")+", " : "")
+				+"Senders="+(senders==null?"":senders.length+"/"+Arrays.asList(senders))
+				+", SenderNets="+(senderIpNets==null?"":senderIpNets.length+"/"+Arrays.asList(senderIpNets))
+				+", DestDomain="+(destDomains==null?"":destDomains.length+"/"+Arrays.asList(destDomains))
+				+"]";
+	}
+
+	@Override public String toString() {
+		return relayString;
+	}
+
+	public static Builder<?> builder() {
+		return new Builder<>();
+	}
+
+
+	public static class Builder<T extends Builder<T>> extends SmtpRelay.Builder<T> {
+		private boolean dnsOnly;
+		private ByteChars[] destDomains;
+		private EmailAddress[] senders;
+		private IP.Subnet[] senderIpNets;
+		private boolean isInterceptor;
+
+		private Builder() {}
+
+		public T withDnsOnly(boolean dnsOnly) {
+			this.dnsOnly = dnsOnly;
+			return self();
+		}
+
+		public T withDestDomains(ByteChars[] destDomains) {
+			this.destDomains = destDomains;
+			return self();
+		}
+
+		public T withSenders(EmailAddress[] senders) {
+			this.senders = senders;
+			return self();
+		}
+
+		public T withSenderIpNets(IP.Subnet[] senderIpNets) {
+			this.senderIpNets = senderIpNets;
+			return self();
+		}
+
+		public T withInterceptor(boolean val) {
+			this.isInterceptor = val;
+			return self();
+		}
+
+		@Override
+		public Relay build() {
+			return new Relay(this);
 		}
 	}
 }

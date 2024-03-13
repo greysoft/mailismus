@@ -9,17 +9,20 @@ import java.util.List;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.io.IOException;
+import java.io.OutputStream;
 
 import com.grey.base.collections.GenericFactory;
+import com.grey.base.collections.HashedMap;
 import com.grey.base.collections.HashedMapIntValue;
-import com.grey.base.collections.HashedSet;
 import com.grey.base.collections.ObjectWell;
 import com.grey.base.config.SysProps;
 import com.grey.base.config.XmlConfig;
 import com.grey.base.utils.StringOps;
+import com.grey.base.utils.TSAP;
 import com.grey.base.utils.TimeOps;
 import com.grey.base.utils.ByteChars;
 import com.grey.base.utils.EmailAddress;
+import com.grey.base.utils.FileOps;
 import com.grey.base.utils.IP;
 import com.grey.logging.Logger;
 import com.grey.logging.Logger.LEVEL;
@@ -36,6 +39,9 @@ import com.grey.mailismus.Audit;
 import com.grey.mailismus.Transcript;
 import com.grey.mailismus.mta.MTA_Task;
 import com.grey.mailismus.mta.Protocol;
+import com.grey.mailismus.mta.deliver.client.SmtpMessage;
+import com.grey.mailismus.mta.deliver.client.SmtpResponseDescriptor;
+import com.grey.mailismus.mta.deliver.client.SmtpSender;
 import com.grey.mailismus.mta.queue.Cache;
 import com.grey.mailismus.mta.queue.MessageRecip;
 import com.grey.mailismus.mta.queue.QueueManager;
@@ -43,36 +49,24 @@ import com.grey.mailismus.ms.MessageStore;
 import com.grey.mailismus.nafman.Loader;
 
 public class Forwarder
-	implements Delivery.Controller,
+	implements SmtpSender,
 		TimerNAF.Handler,
 		NafManCommand.Handler
 {
 	public interface BatchCallback {
-		void batchCompleted(int qsize, Delivery.Stats stats);
+		void batchCompleted(int qsize, DeliveryStats deliveryStats);
 	}
 
 	private static class SenderReaper implements EventListenerNAF {
-		private final Delivery.Controller ctl;
-		public SenderReaper(Delivery.Controller ctl) {
-			this.ctl = ctl;
+		private final Forwarder fwd;
+		public SenderReaper(Forwarder fwd) {
+			this.fwd = fwd;
 		}
 		@Override
-		public void eventIndication(Object obj, String eventId) {
-			if (obj instanceof Client && ChannelMonitor.EVENTID_CM_DISCONNECTED.equals(eventId)) {
-				ctl.senderCompleted((Delivery.MessageSender)obj);
+		public void eventIndication(String eventId, Object evtsrc, Object data) {
+			if (evtsrc instanceof Client && ChannelMonitor.EVENTID_CM_DISCONNECTED.equals(eventId)) {
+				fwd.senderCompleted((Client)evtsrc, false);
 			}
-		}
-	}
-
-	private static class ClientFactory implements GenericFactory<Delivery.MessageSender> {
-		private final SharedFields shared;
-		public ClientFactory(SharedFields shared) {
-			this.shared = shared;
-		}
-		@Override
-		public Client factory_create() {
-			// NB: can't set eventListener here, as it gets cleared on ChannelMonitor.disconnect()
-			return new Client(shared);
 		}
 	}
 
@@ -109,8 +103,9 @@ public class Forwarder
 	private final EventListenerNAF sendersEventListener;
 	private final BatchCallback batchCallback;
 	private final Cache qcache;
-	private final ObjectWell<Delivery.MessageSender> sparesenders;
-	private final HashedSet<Delivery.MessageSender> activesenders = new HashedSet<>();
+	private final ObjectWell<QueueBasedMessage> spareMessageRequests;
+	private final ObjectWell<Client> sparesenders;
+	private final HashedMap<Client,QueueBasedMessage> activesenders = new HashedMap<>();
 
 	// This maps connection targets (ie. SMTP servers) to the number of simultaneous connections we currently have to them.
 	// The map values can be of type ByteChars (destination domain) or Relay.
@@ -128,12 +123,11 @@ public class Forwarder
 	// batchStats is logged and reset at the end of each batch, while openStats is accumulated for an open-ended period,
 	// until retrieved and reset by the NAFMAN COUNTERS command (and unlike the running totals below, it is only updated
 	// at the end of each batch)
-	private final Delivery.Stats batchStats;
-	private final Delivery.Stats openStats;
-	private int sendercnt; //number of MessageSenders launched for current batch
+	private final DeliveryStats batchStats;
+	private final DeliveryStats openStats;
 	private int pending_recips; //number of entries in current batch which have not yet been handled (qstatus==READY)
 
-	// Stats - running totals across all batches
+	// DeliveryStats - running totals across all batches
 	private int batchcnt; //not incremented for null batches (ie. nothing in queue)
 	private int total_conncnt; //SMTP connections
 	private int total_sendermsgcnt; //SMTP messages (>= total_conncnt and excludes local delivery)
@@ -146,12 +140,12 @@ public class Forwarder
 	//pre-allocated merely for efficiency
 	private final EmailAddress tmpemaddr = new EmailAddress();
 	private final StringBuilder tmpsb = new StringBuilder();
+	private final StringBuilder tmpsb2 = new StringBuilder();
+	private final ByteChars tmpBC = new ByteChars();
+	private final byte[] tmpIP = IP.ip2net(0, null, 0);
 
-	@Override public Dispatcher getDispatcher() {return dsptch;}
-	@Override public QueueManager getQueue() {return qmgr;}
-	@Override public Routing getRouting() {return routing;}
-	@Override public void senderCompleted(Delivery.MessageSender sender) {senderCompleted(sender, false);}
 	@Override public CharSequence nafmanHandlerID() {return "SMTP-Forwarder";}
+	public Routing getRouting() {return routing;}
 
 	// these counts should give the same result
 	public int activeSendersCount() {return activesenders.size();}
@@ -163,7 +157,7 @@ public class Forwarder
 
 	public Forwarder(Dispatcher d, XmlConfig cfg, AppConfig appConfig,
 			QueueManager qm, MessageStore mstore,
-			EventListenerNAF evtl, GenericFactory<Delivery.MessageSender> senderFactory,
+			EventListenerNAF evtl, GenericFactory<Client> senderFactory,
 			BatchCallback bcb, ResolverDNS dnsResolver) throws IOException, GeneralSecurityException
 	{
 		dsptch = d;
@@ -211,19 +205,20 @@ public class Forwarder
 		}
 		cap_qcache = (int)cfg.getSize("queuecache", cap_qcache);
 		qcache = qmgr.initCache(cap_qcache);
-		batchStats = new Delivery.Stats(dsptch);
-		openStats = new Delivery.Stats(dsptch);
+		batchStats = new DeliveryStats(dsptch);
+		openStats = new DeliveryStats(dsptch);
 
 		sendersEventListener = new SenderReaper(this);
 		if (senderFactory == null) {
 			XmlConfig smtpcfg = cfg.getSection("client");
-			sharedFields = ClientConfiguration.createSharedFields(smtpcfg, this, dnsResolver, appConfig, max_serverconns);
-			senderFactory = new ClientFactory(sharedFields);
+			sharedFields = ClientConfiguration.createSharedFields(smtpcfg, dsptch, dnsResolver, appConfig, max_serverconns);
+			senderFactory = () -> new Client(sharedFields, dsptch);
 		} else {
 			// sender-factory is only supplied in some test modes, never in production mode
 			sharedFields = null;
 		}
-		sparesenders = new ObjectWell<>(senderFactory, "SmtpFwd");
+		sparesenders = new ObjectWell<>(senderFactory, "SmtpFwdSenders");
+		spareMessageRequests = new ObjectWell<>(() -> new QueueBasedMessage(qmgr), "SmtpFwdMessageReqs");
 		active_serverconns = (max_serverconns == 0 ? null : new HashedMapIntValue<>());
 
 		log.info("SMTP-Delivery: slave-relay mode="+routing.modeSlaveRelay());
@@ -276,9 +271,9 @@ public class Forwarder
 	private void stopSenders()
 	{
 		// loop on copy of set to avoid ConcurrentModification from callbacks
-		List<Delivery.MessageSender> lst = new ArrayList<>(activesenders);
+		List<Client> lst = new ArrayList<>(activesenders.keySet());
 		for (int idx = 0; idx != lst.size(); idx++) {
-			Delivery.MessageSender sender = lst.get(idx);
+			Client sender = lst.get(idx);
 			if (sender.stop()) senderCompleted(sender, true);
 		}
 	}
@@ -294,7 +289,7 @@ public class Forwarder
 		if (active_serverconns != null) active_serverconns.clear();
 		qcache.clear();
 		has_stopped = true;
-		if (notify && eventListener != null) eventListener.eventIndication(this, EventListenerNAF.EVENTID_ENTITY_STOPPED);
+		if (notify && eventListener != null) eventListener.eventIndication(EventListenerNAF.EVENTID_ENTITY_STOPPED, this, null);
 	}
 
 	@Override
@@ -354,7 +349,6 @@ public class Forwarder
 		qmgr.getMessages(qcache, sendDeferred);
 		sendDeferred = false;
 		pending_recips = qcache.size();
-		sendercnt = 0;
 
 		if (pending_recips == 0) {
 			if (batchCallback != null) batchCallback.batchCompleted(0, null);
@@ -372,6 +366,7 @@ public class Forwarder
 			tmpsb.append(" (qtime=").append(qtime).append("ms)");
 			dsptch.getLogger().log(lvl, tmpsb);
 		}
+		int existingActive = activeSendersCount();
 
 		// scan the cache to load its entries into the Senders, and then initiate them
 		qcache.sort();
@@ -385,6 +380,7 @@ public class Forwarder
 		long launchtime = time2 - time1;
 		total_launchtime += launchtime;
 		total_sendtime -= (time2 - batchStats.start); //because we will later add the time from batchStats.start onwards
+		int sendercnt = activeSendersCount() - existingActive; //number of senders launched for current batch
 
 		if (activeSendersCount() == 0) {
 			cacheProcessed();
@@ -436,21 +432,25 @@ public class Forwarder
 			// Current message is for a remote recipient.
 			// Local recipients (null domain) are sorted to the top of the cache, so we've already seen them all.
 			local_done = true;
-			if (max_simulconns != 0 && activeSendersCount() == max_simulconns) break; //no more connections allowed
-			Delivery.MessageSender sender = populateSender(null, qslot, qlimit);
-			if (sender == null) break;
+			if (max_simulconns != 0 && activeSendersCount() == max_simulconns) {
+				break; //no more connections allowed
+			}
+			QueueBasedMessage msgparams = generateMessage(qslot, qlimit, null);
+			if (msgparams == null) {
+				break;
+			}
+			Client sender = sparesenders.extract(); //extract() won't return null because this ObjectWell is uncapped
+			activesenders.put(sender, msgparams);
+			msgparams.setClient(sender);
 			startSender(sender);
 		}
 	}
 
 	// If dest_domain is passed in, then we're only interested in cache entries that match that.
-	private Delivery.MessageSender populateSender(Delivery.MessageSender sender, int qslot, int limit)
-	{
-		Delivery.MessageParams msgparams = null;
+	private QueueBasedMessage generateMessage(int qslot, int limit, QueueBasedMessage msgparams) {
 		Relay sender_relay = null;
 		ByteChars dest_domain = null;
-		if (sender != null) {
-			msgparams = sender.getMessageParams();
+		if (msgparams != null) {
 			sender_relay = msgparams.getRelay();
 			dest_domain = msgparams.getDestination();
 		}
@@ -462,16 +462,15 @@ public class Forwarder
 			if (spid != 0 && recip.spid != spid) break; //no entries left for this message
 			if (recip.qstatus != MessageRecip.STATUS_READY) continue;
 			Relay recip_relay = getRoute(recip);
-			if (sender != null) {
+			
+			if (msgparams != null) {
 				//these conditions will be met in slave-relay mode, as sender_relay non-null and recip_relay is same
 				if (sender_relay != recip_relay) continue;
 				if (sender_relay == null) {
 					if (!dest_domain.equals(recip.domain_to)) continue; //dest_domain is guaranteed non-null here
 				}
-			}
-
-			//current MessageRecip matches the criteria so allocate to sender - might have to allocate sender too
-			if (sender == null) {
+			} else {
+				//current MessageRecip matches the criteria so allocate to sender
 				if (max_serverconns != 0) { //recall that this is zero in slave-relay mode (but not only in that mode)
 					Object key = (recip_relay == null ? recip.domain_to : recip_relay);
 					int cnt = active_serverconns.get(key);
@@ -479,11 +478,9 @@ public class Forwarder
 					active_serverconns.put(key, cnt+1);
 				}
 				//null dest_domain means grab every entry for this SPID, else we're tied to initial recipient domain
-				sender = sparesenders.extract(); //extract() won't return null because this ObjectWell is uncapped
-				activesenders.add(sender);
-				sendercnt++;
-				msgparams = sender.getMessageParams().init(recip_relay, recip.domain_to);
-				sender_relay = msgparams.getRelay();
+				msgparams = spareMessageRequests.extract(); //won't return null because this ObjectWell is uncapped
+				msgparams = msgparams.init(recip_relay, recip.domain_to);
+				sender_relay = recip_relay;
 				dest_domain = msgparams.getDestination();
 			}
 			spid = recip.spid;
@@ -492,61 +489,87 @@ public class Forwarder
 			pending_recips--;
 			if (max_msgrecips != 0 && msgparams.recipCount() == max_msgrecips) break;
 		}
-		return sender;
+		return msgparams;
 	}
 
-	private void startSender(Delivery.MessageSender sender)
+	private void startSender(Client sender)
 	{
 		try {
-			sender.setEventListener(sendersEventListener);
-			sender.start(this);
+			QueueBasedMessage msg = activesenders.get(sender);
+			Relay interceptor = routing.getInterceptor();
+			Relay relay = msg.getRelay();
+			if (relay == null || (interceptor != null && !interceptor.dnsOnly)) relay = interceptor;
+			sender.setEventListener(sendersEventListener); //gets cleared on ChannelMonitor.disconnect()
+			sender.startConnection(msg, this, relay);
 		} catch (Throwable ex) {
 			dsptch.getLogger().log(LEVEL.TRC, ex, true, "SMTP-Delivery/batch="+batchcnt+": Failed to start Sender="+sender.getLogID()+"/"+sender);
 			senderCompleted(sender, true);
 		}
 	}
 
-	// This method clears the existing recipient set, and then attempt to repopulate it with another msg for same destination
-	// domain (might be same msg, if it has more recips waiting).
-	// Caller should check for non-empty recipients on return, to determine if it has anything to send.
+	// This method processes the result of a message send, and attempts to generate another msg for same destination.
+	// Returns new message request if we found something to send, else null.
 	@Override
-	public void messageCompleted(Delivery.MessageSender sender)
-	{
+	public SmtpMessage messageCompleted(SmtpMessage smtpmsg, int msgcnt) {
+		QueueBasedMessage msgparams = (QueueBasedMessage)smtpmsg;
+		Client sender = msgparams.getClient();
+		int domainError = sender.getDomainError();
+
 		long time1 = dsptch.getRealTime();
-		boolean active = recordMessageResult(sender);
-		Delivery.MessageParams msgparams = sender.getMessageParams();
+		boolean active = recordMessageResult(msgparams, msgcnt, domainError);
 		msgparams.resetMessage();
-		if (!active || inScan || inShutdown || sender.getDomainError() != 0 || msgparams.messageCount() == max_connmsgs) return;
+		boolean refill = (active && !inScan && !inShutdown && domainError == 0 && msgcnt != max_connmsgs);
 
 		if (time1 - batchStats.start > max_conntime) {
-			//don't refill this Sender
-			dsptch.getLogger().info("SMTP-Delivery/batch="+batchcnt+": Stopping slow Sender at messages="+msgparams.messageCount()
-					+" - remote="+getPeerText(msgparams)+" - "+sender);
+			dsptch.getLogger().info("SMTP-Delivery/batch="+batchcnt+": Stopping slow Sender at messages="+msgcnt
+					+" - remote="+getPeerText(msgparams)+" - "+sender.getLogID());
 		} else {
-			populateSender(sender, 0, qcache.size());
+			if (refill) {
+				generateMessage(0, qcache.size(), msgparams);
+			}
 		}
 		long span = dsptch.getRealTime() - time1;
 		total_launchtime += span;
 		total_sendtime -= span; //because we will later add the time from batchStats.start onwards
-	}
 
-	// The sender's recipient list will be empty if it completed successfully, as it would have called messageCompleted()
-	// which clears it. So a non-empty recipient list probably means we have an error condition to report.	
-	public void senderCompleted(Delivery.MessageSender sender, boolean aborted)
-	{
-		Delivery.MessageParams msgparams = sender.getMessageParams();
-		if (msgparams.recipCount() != 0) recordMessageResult(sender);
-		activesenders.remove(sender);
-
-		if (active_serverconns != null) {
+		if (msgparams.recipCount() == 0) {
 			Object key = msgparams.getRelay();
 			if (key == null) key = msgparams.getDestination();
-			int cnt = active_serverconns.get(key);
-			if (--cnt == 0) {
-				active_serverconns.remove(key);
-			} else {
-				active_serverconns.put(key, cnt);
+
+			msgparams.clear();
+			spareMessageRequests.store(msgparams);
+			msgparams = null;
+
+			if (active_serverconns != null) {
+				int cnt = active_serverconns.get(key);
+				if (--cnt <= 0) {
+					active_serverconns.remove(key);
+				} else {
+					active_serverconns.put(key, cnt);
+				}
 			}
+			activesenders.remove(sender);
+
+			if (!inScan && activeSendersCount() == 0) {
+				cacheProcessed();
+			}
+		}
+		return msgparams;
+	}
+
+	@Override
+	public void onDisconnect(SmtpMessage smtpmsg, int msgcnt) {
+		if (smtpmsg != null && smtpmsg.getRecipients() != null && !smtpmsg.getRecipients().isEmpty()) {
+			messageCompleted(smtpmsg, msgcnt);
+		}
+	}
+
+	private void senderCompleted(Client sender, boolean aborted) {
+		QueueBasedMessage msg = activesenders.get(sender);
+		int msgcnt = -1;
+		if (msg != null) {
+			msgcnt = msg.messageCount();
+			messageCompleted(msg, msgcnt);
 		}
 
 		LEVEL lvl = LEVEL.TRC2;
@@ -554,28 +577,95 @@ public class Forwarder
 			tmpsb.setLength(0);
 			tmpsb.append("SMTP-Delivery/batch=").append(batchcnt).append(": Sender=").append(sender.getLogID());
 			tmpsb.append(" has ").append(aborted?"aborted":"completed");
-			if (msgparams.messageCount() != 1) tmpsb.append(" with msgcnt=").append(msgparams.messageCount());
+			tmpsb.append(" with msgcnt=").append(msgcnt);
 			tmpsb.append(" - active-conns=").append(activeSendersCount()).append(", pending-recips=").append(pending_recips);
-			if (inScan) tmpsb.append("/scanning");
+			tmpsb.append("/scanning=").append(inScan);
 			dsptch.getLogger().log(lvl, tmpsb);
 		}
-		msgparams.clear();
 		sparesenders.store(sender);
-		if (inScan) return; //take no further action if within a synchronous callback
-
-		if (activeSendersCount() == 0) {
-			cacheProcessed();
-		}
 	}
 
-	private boolean recordMessageResult(Delivery.MessageSender sender)
+	@Override
+	public boolean recipientCompleted(SmtpMessage msg, int msgCount, int recipId, SmtpResponseDescriptor status, TSAP remote, boolean aborted) {
+		SmtpMessage.Recipient recip = msg.getRecipients().get(recipId);
+		MessageRecip qrecip = ((QueueBasedRecipient)recip).getQueueRecip();
+
+		if (aborted) {
+			// Any recipients who've already failed remain as failures, but recipients who had been marked as OK revert to
+			// an unprocessed status, as we've clearly been interrupted before completing the message send.
+			if (status.smtpStatus() == Protocol.REPLYCODE_OK) {
+				qrecip.qstatus = MessageRecip.STATUS_READY;
+			}
+			return false;
+		}
+		qrecip.qstatus = MessageRecip.STATUS_DONE;
+		qrecip.ip_send = (remote == null ? 0 : remote.ip);
+
+		if (status.smtpStatus() > qrecip.smtp_status) {
+			// ensures that perm errors override preliminary temp errors, which in turn override preliminary success
+			qrecip.smtp_status = status.smtpStatus();
+
+			// Set or clear the NDR diagnostic.
+			// Note that we don't create the diagnostic-message file for NDRs themselves.
+			if (status.smtpStatus() == Protocol.REPLYCODE_OK) {
+				if (qrecip.sender != null && qrecip.retrycnt != 0) {
+					Path fh = qmgr.getDiagnosticFile(qrecip.spid, qrecip.qid);
+					Exception ex = FileOps.deleteFile(fh);
+					if (ex != null) dsptch.getLogger().warn("SMTP-Delivery: Failed to delete NDR-diagnostic="+fh.getFileName()+" - "+ex);
+				}
+			} else {
+				StringBuilder sbStatus = tmpsb2;
+				sbStatus.setLength(0);
+				sbStatus.append(status.smtpStatus());
+				if (status.enhancedStatus() != null) sbStatus.append(' ').append(status.enhancedStatus());
+				sbStatus.append(' ').append(status.message());
+
+				LEVEL lvl = LEVEL.TRC2;
+				if (dsptch.getLogger().isActive(lvl)) {
+					StringBuilder sb = tmpsb;
+					sb.setLength(0);
+					sb.append("SMTP-Delivery: Message rejected on recip ").append(recipId+1).append('/').append(msg.getRecipients().size());
+					sb.append('=').append(qrecip.mailbox_to).append(EmailAddress.DLM_DOM).append(qrecip.domain_to);
+					sb.append(" by remote=").append(remote);
+					sb.append(" - SMTP status=").append(sbStatus);
+					dsptch.getLogger().log(lvl, sb);
+				}
+
+				if (qrecip.sender != null && status.smtpStatus() > Protocol.REPLYCODE_OK) {
+					OutputStream fstrm = null;
+					try {
+						fstrm = qmgr.createDiagnosticFile(qrecip.spid, qrecip.qid);
+						if (remote != null) {
+							IP.ip2net(remote.ip, tmpIP, 0);
+							fstrm.write(1); //special marker to introduce IP address
+							fstrm.write(tmpIP);
+						}
+						tmpBC.clear().append(sbStatus);
+						fstrm.write(tmpBC.buffer(), tmpBC.offset(), tmpBC.size());
+					} catch (Exception ex) {
+						dsptch.getLogger().log(LEVEL.WARN, ex, true, "SMTP-Delivery: Failed to set failure reason for "+qrecip);
+					} finally {
+						if (fstrm != null) {
+							try {
+								fstrm.close();
+							} catch (Exception ex) {
+								dsptch.getLogger().log(LEVEL.WARN, ex, true, "SMTP-Delivery: Failed to close NDR diagnostic "+qrecip);
+							}
+						}
+					}
+				}
+			}
+		}
+		return false;
+	}
+
+	private boolean recordMessageResult(QueueBasedMessage msgparams, int msgcnt, int domain_error)
 	{
-		Delivery.MessageParams msgparams = sender.getMessageParams();
 		int recipcnt = msgparams.recipCount();
 		int processed_cnt = 0;
 
 		for (int idx = 0; idx != recipcnt; idx++) {
-			MessageRecip recip = msgparams.getRecipient(idx);
+			MessageRecip recip = msgparams.getRecipient(idx).getQueueRecip();
 			if (recip.qstatus == MessageRecip.STATUS_DONE) {
 				processed_cnt++;
 			} else {
@@ -591,21 +681,19 @@ public class Forwarder
 		total_remotecnt += processed_cnt;
 		batchStats.sendermsgcnt++;
 		total_sendermsgcnt++;
-		int sender_msgcnt = msgparams.incrementMessages();
-		if (sender_msgcnt == 1) {
+		if (msgparams.incrementMessages() == 1) {
 			//count connection after first msg (rather than having to decrement after abort, if we incremented prematurely)
 			batchStats.conncnt++;
 			total_conncnt++;
 		}
-		CharSequence extspid = qmgr.externalSPID(msgparams.getSPID());
-		short domain_error = sender.getDomainError();
+		CharSequence extspid = msgparams.getMessageId();
 		LEVEL lvl = LEVEL.TRC2;
 		boolean log = dsptch.getLogger().isActive(lvl);
 
 		if (log) {
 			tmpsb.setLength(0);
-			tmpsb.append("SMTP-Delivery/batch=").append(batchcnt).append(": Sender=").append(sender.getLogID());
-			tmpsb.append(" has processed msg #").append(sender_msgcnt).append('/').append(total_sendermsgcnt);
+			tmpsb.append("SMTP-Delivery/batch=").append(batchcnt).append(": Sender=").append(msgparams.getClient().getLogID());
+			tmpsb.append(" has processed msg #").append(msgcnt).append('/').append(msgparams.messageCount()).append('/').append(total_sendermsgcnt);
 			tmpsb.append(" - SPID=").append(extspid).append(" from ").append(msgparams.getSender());
 			tmpsb.append(" for recips=").append(processed_cnt).append('/').append(recipcnt).append('/').append(total_remotecnt);
 			tmpsb.append(" at remote=").append(getPeerText(msgparams));
@@ -616,7 +704,7 @@ public class Forwarder
 		}
 
 		for (int idx = 0; idx != recipcnt; idx++) {
-			MessageRecip recip = msgparams.getRecipient(idx);
+			MessageRecip recip = msgparams.getRecipient(idx).getQueueRecip();
 			if (log) {
 				tmpsb.append('\n').append(lvl).append(" - Recip=").append(idx+1).append(": ");
 				recip.toString(tmpsb);
@@ -641,7 +729,7 @@ public class Forwarder
 				if (getRoute(recip) != msgparams.getRelay()) continue;
 				if (destdomain == null || !destdomain.equals(recip.domain_to)) continue;
 				recip.qstatus = MessageRecip.STATUS_DONE;
-				recip.smtp_status = domain_error;
+				recip.smtp_status = (short)domain_error;
 				pending_recips--;
 			}
 			lvl = LEVEL.TRC;
@@ -721,10 +809,10 @@ public class Forwarder
 		return rt;
 	}
 
-	private String getPeerText(Delivery.MessageParams msgparams)
+	private String getPeerText(QueueBasedMessage msgparams)
 	{
 		Object peer = (routing.modeSlaveRelay() ? "smarthost" : null);
-		if (peer == null) peer = (msgparams.getRelay()==null?null:msgparams.getRelay().display());
+		if (peer == null) peer = (msgparams.getRelay()==null?null:msgparams.getRelay().toString());
 		if (peer == null) peer = msgparams.getDestination();
 		return peer.toString();
 	}
@@ -754,5 +842,29 @@ public class Forwarder
 			return null;
 		}
 		return tmpsb;
+	}
+
+
+	public static class DeliveryStats {
+		public int conncnt; //number of SMTP connections
+		public int sendermsgcnt; //number of SMTP messages - always >=conncnt, depending on whether senders were refilled
+		public int remotecnt; //number of remote (SMTP) recipients handled (ie. no. of MessageRecips assigned to a MessageSender)
+		public int remotefailcnt; //number of remote recipients who failed - this is a subset of remotecnt
+		public int localcnt; //number of local recipients handled (ie. no. of MessageRecips deliver into the MS)
+		public int localfailcnt; //number of local recipients who failed - this is a subset of localcnt
+		public long start;
+		private final TimerNAF.TimeProvider timeProvider;
+		public DeliveryStats(TimerNAF.TimeProvider t) {timeProvider=t; reset();}
+		public DeliveryStats reset() {
+			start = timeProvider.getRealTime();
+			conncnt = sendermsgcnt = remotecnt = remotefailcnt = localcnt = localfailcnt = 0;
+			return this;}
+		@Override
+		public String toString() {
+			String txt = "DeliveryStats: Conns="+conncnt+", remote-msgs="+sendermsgcnt;
+			if (localcnt != 0) txt += ", localrecips="+(localcnt-localfailcnt)+"/"+localcnt;
+			if (remotecnt != 0) txt += ", remoterecips="+(remotecnt-remotefailcnt)+"/"+remotecnt;
+			return txt+" - time="+(timeProvider.getRealTime()-start)+"ms";
+		}
 	}
 }

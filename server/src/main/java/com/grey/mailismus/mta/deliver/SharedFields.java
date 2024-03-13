@@ -26,12 +26,12 @@ import com.grey.naf.dns.resolver.ResolverDNS;
 import com.grey.mailismus.Task;
 import com.grey.mailismus.Transcript;
 import com.grey.mailismus.mta.Protocol;
+import com.grey.mailismus.mta.deliver.client.ConnectionConfig;
 
 class SharedFields {
 	private final ConnectionConfig defaultConfig;
 	private final List<ConnectionConfig> remotesConfig; //alternative configs for specfic remote destinations
 
-	private final Delivery.Controller controller;
 	private final ResolverDNS dnsResolver;
 	private final Transcript transcript;
 	private final BufferGenerator bufferGenerator;
@@ -67,7 +67,6 @@ class SharedFields {
 	private ByteBuffer tmpNioBuffer; //grows on demand
 
 	public SharedFields(Builder bldr) throws GeneralSecurityException {
-		this.controller = bldr.controller;
 		this.dnsResolver = bldr.dnsResolver;
 		this.bufferGenerator = bldr.bufferGenerator;
 		this.transcript = bldr.transcript;
@@ -82,7 +81,7 @@ class SharedFields {
 		}
 
 		List<ConnectionConfig> conncfgs = new ArrayList<>();
-		conncfgs.add(defaultConfig);
+		if (defaultConfig != null) conncfgs.add(defaultConfig);
 		conncfgs.addAll(remotesConfig);
 		for (ConnectionConfig conncfg : conncfgs) {
 			String host = conncfg.getAnnouncehost();
@@ -138,10 +137,6 @@ class SharedFields {
 
 	public List<ConnectionConfig> getRemotesConfig() {
 		return remotesConfig;
-	}
-
-	public Delivery.Controller getController() {
-		return controller;
 	}
 
 	public ResolverDNS getDnsResolver() {
@@ -216,11 +211,13 @@ class SharedFields {
 		return tmpIP;
 	}
 
-	public StringBuilder getTmpSB() {
+	public StringBuilder getTmpSB(boolean reset) {
+		if (reset) tmpSB.setLength(0);
 		return tmpSB;
 	}
 
-	public StringBuilder getTmpSB2() {
+	public StringBuilder getTmpSB2(boolean reset) {
+		if (reset) tmpSB2.setLength(0);
 		return tmpSB2;
 	}
 
@@ -238,7 +235,6 @@ class SharedFields {
 
 
 	static class Builder {
-		private Delivery.Controller controller;
 		private ResolverDNS dnsResolver;
 		private BufferGenerator bufferGenerator;
 		private Transcript transcript;
@@ -246,11 +242,6 @@ class SharedFields {
 		private final List<ConnectionConfig> remoteConfigs = new ArrayList<>();
 
 		private Builder() {
-		}
-
-		public Builder withController(Delivery.Controller ctl) {
-			this.controller = ctl;
-			return this;
 		}
 
 		public Builder withDnsResolver(ResolverDNS dns) {

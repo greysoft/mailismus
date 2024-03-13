@@ -35,13 +35,13 @@ public class Routing
 		XmlConfig[] cfgnodes = relaycfg.getSections("relay");
 		if (cfgnodes != null) {
 			for (int idx = 0; idx != cfgnodes.length; idx++) {
-				Relay relay = new Relay(cfgnodes[idx], false, nafcfg, logger);
-				if (relay.destdomains == null && relay.senders == null) {
+				Relay relay = Relay.create("relay-"+idx, cfgnodes[idx], false, nafcfg);
+				if (relay.destDomains == null && relay.senders == null) {
 					if (rlysrvr != null) throw new MailismusConfigException("Duplicate general relay: "+relay);
 					rlysrvr = relay;
 				} else {
-					if (relay.destdomains != null) {
-						for (ByteChars destdom : relay.destdomains) {
+					if (relay.destDomains != null) {
+						for (ByteChars destdom : relay.destDomains) {
 							if (byDestDomain.put(destdom, relay) != null) {
 								throw new MailismusConfigException("Duplicate route for "+destdom+": "+relay);
 							}
@@ -69,7 +69,7 @@ public class Routing
 		Relay irly = null;
 		if (cfgnodes != null) {
 			if (cfgnodes.length != 1) throw new MailismusConfigException("Only one interceptor can be defined - found relays/intercept="+cfgnodes.length);
-			irly = new Relay(cfgnodes[0], true, nafcfg, logger);
+			irly = Relay.create("interceptor", cfgnodes[0], true, nafcfg);
 		}
 		interceptor = irly;
 
@@ -92,8 +92,8 @@ public class Routing
 	{
 		Relay relay = bySrcAddress.get(sender.full);
 		if (relay == null) relay = bySrcDomain.get(sender.domain);
-		if (relay == null || relay.sender_ipnets == null || ip_sender == 0) return relay;
-		for (IP.Subnet net : relay.sender_ipnets) {
+		if (relay == null || relay.senderIpNets == null || ip_sender == 0) return relay;
+		for (IP.Subnet net : relay.senderIpNets) {
 			if (net.isMember(ip_sender)) return relay;
 		}
 		return null;

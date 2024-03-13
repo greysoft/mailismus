@@ -41,10 +41,10 @@ public class IMAP4Task
 	}
 
 	@Override
-	public void eventIndication(Object obj, String eventId)
+	public void eventIndication(String eventId, Object evtsrc, Object data)
 	{
-		if (!(obj instanceof ListenerSet) || !EventListenerNAF.EVENTID_ENTITY_STOPPED.equals(eventId)) {
-			getDispatcher().getLogger().info("IMAP4Task="+getName()+" discarding unexpected event="+obj.getClass().getName()+"/"+eventId);
+		if (!(evtsrc instanceof ListenerSet) || !EventListenerNAF.EVENTID_ENTITY_STOPPED.equals(eventId)) {
+			getDispatcher().getLogger().info("IMAP4Task="+getName()+" discarding unexpected event="+eventId+"/"+evtsrc.getClass().getName()+"/"+data);
 			return;
 		}
 		nafletStopped();

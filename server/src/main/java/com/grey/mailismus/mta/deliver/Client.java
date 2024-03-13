@@ -5,20 +5,19 @@
 package com.grey.mailismus.mta.deliver;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 import com.grey.base.utils.IP;
 import com.grey.base.utils.TSAP;
 import com.grey.base.utils.EmailAddress;
 import com.grey.base.utils.ByteArrayRef;
 import com.grey.base.utils.ByteChars;
-import com.grey.base.utils.FileOps;
 import com.grey.base.sasl.SaslEntity;
 import com.grey.base.ExceptionUtils;
 import com.grey.logging.Logger.LEVEL;
@@ -32,7 +31,11 @@ import com.grey.naf.dns.resolver.engine.ResourceData;
 
 import com.grey.mailismus.Task;
 import com.grey.mailismus.mta.Protocol;
-import com.grey.mailismus.mta.queue.MessageRecip;
+import com.grey.mailismus.mta.deliver.client.ConnectionConfig;
+import com.grey.mailismus.mta.deliver.client.SmtpMessage;
+import com.grey.mailismus.mta.deliver.client.SmtpRelay;
+import com.grey.mailismus.mta.deliver.client.SmtpResponseDescriptor;
+import com.grey.mailismus.mta.deliver.client.SmtpSender;
 import com.grey.mailismus.errors.MailismusException;
 
 /**
@@ -41,8 +44,7 @@ import com.grey.mailismus.errors.MailismusException;
  */
 class Client
 	extends CM_Client
-	implements Delivery.MessageSender,
-		ResolverDNS.Client,
+	implements ResolverDNS.Client,
 		TimerNAF.Handler
 {
 	private static final String LOG_PREFIX = "SMTP-Client";
@@ -61,7 +63,7 @@ class Client
 	private static final ByteChars FAILMSG_TMT = new ByteChars("SMTP session timed out");
 	private static final ByteChars FAILMSG_NOSSL = new ByteChars("Remote MTA doesn't support SSL");
 	private static final ByteChars FAILMSG_NORECIPS = new ByteChars("No valid recipients specified");
-	private static final ByteChars FAILMSG_NOSPOOL = new ByteChars("Message deleted from queue");
+	private static final ByteChars FAILMSG_LOCAL = new ByteChars("Local message-handling issue");
 
 	private static final int TMRTYPE_SESSIONTMT = 1;
 	private static final int TMRTYPE_DISCON = 2;
@@ -75,12 +77,14 @@ class Client
 	private static final byte S2_ABORT = 1 << 6;
 	private static final byte S2_CNXLIMIT = (byte)(1 << 7); //this is 8-bit, but overflows Byte.MAX_VALUE
 
-	private final Delivery.MessageParams msgparams = new Delivery.MessageParams();
-	private final SharedFields shared;
-	private final TSAP remote_tsap_buf;
 	private final List<ResourceData> dnsInfo = new ArrayList<>();
+	private final List<SmtpResponseDescriptor> recipientStatus = new ArrayList<>();
+	private final TSAP remote_tsap_buf = new TSAP();
+	private final SharedFields shared;
+	private SmtpMessage smtpMessage; //the current message being sent
+	private SmtpSender smtpSender;
+	private SmtpRelay active_relay;
 	private ConnectionConfig conncfg; //config to apply to current connection
-	private Relay active_relay;
 	private TSAP remote_tsap;
 	private PROTO_STATE pstate;
 	private byte state2; //secondary-state, qualifying some of the pstate phases
@@ -88,21 +92,21 @@ class Client
 	private TimerNAF tmr_sesstmt;
 	private long alt_tmtprotocol; //if non-zero, this overrides ConnectionConfig.tmtprotocol - used to set longer timeout for DATA phase
 	private int mxptr; //indicates which dnsInfo.rrlist node we're currently connecting/connected to - only valid if dnsInfo non-empty
-	private int recip_id; //indicates which recipient we're currently awaiting a response for
+	private int recip_id; //indicates which recipient we're currently awaiting a response for xxx can it be replaced by size of recipStatus list?
 	private int recips_sent; //how many recips we've already sent to server - will run ahead of recip_id in pipelining mode
 	private int okrecips; //number of recipients accepted by server
 	private int dataWait;
-	private short reply_status;
+	private SmtpResponseDescriptor replyDescriptor; //xxx does this need to be a global?
 	private short disconnect_status;
 	private int pipe_cap; //max pipeline for current connection - 1 means pipelining not enabled
 	private int pipe_count; //number of requests in current pipelined send
 	private SaslEntity.MECH auth_method;
 	private byte auth_step;
+	private int msgcnt;
 	private int cnxid; //increments with each incarnation - useful for distinguishing Transcript logs
 	private String pfx_log;
 
-	@Override public Delivery.MessageParams getMessageParams() {return msgparams;}
-	@Override public String getLogID() {return pfx_log;}
+	public String getLogID() {return pfx_log;}
 
 	private void setFlag(byte f, boolean b) {if (b) {setFlag(f);} else {clearFlag(f);}}
 	private void setFlag(byte f) {state2 |= f;}
@@ -110,14 +114,27 @@ class Client
 	private boolean isFlagSet(byte f) {return ((state2 & f) == f);}
 
 	@Override
-	protected SSLConfig getSSLConfig() {return (active_relay == null ? conncfg.getAnonSSL() : active_relay.sslconfig);}
+	protected SSLConfig getSSLConfig() {return (active_relay == null ? conncfg.getAnonSSL() : active_relay.getSslConfig());}
 
-	Client(SharedFields shared) {
-		super(shared.getController().getDispatcher(), shared.getBufferGenerator(), shared.getBufferGenerator());
+	Client(SharedFields shared, Dispatcher dsptch) {
+		super(dsptch, shared.getBufferGenerator(), shared.getBufferGenerator());
 		pfx_log = LOG_PREFIX+": ";
 		this.shared = shared;
-		//will need to build addresses at connect time if we don't have a default relay
-		remote_tsap_buf = (shared.getController().getRouting().haveDefaultRelay() ? null : new TSAP());
+	}
+
+	public void startConnection(SmtpMessage msg, SmtpSender sender, Relay relay) throws IOException {
+		initConnection();
+		smtpMessage = msg;
+		smtpSender = sender;
+		active_relay = relay;
+		issueAction(PROTO_ACTION.A_CONNECT, PROTO_STATE.S_CONN);
+	}
+
+	public boolean stop() {
+		setFlag(S2_ABORT);
+		if (pstate == PROTO_STATE.S_DISCON) return (tmr_exit == null); // we're already completely stopped
+		issueDisconnect(0, "Forcibly halted", null);
+		return false;
 	}
 
 	private ConnectionConfig getConnectionConfig(int remote_ip) {
@@ -136,20 +153,6 @@ class Client
 	}
 
 	@Override
-	public void start(Delivery.Controller ctl) throws IOException {
-		initConnection();
-		issueAction(PROTO_ACTION.A_CONNECT, PROTO_STATE.S_CONN);
-	}
-
-	@Override
-	public boolean stop() {
-		setFlag(S2_ABORT);
-		if (pstate == PROTO_STATE.S_DISCON) return (tmr_exit == null); // we're already completely stopped
-		issueDisconnect(0, "Forcibly halted");
-		return false;
-	}
-
-	@Override
 	public void ioReceived(ByteArrayRef rcvdata) throws IOException {
 		if (pstate == PROTO_STATE.S_DISCON) return; //this method can be called in a loop, so skip it after a disconnect
 		if (shared.getTranscript() != null) shared.getTranscript().data_in(pfx_log, rcvdata, getSystemTime());
@@ -160,10 +163,6 @@ class Client
 	@Override
 	public void ioDisconnected(CharSequence diagnostic) {
 		raiseSafeEvent(PROTO_EVENT.E_DISCONNECTED, null, diagnostic);
-	}
-
-	private PROTO_STATE issueDisconnect(int statuscode, CharSequence diagnostic) {
-		return issueDisconnect(statuscode, diagnostic, null);
 	}
 
 	private PROTO_STATE issueDisconnect(int statuscode, CharSequence diagnostic, ByteArrayRef failmsg) {
@@ -209,11 +208,12 @@ class Client
 		mxptr = 0;
 		dnsInfo.clear();
 		setFlag(S2_DNSWAIT);
+		CharSequence domain = smtpMessage.getRecipients().get(0).getDomain();
 		ResolverAnswer answer;
 		if (as_host) {
-			answer = shared.getDnsResolver().resolveHostname(msgparams.getDestination(), this, null, 0);
+			answer = shared.getDnsResolver().resolveHostname(domain, this, null, 0);
 		} else {
-			answer = shared.getDnsResolver().resolveMailDomain(msgparams.getDestination(), this, null, 0);
+			answer = shared.getDnsResolver().resolveMailDomain(domain, this, null, 0);
 		}
 		if (answer != null) dnsResolved(getDispatcher(), answer, null);
 	}
@@ -291,18 +291,10 @@ class Client
 	}
 
 	private void issueConnect() throws IOException {
-		active_relay = msgparams.getRelay();
-		if (active_relay != null) remote_tsap = active_relay.tsap;
+		if (active_relay != null) remote_tsap = active_relay.getAddress();
 
 		if (remote_tsap != null) {
 			connect();
-			return;
-		}
-
-		if (msgparams.getDestination() == null) {
-			// If we got here this message is not routed, so the recipient domain must be null. Such a message
-			// should never have been handed to this client, as it is intended solely for remote delivery via SMTP.
-			connectionFailed(Protocol.REPLYCODE_PERMERR_ADDR, "SMTP client cannot deliver to local mailboxes", null);
 			return;
 		}
 		dnsLookup(false);
@@ -328,20 +320,9 @@ class Client
 			raiseSafeEvent(PROTO_EVENT.E_DISCONNECTED, null, null);
 			return;
 		}
-		TSAP tsap = remote_tsap;
-		Relay interceptor = shared.getController().getRouting().getInterceptor();
-
-		if (interceptor != null) {
-			//active_relay==interceptor will be true if we we are trying additional MX relays because first one failed
-			if (active_relay == null || active_relay == interceptor || !interceptor.dns_only) {
-				//leave remote_tsap as is so that we log the IP address we would have connected to
-				active_relay = interceptor;
-				tsap = active_relay.tsap;
-			}
-		}
 
 		try {
-			connect(tsap.sockaddr);
+			connect(remote_tsap.sockaddr);
 		} catch (Throwable ex) {
 			connectionFailed(0, "connect-error", ex);
 		}
@@ -358,18 +339,16 @@ class Client
 		if (getLogger().isActive(lvl) || (shared.getTranscript() != null)) {
 			TSAP local_tsap = TSAP.get(getLocalIP(), getLocalPort(), shared.getTmpTSAP(), true);
 			if (getLogger().isActive(lvl)) {
-				StringBuilder sb = shared.getTmpSB();
-				sb.setLength(0);
+				StringBuilder sb = shared.getTmpSB(true);
 				sb.append(pfx_log).append(" connected to ");
 				recordConnection(sb, local_tsap);
 				getLogger().log(lvl, sb);
 			}
 			if (shared.getTranscript() != null) {
-				Relay rly = msgparams.getRelay();
-				CharSequence remote = (rly == null ? msgparams.getDestination() : rly.display());
+				StringBuilder sb = shared.getTmpSB(true);
 				shared.getTranscript().connection_out(pfx_log, local_tsap.dotted_ip, local_tsap.port,
 												remote_tsap.dotted_ip, remote_tsap.port, getSystemTime(),
-												remote, usingSSL());
+												peerDescription(sb), usingSSL());
 			}
 		}
 		eventRaised(PROTO_EVENT.E_CONNECTED, null, null);
@@ -381,20 +360,16 @@ class Client
 	// error) and 'diagnostic' gives the reason.
 	// statuscode zero therefore also means that remote_tsap is non-null, as we have attempted a connection.
 	private void connectionFailed(int statuscode, CharSequence diagnostic, Throwable exconn) throws UnknownHostException {
-		CharSequence extspid = null;
-		StringBuilder sb = shared.getTmpSB();
+		StringBuilder sb = shared.getTmpSB(true);
 
 		if (statuscode == 0) {
 			if (shared.getTranscript() != null) {
-				Relay rly = msgparams.getRelay();
-				CharSequence remote = (rly == null ? msgparams.getDestination() : rly.display());
+				StringBuilder sb2 = shared.getTmpSB2(true);
 				shared.getTranscript().connection_out(pfx_log, null, 0, remote_tsap.dotted_ip, remote_tsap.port,
-						getSystemTime(), remote, usingSSL());
+						getSystemTime(), peerDescription(sb2), usingSSL());
 			}
 			LEVEL lvl = (MailismusException.isError(exconn) ? LEVEL.WARN : LEVEL.TRC2);
 			if (getLogger().isActive(lvl)) {
-				extspid = formatSPID(msgparams.getSPID());
-				sb.setLength(0);
 				sb.append(pfx_log).append(" failed to connect to ");
 				recordConnection(sb, null);
 				if (diagnostic != null) sb.append(" - ").append(diagnostic);
@@ -424,12 +399,10 @@ class Client
 		disconnect_status = (short)statuscode;
 		setFlag(S2_DOMAIN_ERR);
 		LEVEL lvl = LEVEL.TRC;
-		StringBuilder sbfail = shared.getTmpSB2();
-		sbfail.setLength(0);
+		StringBuilder sbfail = shared.getTmpSB2(true);
 		peerDescription(sbfail);
 
 		if (getLogger().isActive(lvl) || (shared.getTranscript() != null)) {
-			if (extspid == null) extspid = formatSPID(msgparams.getSPID());
 			StringBuilder sbdisc = shared.getDisconnectMsgBuf();
 			if (diagnostic == sbdisc) {
 				sb.setLength(0);
@@ -437,7 +410,7 @@ class Client
 				diagnostic = sb;
 			}
 			sbdisc.setLength(0);
-			sbdisc.append("Cannot connect to ").append(sbfail).append(" for msgid=").append(extspid);
+			sbdisc.append("Cannot connect to ").append(sbfail).append(" for msgid=").append(smtpMessage.getMessageId());
 			if (diagnostic != null) sbdisc.append(" - ").append(diagnostic);
 			diagnostic = sbdisc;
 
@@ -458,13 +431,13 @@ class Client
 	private void endConnection(CharSequence discmsg, ByteArrayRef failmsg) {
 		LEVEL lvl = LEVEL.TRC2;
 		if (getLogger().isActive(lvl)) {
-			shared.getTmpSB().setLength(0);
-			shared.getTmpSB().append(pfx_log).append(" ending with state=").append(pstate).append("/0x").append(Integer.toHexString(state2));
-			shared.getTmpSB().append(", remote=").append(remote_tsap).append("/dns=").append(dnsInfo.size());
-			shared.getTmpSB().append(", msgcnt=").append(msgparams.messageCount());
-			if (discmsg != null) shared.getTmpSB().append(" - reason=").append(discmsg);
-			if (failmsg != null) shared.getTmpSB().append(" - diagnostic=").append(shared.getTmpBC().populateBytes(failmsg));
-			getLogger().log(lvl, shared.getTmpSB());
+			StringBuilder sb = shared.getTmpSB(true);
+			sb.append(pfx_log).append(" ending with state=").append(pstate).append("/0x").append(Integer.toHexString(state2));
+			sb.append(", remote=").append(remote_tsap).append("/dns=").append(dnsInfo.size());
+			sb.append(", msgcnt=").append(msgcnt);
+			if (discmsg != null) sb.append(" - reason=").append(discmsg);
+			if (failmsg != null) sb.append(" - diagnostic=").append(shared.getTmpBC().populateBytes(failmsg));
+			getLogger().log(lvl, sb);
 		}
 		if (tmr_sesstmt != null) {
 			tmr_sesstmt.cancel();
@@ -482,7 +455,7 @@ class Client
 			// If the disconnection is unintentional on the server's part and due to some other issues, then (a) is still a good enough reason
 			// to give up, and since it's impossible for us to know whether the disconnect is intentional or not, the combination of no
 			// EHLO support and an inopportune disconnect is irrecoverable anyway. Message delivery can fail, this one has now failed!
-			disconnect_status = reply_status;
+			disconnect_status = replyDescriptor.smtpStatus();
 			String msg = "Disconnected due to EHLO rejection";
 			if (discmsg != null) msg += " - "+discmsg;
 			discmsg = msg;
@@ -490,12 +463,13 @@ class Client
 
 		try {
 			if (failmsg == null && discmsg != null) failmsg = shared.getFailMsgBuffer().populate(discmsg);
-			setRecipientStatus(-1, disconnect_status, failmsg, false);
+			SmtpResponseDescriptor rsp = new SmtpResponseDescriptor(disconnect_status, null, null);
+			setRecipientStatus(-1, rsp);
 		} catch (Exception ex) {
 			getLogger().log(LEVEL.WARN, ex, false, pfx_log+" failed to set final recipients status");
 		}
 		if (remote_tsap != null && !isFlagSet(S2_CNXLIMIT)) shared.decrementServerConnections(remote_tsap.ip, conncfg);
-		if (remote_tsap_buf != null) remote_tsap_buf.clear(); //don't erase the statically configured TSAPs!
+		remote_tsap_buf.clear();
 
 		if (isFlagSet(S2_DNSWAIT)) {
 			try {
@@ -562,7 +536,7 @@ class Client
 			break;
 
 		case E_LOCALERROR:
-			issueDisconnect(Protocol.REPLYCODE_TMPERR_LOCAL, "Local Error - "+discmsg);
+			issueDisconnect(Protocol.REPLYCODE_TMPERR_LOCAL, "Local Error - "+discmsg, null);
 			break;
 
 		default:
@@ -600,7 +574,7 @@ class Client
 		// in response to anything else then we discard the leading lines and wait for the final one, taking its reply code as the
 		// definitive one. CORRECTION!! AOL sends a multi-line Greeting, so just as well we handle continued replies anywhere.
 		setFlag(S2_REPLYCONTD, rspdata.byteAt(Protocol.REPLY_CODELEN) == Protocol.REPLY_CONTD);
-		reply_status = getReplyCode(rspdata);
+		replyDescriptor = SmtpResponseDescriptor.parse(rspdata, false); //xxx need flag for enhanced-status
 		if (isFlagSet(S2_REPLYCONTD)) {
 			if (pstate != PROTO_STATE.S_EHLO) return pstate;
 		} else {
@@ -625,28 +599,29 @@ class Client
 			break;
 
 		case S_EHLO:
-			if (reply_status != okreply) {
+			if (replyDescriptor.smtpStatus() != okreply) {
 				if (conncfg.isFallbackHelo()) return issueAction(PROTO_ACTION.A_HELO, PROTO_STATE.S_HELO);
 			} else {
 				if (matchesExtension(rspdata, Protocol.EXT_PIPELINE, false)) {
 					pipe_cap = conncfg.getMaxPipeline();
 				} else if (matchesExtension(rspdata, Protocol.EXT_STLS, false)) {
 					setFlag(S2_SERVER_STLS);
-				} else if (active_relay != null && active_relay.auth_enabled && auth_method == null
-						&& (matchesExtension(rspdata, Protocol.EXT_AUTH, false)
-								|| (active_relay.auth_compat && matchesExtension(rspdata, Protocol.EXT_AUTH_COMPAT, true)))) {
-					// loop through the advertised SASL mechanisms and use the first one we support
-					int lmt = rspdata.limit();
-					int off = rspdata.offset();
-					while (off != lmt) {
-						int off2 = off;
-						while (rspdata.buffer()[off2] > ' ') off2++;
-						shared.getTmpLightBC().set(rspdata.buffer(), off, off2-off);
-						auth_method = shared.getAuthTypesSupported().get(shared.getTmpLightBC());
-						//server might advertise EXTERNAL anyway without meaning it unless in SSL mode, so keep scanning for better option
-						if (auth_method != null && auth_method != SaslEntity.MECH.EXTERNAL) break;
-						off = off2;
-						while (rspdata.buffer()[off] == ' ') off++;
+				} else if (matchesExtension(rspdata, Protocol.EXT_AUTH, false)
+						|| (active_relay.isAuthCompat() && matchesExtension(rspdata, Protocol.EXT_AUTH_COMPAT, true))) {
+					if (active_relay != null && active_relay.isAuthRequired() && auth_method == null) {
+						// loop through the advertised SASL mechanisms and use the first one we support
+						int lmt = rspdata.limit();
+						int off = rspdata.offset();
+						while (off != lmt) {
+							int off2 = off;
+							while (rspdata.buffer()[off2] > ' ') off2++;
+							shared.getTmpLightBC().set(rspdata.buffer(), off, off2-off);
+							auth_method = shared.getAuthTypesSupported().get(shared.getTmpLightBC());
+							//server might advertise EXTERNAL anyway without meaning it unless in SSL mode, so keep scanning for better option
+							if (auth_method != null && auth_method != SaslEntity.MECH.EXTERNAL) break;
+							off = off2;
+							while (rspdata.buffer()[off] == ' ') off++;
+						}
 					}
 				}
 			}
@@ -658,10 +633,10 @@ class Client
 			break;
 
 		case S_MAILTO:
-			if (reply_status == Protocol.REPLYCODE_RECIPMOVING) reply_status = okreply;
-			setRecipientStatus(recip_id++, reply_status, rspdata, true);
+			//xxx Need to handle this and 252  if (replyDescriptor.smtpStatus() == Protocol.REPLYCODE_RECIPMOVING) reply_status = okreply;
+			setRecipientStatus(recip_id++, replyDescriptor);
 			okreply = 0; //an error response at this stage merely invalidates the current recipient, so reply status has now been processed
-			if (recip_id == msgparams.recipCount()) {
+			if (recip_id == smtpMessage.getRecipients().size()) {
 				if (okrecips == 0) return issueDisconnect(0, "No valid recipients", FAILMSG_NORECIPS);
 				issueAction(PROTO_ACTION.A_DATA, PROTO_STATE.S_DATA, okreply, null, rspdata);
 				break;
@@ -690,8 +665,8 @@ class Client
 			break;
 
 		case S_AUTH:
-			if (reply_status != Protocol.REPLYCODE_AUTH_OK && reply_status != Protocol.REPLYCODE_AUTH_CONTD) {
-				return issueDisconnect(reply_status, "Authentication failed", rspdata);
+			if (replyDescriptor.smtpStatus() != Protocol.REPLYCODE_AUTH_OK && replyDescriptor.smtpStatus() != Protocol.REPLYCODE_AUTH_CONTD) {
+				return issueDisconnect(replyDescriptor.smtpStatus(), "Authentication failed", rspdata);
 			}
 			sendAuth(rspdata);
 			break;
@@ -706,20 +681,19 @@ class Client
 	}
 
 	private PROTO_STATE issueAction(PROTO_ACTION action, PROTO_STATE newstate, int okreply, CharSequence discmsg, ByteArrayRef rspdata) throws IOException {
-		if (okreply != 0 && reply_status != okreply) {
+		if (okreply != 0 && replyDescriptor.smtpStatus() != okreply) {
 			//note that okreply will already have been reset in state S_MAILTO
 			LEVEL lvl = LEVEL.TRC;
 			if (getLogger().isActive(lvl)) {
 				int len = rspdata.size();
 				while (rspdata.buffer()[rspdata.offset()+len-1] < ' ') len--; //strip trailing CRLF
-				StringBuilder sb = shared.getTmpSB();
-				sb.setLength(0);
+				StringBuilder sb = shared.getTmpSB(true);
 				sb.append(pfx_log).append(" rejected in state=").append(pstate).append(" - ");
 				peerDescription(sb);
 				sb.append(" replied: ").append(shared.getTmpLightBC().set(rspdata.buffer(), rspdata.offset(), len));
 				getLogger().log(lvl, sb);
 			}
-			return issueDisconnect(reply_status, "Server rejection", rspdata);
+			return issueDisconnect(replyDescriptor.smtpStatus(), "Server rejection", rspdata);
 		}
 		if (newstate != null) transitionState(newstate);
 		boolean endpipe = (pipe_count == 0 && dataWait != 0); //changed state, but don't send any more until all pipelined commands are acked
@@ -732,13 +706,13 @@ class Client
 			break;
 
 		case A_HELO:
-			auth_method = (active_relay == null ? null : active_relay.auth_override);
+			auth_method = (active_relay == null ? null : active_relay.getAuthOverride());
 			reqbuf = shared.getHeloBuffer(conncfg, false);
 			transmit(reqbuf);
 			break;
 
 		case A_EHLO:
-			auth_method = (active_relay == null ? null : active_relay.auth_override);
+			auth_method = (active_relay == null ? null : active_relay.getAuthOverride());
 			reqbuf = shared.getHeloBuffer(conncfg, true);
 			transmit(reqbuf);
 			break;
@@ -760,23 +734,18 @@ class Client
 			break;
 
 		case A_MAILFROM: //all recips members refer to same message, so they have a common Sender
-			endpipe = sendPipelinedRequest(SMTPREQ_MAILFROM, false, msgparams.getSender(), null, true);
+			endpipe = sendPipelinedRequest(SMTPREQ_MAILFROM, false, smtpMessage.getSender(), null, true);
 			if (!endpipe) issueAction(PROTO_ACTION.A_MAILTO, null);
 			break;
 
 		case A_MAILTO:
 			while (!endpipe) {
-				if (recips_sent == msgparams.recipCount()) {
+				if (recips_sent == smtpMessage.getRecipients().size()) {
 					issueAction(PROTO_ACTION.A_DATA, null);
 					break;
 				}
-				MessageRecip recip = msgparams.getRecipient(recips_sent);
-				if (recip.spid != msgparams.getSPID()) {
-					throw new IllegalStateException(pfx_log+" has mismatched SPID on recip "+recips_sent+"="
-							+recip.domain_to+"/"+recip.qid
-							+" - "+Integer.toHexString(recip.spid)+" vs "+Integer.toHexString(msgparams.getSPID()));
-				}
-				endpipe = sendPipelinedRequest(SMTPREQ_MAILTO, false, recip.mailbox_to, recip.domain_to, true);
+				SmtpMessage.Recipient recip = smtpMessage.getRecipients().get(recips_sent);
+				endpipe = sendPipelinedRequest(SMTPREQ_MAILTO, false, recip.getMailbox(), recip.getDomain(), true);
 				recips_sent++;
 			}
 			break;
@@ -793,43 +762,53 @@ class Client
 			break;
 
 		case A_MAILBODY:
-			Path fh_msg = shared.getController().getQueue().getMessage(msgparams.getSPID(), msgparams.getRecipient(0).qid);
-			long msgbytes = Files.size(fh_msg);
+			Object msgdata = smtpMessage.getData().get();
+			Supplier<String> dataErrMsg = () -> null;
+			long msgbytes = 0;
+			try {
+				if (msgdata instanceof Path) {
+					Path p = (Path)msgdata;
+					dataErrMsg = () -> (Files.exists(p) ? null : "Spool file missing");
+					msgbytes = Files.size(p);
+					getWriter().transmit(p);
+				} else if (msgdata instanceof byte[]) {
+					byte[] b = (byte[])msgdata;
+					msgbytes = b.length;
+					getWriter().transmit(b);
+				} else {
+					dataErrMsg = () -> "Invalid message data supplied - "+(msgdata == null ? null : msgdata.getClass().getName());
+				}
+			} catch (IOException ex) {
+				if (dataErrMsg.get() == null)
+					throw ex; //prob some temporary comms issue
+			}
+			if (dataErrMsg.get() != null)
+				return issueDisconnect(Protocol.REPLYCODE_PERMERR_MISC, dataErrMsg.get(), FAILMSG_LOCAL);
+
+			transmit(shared.getSmtpRequestEOM());
 			alt_tmtprotocol = calculateMaxTime(msgbytes, conncfg.getMinRateData());
 			if (alt_tmtprotocol < conncfg.getIdleTimeout().toMillis()) alt_tmtprotocol = 0;
-			try {
-				getWriter().transmit(fh_msg);
-			} catch (IOException ex) {
-				if (Files.exists(fh_msg, FileOps.LINKOPTS_NONE)) throw ex; //prob some temporary comms issue
-				return issueDisconnect(Protocol.REPLYCODE_PERMERR_MISC, "Spool file missing", FAILMSG_NOSPOOL);
-			}
-			transmit(shared.getSmtpRequestEOM());
 
 			if (shared.getTranscript() != null) {
-				shared.getTmpSB().setLength(0);
-				shared.getTmpSB().append("Sent message-body octets=").append(msgbytes).append(" for msgid=");
-				shared.getTmpSB().append(formatSPID(msgparams.getSPID()));
-				shared.getTranscript().event(pfx_log, shared.getTmpSB(), getSystemTime());
+				StringBuilder sb = shared.getTmpSB(true);
+				sb.append("Sent message-body octets=").append(msgbytes).append(" for msgid=");
+				sb.append(smtpMessage.getMessageId());
+				shared.getTranscript().event(pfx_log, sb, getSystemTime());
 			}
 			break;
 
 		case A_ENDMESSAGE:
-			shared.getController().messageCompleted(this);
-			if (msgparams.recipCount() == 0) return issueAction(PROTO_ACTION.A_QUIT, PROTO_STATE.S_QUIT);
-			initMessage();
-			LEVEL lvl = LEVEL.TRC2;
-			if (getLogger().isActive(lvl)) {
-				shared.getTmpSB().setLength(0);
-				shared.getTmpSB().append(pfx_log).append(" follow-on msg #").append(msgparams.messageCount()).append(" - msgid=");
-				shared.getTmpSB().append(formatSPID(msgparams.getSPID())).append(", recips=").append(msgparams.recipCount());
-				getLogger().log(lvl, shared.getTmpSB());
+			smtpMessage = smtpSender.messageCompleted(smtpMessage, ++msgcnt);
+			if (smtpMessage == null) {
+				return issueAction(PROTO_ACTION.A_QUIT, PROTO_STATE.S_QUIT);
 			}
+			initMessage();
 			issueAction(PROTO_ACTION.A_RESET, PROTO_STATE.S_RESET);
 			break;
 
 		case A_QUIT:
 			if (conncfg.isSendQuit()) transmit(shared.getSmtpRequestQuit());
-			if (!conncfg.isAwaitQuit()) issueDisconnect(0, "A_QUIT");
+			if (!conncfg.isAwaitQuit()) issueDisconnect(0, "A_QUIT", null);
 			break;
 
 		case A_RESET:
@@ -837,7 +816,7 @@ class Client
 			break;
 
 		case A_ENDSESSION:
-			issueDisconnect(0, "A_ENDSESSION");
+			issueDisconnect(0, "A_ENDSESSION", null);
 			break;
 
 		case A_DISCONNECT:
@@ -874,8 +853,7 @@ class Client
 	@Override
 	protected void disconnectLingerDone(boolean ok, CharSequence info, Throwable ex) {
 		if (shared.getTranscript() == null) return;
-		StringBuilder sb = shared.getTmpSB();
-		sb.setLength(0);
+		StringBuilder sb = shared.getTmpSB(true);
 		sb.append("Disconnect linger ");
 		if (ok) {
 			sb.append("completed");
@@ -893,26 +871,26 @@ class Client
 		int step = auth_step++;
 
 		if (auth_method == SaslEntity.MECH.PLAIN) {
-			int finalstep = (active_relay.auth_initrsp ? 1 : 2);
+			int finalstep = (active_relay.isAuthInitialResponse() ? 1 : 2);
 			auth_done = (step == finalstep);
 			if (step == 0) {
 				rspbuf.append(Protocol.CMDREQ_SASL_PLAIN);
-				if (active_relay.auth_initrsp) {
+				if (active_relay.isAuthInitialResponse()) {
 					rspbuf.append(' ');
 					shared.getSaslPlain().init();
-					shared.getSaslPlain().setResponse(null, active_relay.usrnam, active_relay.passwd, rspbuf);
+					shared.getSaslPlain().setResponse(null, active_relay.getUsername(), active_relay.getPassword(), rspbuf);
 				}
 			} else if (!auth_done) {
 				shared.getSaslPlain().init();
-				shared.getSaslPlain().setResponse(null, active_relay.usrnam, active_relay.passwd, rspbuf);
+				shared.getSaslPlain().setResponse(null, active_relay.getUsername(), active_relay.getPassword(), rspbuf);
 			}
 		} else if (auth_method == SaslEntity.MECH.EXTERNAL) {
 			// we send a zero-length response (whether initial or not), to assume the derived authorization ID
-			int finalstep = (active_relay.auth_initrsp ? 1 : 2);
+			int finalstep = (active_relay.isAuthInitialResponse() ? 1 : 2);
 			auth_done = (step == finalstep);
 			if (step == 0) {
 				rspbuf.append(Protocol.CMDREQ_SASL_EXTERNAL);
-				if (active_relay.auth_initrsp) {
+				if (active_relay.isAuthInitialResponse()) {
 					rspbuf.append(' ').append(Protocol.AUTH_EMPTY);
 				}
 			} else if (!auth_done) {
@@ -925,7 +903,7 @@ class Client
 			} else if (step == 1) {
 				rspdata.advance(Protocol.AUTH_CHALLENGE.length()); //advance past prefix
 				rspdata.incrementSize(-Protocol.EOL.length()); //strip CRLF
-				shared.getSaslCramMD5().setResponse(active_relay.usrnam, active_relay.passwd, rspdata, rspbuf);
+				shared.getSaslCramMD5().setResponse(active_relay.getUsername(), ByteChars.valueOf(active_relay.getPassword()), rspdata, rspbuf);
 			} else {
 				auth_done = true;
 			}
@@ -942,90 +920,38 @@ class Client
 		return pstate;
 	}
 
-	private void setRecipientStatus(int idx, short statuscode, ByteArrayRef failmsg, boolean remote_rsp) throws IOException {
+	private void setRecipientStatus(int idx, SmtpResponseDescriptor reply) {
 		if (idx == -1) {
 			// apply this status to all recipients
-			if (isFlagSet(S2_ABORT)) {
-				// Any recipients who've already failed remain as failures, but recipients who had been marked as OK revert to
-				// an unprocessed status, as we've clearly been interrupted before completing the message send.
-				for (int idx2 = 0; idx2 != msgparams.recipCount(); idx2++) {
-					MessageRecip recip = msgparams.getRecipient(idx2);
-					if (recip.smtp_status == Protocol.REPLYCODE_OK) {
-						recip.qstatus = MessageRecip.STATUS_READY;
-					}
-				}
-				return;
-			}
-
-			for (int idx2 = 0; idx2 != msgparams.recipCount(); idx2++) {
-				setRecipientStatus(idx2, statuscode, failmsg, remote_rsp);
+			if (smtpMessage == null || smtpMessage.getRecipients() == null)
+				return; //is probably an error condition, so worth checking if we are initialised
+			for (int idx2 = 0; idx2 != smtpMessage.getRecipients().size(); idx2++) {
+				setRecipientStatus(idx2, reply);
 			}
 			return;
 		}
-		MessageRecip recip = msgparams.getRecipient(idx);
-		Relay interceptor = shared.getController().getRouting().getInterceptor();
-		
-		if (!isFlagSet(S2_ABORT)) recip.qstatus = MessageRecip.STATUS_DONE;
-		if (interceptor != null) {
-			//even though we generally log the theoretical destination address, we must audit the actual one
-			recip.ip_send = interceptor.tsap.ip;
-		} else {
-			recip.ip_send = (remote_tsap == null ? 0 : remote_tsap.ip);
-		}
+		SmtpResponseDescriptor prevStatus = (idx >= recipientStatus.size() ? null : recipientStatus.get(idx));
 
-		// this ensures that perm errors override preliminary temp errors, which in turn override preliminary success
-		if (statuscode > recip.smtp_status) {
-			if (recip.smtp_status == Protocol.REPLYCODE_OK) okrecips--; //retract an earlier success
-			if (statuscode == Protocol.REPLYCODE_OK) okrecips++; //no status had been set yet
-			recip.smtp_status = statuscode;
-
-			// Set or clear the NDR diagnostic.
-			// Note that we don't create the diagnostic-message file for NDRs themselves.
-			if (recip.smtp_status == Protocol.REPLYCODE_OK) {
-				if (recip.sender != null && recip.retrycnt != 0) {
-					Path fh = shared.getController().getQueue().getDiagnosticFile(recip.spid, recip.qid);
-					Exception ex = FileOps.deleteFile(fh);
-					if (ex != null) getLogger().warn(pfx_log+" failed to delete NDR-diagnostic="+fh.getFileName()+" - "+ex);
+		if (prevStatus != null) {
+			//overwriting an earlier status
+			if (reply.smtpStatus() > prevStatus.smtpStatus()) {
+				// this ensures that perm errors override preliminary temp errors, which in turn override preliminary success
+				if (reply.smtpStatus() != Protocol.REPLYCODE_OK && prevStatus.smtpStatus() == Protocol.REPLYCODE_OK) {
+					okrecips--; //retract an earlier success
 				}
-			} else {
-				LEVEL lvl = LEVEL.TRC2;
-				if (remote_rsp && getLogger().isActive(lvl)) {
-					int len = failmsg.size();
-					while (failmsg.buffer()[failmsg.offset()+len-1] < ' ') len--; //strip trailing CRLF
-					StringBuilder sb = shared.getTmpSB();
-					sb.setLength(0);
-					sb.append(pfx_log).append(" rejected on recip ").append(idx+1).append('/').append(msgparams.recipCount());
-					sb.append('=').append(msgparams.getRecipient(idx).mailbox_to).append(EmailAddress.DLM_DOM).append(msgparams.getRecipient(idx).domain_to);
-					sb.append(" - ").append(shared.getTmpLightBC().set(failmsg.buffer(), failmsg.offset(), len));
-					getLogger().log(lvl, sb);
-				}
-				int diaglen = (failmsg == null ? 0 : failmsg.size());
-				if (recip.sender == null || recip.smtp_status <= Protocol.REPLYCODE_OK) diaglen = 0;
-				while (diaglen != 0 && failmsg.buffer()[failmsg.offset()+diaglen-1] <= ' ') diaglen--;
-				if (diaglen != 0) {
-					OutputStream fstrm = null;
-					try {
-						fstrm = shared.getController().getQueue().createDiagnosticFile(recip.spid, recip.qid);
-						if (failmsg.byteAt(0) >= '1' && failmsg.byteAt(0) <= '5') {
-							//prefix message with the IP address we failed to send to
-							IP.ip2net(recip.ip_send, shared.getTmpIP(), 0);
-							fstrm.write(1);
-							fstrm.write(shared.getTmpIP());
-						}
-						fstrm.write(failmsg.buffer(), failmsg.offset(), diaglen);
-					} catch (Exception ex) {
-						getLogger().log(LEVEL.WARN, ex, true, pfx_log+" failed to set failure reason for "+recip);
-					} finally {
-						if (fstrm != null) fstrm.close();
-					}
-				}
+				recipientStatus.set(idx, reply);
 			}
+		} else {
+			//appending new status - idx is presumably equal to recipientStatus.size() but don't bother checking
+			if (reply.smtpStatus() == Protocol.REPLYCODE_OK) okrecips++;
+			recipientStatus.add(reply);
 		}
+		smtpSender.recipientCompleted(smtpMessage, msgcnt, idx, reply, remote_tsap, isFlagSet(S2_ABORT));
 	}
 
 	// NB: We can use shared.pipebuf because the pipeline is always built up and sent within one callback
-	private boolean sendPipelinedRequest(ByteChars cmd, boolean flush, ByteChars addr,
-			ByteChars domain, boolean close_brace) throws IOException {
+	private boolean sendPipelinedRequest(ByteChars cmd, boolean flush, CharSequence addr,
+			CharSequence domain, boolean close_brace) throws IOException {
 		ByteChars rspbuf = shared.getPipelineBuffer();
 		if (pipe_count == 0) rspbuf.clear();
 		rspbuf.append(cmd);
@@ -1060,14 +986,6 @@ class Client
 		dataWait++;
 	}
 
-	private short getReplyCode(ByteArrayRef rsp) {
-		int off = rsp.offset();
-		short statuscode = (short)((rsp.buffer()[off++] - '0') * 100);
-		statuscode += (short) ((rsp.buffer()[off++] - '0') * 10);
-		statuscode += (short) (rsp.buffer()[off] - '0');
-		return statuscode;
-	}
-
 	private boolean matchesExtension(ByteArrayRef data, char[] cmd, boolean with_equals) {
 		int off = Protocol.REPLY_CODELEN + 1; //+1 for the hyphen or space following the "250"
 		int len = data.size() - off - Protocol.EOL.length();
@@ -1093,11 +1011,13 @@ class Client
 		pfx_log = LOG_PREFIX+"/E"+getCMID()+"-"+cnxid;
 		initChannelMonitor();
 		initMessage();
+		smtpMessage = null;
 		dnsInfo.clear();
 		conncfg = shared.getDefaultConfig();
 		pipe_cap = 1;
 		remote_tsap = null;
 		active_relay = null;
+		msgcnt = 0;
 		pstate = PROTO_STATE.S_DISCON;
 		disconnect_status = 0;
 		dataWait = 0;
@@ -1111,16 +1031,12 @@ class Client
 		recips_sent = 0;
 		okrecips = 0;
 		pipe_count = 0;
+		recipientStatus.clear();
 	}
 
-	private CharSequence formatSPID(int spid) {
-		return shared.getController().getQueue().externalSPID(spid);
-	}
-
-	@Override
 	public short getDomainError() {
 		if (!isFlagSet(S2_DOMAIN_ERR)) return 0;
-		return msgparams.getRecipient(0).smtp_status;
+		return recipientStatus.get(0).smtpStatus();
 	}
 
 	private void recordConnection(StringBuilder sb, TSAP local_tsap) {
@@ -1128,16 +1044,22 @@ class Client
 		if (local_tsap != null) sb.append(" on ").append(local_tsap.dotted_ip).append(':').append(local_tsap.port);
 		sb.append(" for ");
 		peerDescription(sb);
-		sb.append(" with msgid=").append(formatSPID(msgparams.getSPID()));
-		sb.append(", recips=").append(msgparams.recipCount());
+		sb.append(" with msgid=").append(smtpMessage.getMessageId());
+		sb.append(", recips=").append(smtpMessage.getRecipients().size());
 	}
 
-	private void peerDescription(StringBuilder sb) {
-		if (msgparams.getRelay() != null) {
-			sb.append("relay=").append(msgparams.getRelay().display());
-		} else {
-			sb.append("domain=").append(msgparams.getDestination());
+	private CharSequence peerDescription(StringBuilder sb) {
+		if (smtpMessage == null)
+			return "nullpeer";
+		String dlm = "";
+		if (smtpMessage.getRecipients() != null && !smtpMessage.getRecipients().isEmpty()) {
+			sb.append("domain=").append(smtpMessage.getRecipients().get(0).getDomain());
+			dlm = "/";
 		}
+		if (active_relay != null) {
+			sb.append(dlm).append("relay=").append(active_relay.getName()).append('=').append(active_relay.getAddress());
+		}
+		return sb;
 	}
 
 	// given a minimum bits per second, calculate the max time expected to send this many bytes (in milliseconds)
@@ -1147,11 +1069,11 @@ class Client
 
 	@Override
 	public StringBuilder dumpAppState(StringBuilder sb) {
+		int cnt = (smtpMessage == null || smtpMessage.getRecipients() == null ? -1 : smtpMessage.getRecipients().size());
 		if (sb == null) sb = new StringBuilder();
 		sb.append(pfx_log).append('/').append(pstate).append("/0x").append(Integer.toHexString(state2)).append(": ");
 		peerDescription(sb);
-		sb.append("; msgcnt=").append(msgparams.messageCount());
-		sb.append("; recips=").append(recip_id).append('/').append(msgparams.recipCount());
+		sb.append("; recips=").append(recip_id).append('/').append(cnt);
 		return sb;
 	}
 

@@ -2,7 +2,7 @@
  * Copyright 2010-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
-package com.grey.mailismus.mta.deliver;
+package com.grey.mailismus.mta.deliver.client;
 
 import java.time.Duration;
 import java.util.ArrayList;

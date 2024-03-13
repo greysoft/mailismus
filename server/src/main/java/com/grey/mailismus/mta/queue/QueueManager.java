@@ -333,7 +333,7 @@ abstract public class QueueManager
 			}
 		} catch (Throwable ex) {
 			success = false;
-			dsptch.getLogger().log(LEVEL.INFO, ex, true, loglbl+"Submit-ctl failed on SPID="+Integer.toHexString(sph.spid));
+			dsptch.getLogger().log(LEVEL.INFO, ex, true, loglbl+"Submit-fwd failed on SPID="+Integer.toHexString(sph.spid));
 		}
 
 		if (rollback || !success) {
