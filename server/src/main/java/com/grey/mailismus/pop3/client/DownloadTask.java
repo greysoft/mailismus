@@ -86,11 +86,11 @@ public class DownloadTask
 	}
 
 	@Override
-	public void eventIndication(Object obj, String eventId)
+	public void eventIndication(String eventId, Object evtsrc, Object dat)
 	{
-		DownloadClient client = DownloadClient.class.cast(obj);
+		DownloadClient client = DownloadClient.class.cast(evtsrc);
 		boolean active = activeClients.remove(client);
-		if (observer != null) observer.eventIndication(client, eventId);
+		if (observer != null) observer.eventIndication(eventId, client, null);
 		if (inShutdown) {
 			if (activeClients.size() == 0) stopped();
 			return;

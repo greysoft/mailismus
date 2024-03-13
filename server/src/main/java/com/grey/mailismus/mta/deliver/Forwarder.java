@@ -57,9 +57,9 @@ public class Forwarder
 			this.ctl = ctl;
 		}
 		@Override
-		public void eventIndication(Object obj, String eventId) {
-			if (obj instanceof Client && ChannelMonitor.EVENTID_CM_DISCONNECTED.equals(eventId)) {
-				ctl.senderCompleted((Delivery.MessageSender)obj);
+		public void eventIndication(String eventId, Object evtsrc, Object data) {
+			if (evtsrc instanceof Delivery.MessageSender && ChannelMonitor.EVENTID_CM_DISCONNECTED.equals(eventId)) {
+				ctl.senderCompleted((Delivery.MessageSender)evtsrc);
 			}
 		}
 	}
@@ -294,7 +294,7 @@ public class Forwarder
 		if (active_serverconns != null) active_serverconns.clear();
 		qcache.clear();
 		has_stopped = true;
-		if (notify && eventListener != null) eventListener.eventIndication(this, EventListenerNAF.EVENTID_ENTITY_STOPPED);
+		if (notify && eventListener != null) eventListener.eventIndication(EventListenerNAF.EVENTID_ENTITY_STOPPED, this, null);
 	}
 
 	@Override

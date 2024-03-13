@@ -348,7 +348,7 @@ public class ForwarderTest
 	}
 
 	@Override
-	public void eventIndication(Object obj, String eventId)
+	public void eventIndication(String eventId, Object obj, Object data)
 	{
 		if (obj == dsptch) {
 			halted = fwd.stop();

@@ -37,7 +37,8 @@ public final class DeliverTask
 
 	// the only entity we launch is the SMTP Sender, so this must be it ... and that means we're now finished as well
 	@Override
-	public void eventIndication(Object reportingEntity, String eventId) {
+	public void eventIndication(String eventId, Object evtsrc, Object data) {
+		getDispatcher().getLogger().info("DeliverTask="+getName()+" received event="+eventId+"/"+evtsrc.getClass().getName()+"/"+data);
 		nafletStopped();
 	}
 }
