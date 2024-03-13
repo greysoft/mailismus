@@ -215,7 +215,7 @@ public class BaseManagerTest
 			super(d, qcfg, appcfg, name);
 		}
 		@Override
-		protected boolean storeMessage(SubmitHandle sph) {throw new QException("Simulating ctl-store failure");}
+		protected boolean storeMessage(SubmitHandle sph) {throw new QException("Simulating fwd-store failure");}
 	}
 
 	public static class TestManager extends QueueManager

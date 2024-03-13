@@ -43,7 +43,6 @@ import com.grey.mailismus.mta.submit.filter.api.FilterResultsHandler;
 import com.grey.mailismus.mta.submit.filter.api.MessageFilter;
 import com.grey.mailismus.mta.deliver.Relay;
 import com.grey.mailismus.mta.deliver.DeliverTask;
-import com.grey.mailismus.mta.deliver.Delivery;
 import com.grey.mailismus.mta.deliver.Forwarder;
 import com.grey.mailismus.TestSupport;
 import com.grey.mailismus.ms.maildir.MaildirStore;
@@ -422,7 +421,7 @@ public class DeliveryTest
 		if (interceptor_spec != null) {
 			String ixml = "<intercept dns=\"Y\" address=\""+interceptor_spec+"\"/>";
 			cfg = XmlConfig.makeSection(ixml, "intercept");
-			Relay interceptor = new Relay(cfg, true, nafcfg, dsptch.getLogger());
+			Relay interceptor = Relay.create("test-interceptor", cfg, true, nafcfg);
 			Object routing = DynLoader.getField(smtp_sender, "routing");
 			DynLoader.setField(routing, "interceptor", interceptor);
 		}
@@ -545,7 +544,7 @@ public class DeliveryTest
 	}
 
 	@Override
-	public void batchCompleted(int qsize, Delivery.Stats stats)
+	public void batchCompleted(int qsize, Forwarder.DeliveryStats stats)
 	{
 		if (qsize == 0) {
 			if (!stopping) {
@@ -616,7 +615,7 @@ public class DeliveryTest
 
 	private static class FwdStats
 	{
-		final Delivery.Stats stats = new Delivery.Stats(TimeProvider);
+		final Forwarder.DeliveryStats stats = new Forwarder.DeliveryStats(TimeProvider);
 		int qsize;
 		FwdStats() {}
 		FwdStats(int q, int c, int m) {qsize = q; stats.conncnt = c; stats.sendermsgcnt = m;}

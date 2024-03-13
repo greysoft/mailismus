@@ -10,6 +10,9 @@ import com.grey.base.utils.TimeOps;
 import com.grey.base.utils.EmailAddress;
 import com.grey.base.utils.IP;
 import com.grey.base.utils.DynLoader;
+
+import java.security.GeneralSecurityException;
+
 import com.grey.base.collections.HashedSetInt;
 import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.EventListenerNAF;
@@ -21,6 +24,8 @@ import com.grey.naf.reactor.TimerNAF;
 import com.grey.mailismus.AppConfig;
 import com.grey.mailismus.TestSupport;
 import com.grey.mailismus.mta.Protocol;
+import com.grey.mailismus.mta.deliver.client.SmtpMessage;
+import com.grey.mailismus.mta.deliver.client.SmtpSender;
 import com.grey.mailismus.mta.queue.MessageRecip;
 import com.grey.mailismus.mta.smtp.MockServerDNS;
 
@@ -147,9 +152,9 @@ public class ForwarderTest
 		String cfgxml = delivxml.replace("x1relay", "relay");
 		XmlConfig cfg = XmlConfig.makeSection(cfgxml, "deliver");
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs1, true);
-		SenderFactory sndrfact = new SenderFactory(expected_senders, false);
+		SenderFactory sndrfact = new SenderFactory(dsptch, qmgr, expected_senders, null, false);
 		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
-		sndrfact.ctl = fwd;
+		sndrfact.fwd = fwd;
 		exec(qmgr, sndrfact, true);
 	}
 
@@ -160,9 +165,9 @@ public class ForwarderTest
 		String cfgxml = delivxml.replace("x2maxconnections", "maxconnections");
 		XmlConfig cfg = XmlConfig.makeSection(cfgxml, "deliver");
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs2, true);
-		SenderFactory sndrfact = new SenderFactory(expected_senders, expected_refills, true);
+		SenderFactory sndrfact = new SenderFactory(dsptch, qmgr, expected_senders, expected_refills, true);
 		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
-		sndrfact.ctl = fwd;
+		sndrfact.fwd = fwd;
 		exec(qmgr, sndrfact, false);
 	}
 
@@ -174,9 +179,9 @@ public class ForwarderTest
 		String cfgxml = delivxml.replace("x2maxconnections", "maxconnections");
 		XmlConfig cfg = XmlConfig.makeSection(cfgxml, "deliver");
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs3, true, 1);
-		SenderFactory sndrfact = new SenderFactory(expected_senders, true);
+		SenderFactory sndrfact = new SenderFactory(dsptch, qmgr, expected_senders, null, true);
 		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
-		sndrfact.ctl = fwd;
+		sndrfact.fwd = fwd;
 		exec(qmgr, sndrfact, false);
 	}
 
@@ -190,9 +195,9 @@ public class ForwarderTest
 		String cfgxml = delivxml.replace("x2maxserverconnections", "maxserverconnections");
 		XmlConfig cfg = XmlConfig.makeSection(cfgxml, "deliver");
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs4, true, 0);
-		SenderFactory sndrfact = new SenderFactory(expected_senders, expected_refills, true);
+		SenderFactory sndrfact = new SenderFactory(dsptch, qmgr, expected_senders, expected_refills, true);
 		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
-		sndrfact.ctl = fwd;
+		sndrfact.fwd = fwd;
 		exec(qmgr, sndrfact, false);
 	}
 
@@ -203,9 +208,9 @@ public class ForwarderTest
 		String cfgxml = delivxml.replace("x2maxserverconnections", "maxserverconnections").replace("x2relay","relay");
 		XmlConfig cfg = XmlConfig.makeSection(cfgxml, "deliver");
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs4, true, 0);
-		SenderFactory sndrfact = new SenderFactory(expected_senders, true);
+		SenderFactory sndrfact = new SenderFactory(dsptch, qmgr, expected_senders, null, true);
 		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
-		sndrfact.ctl = fwd;
+		sndrfact.fwd = fwd;
 		exec(qmgr, sndrfact, false);
 	}
 
@@ -216,9 +221,9 @@ public class ForwarderTest
 		String cfgxml = delivxml.replace("x2maxserverconnections", "maxserverconnections").replace("x2relay","relay");
 		XmlConfig cfg = XmlConfig.makeSection(cfgxml, "deliver");
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs5, true, 0);
-		SenderFactory sndrfact = new SenderFactory(expected_senders, expected_refills, true);
+		SenderFactory sndrfact = new SenderFactory(dsptch, qmgr, expected_senders, expected_refills, true);
 		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
-		sndrfact.ctl = fwd;
+		sndrfact.fwd = fwd;
 		exec(qmgr, sndrfact, false);
 	}
 
@@ -240,11 +245,11 @@ public class ForwarderTest
 		}
 		String[][] msgs = lst.toArray(new String[lst.size()][]);
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs, true);
-		SenderFactory sndrfact = new SenderFactory(null, true);
+		SenderFactory sndrfact = new SenderFactory(dsptch, qmgr, null, null, true);
 		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
 		com.grey.mailismus.mta.queue.Cache qc = (com.grey.mailismus.mta.queue.Cache)DynLoader.getField(fwd, "qcache");
 		org.junit.Assert.assertEquals(2500, qc.capacity()); //the default for non-slaverelay mode
-		sndrfact.ctl = fwd;
+		sndrfact.fwd = fwd;
 		exec(qmgr, sndrfact, false);
 		org.junit.Assert.assertEquals(maxserverconns * destcnt, sndrfact.senders.size());
 		for (int idx = 0; idx != sndrfact.senders.size(); idx++) {
@@ -274,9 +279,9 @@ public class ForwarderTest
 		}
 		String[][] msgs = lst.toArray(new String[lst.size()][]);
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs, true);
-		SenderFactory sndrfact = new SenderFactory(null, true);
+		SenderFactory sndrfact = new SenderFactory(dsptch, qmgr, null, null, true);
 		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
-		sndrfact.ctl = fwd;
+		sndrfact.fwd = fwd;
 		exec(qmgr, sndrfact, false);
 		org.junit.Assert.assertEquals(maxserverconns * destcnt, sndrfact.senders.size());
 		for (int idx = 0; idx != sndrfact.senders.size(); idx++) {
@@ -299,11 +304,11 @@ public class ForwarderTest
 		}
 		String[][] msgs = lst.toArray(new String[lst.size()][]);
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs, true);
-		SenderFactory sndrfact = new SenderFactory(null, true);
+		SenderFactory sndrfact = new SenderFactory(dsptch, qmgr, null, null, true);
 		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
 		com.grey.mailismus.mta.queue.Cache qc = (com.grey.mailismus.mta.queue.Cache)DynLoader.getField(fwd, "qcache");
 		org.junit.Assert.assertEquals(5000, qc.capacity()); //the default for slaverelay mode
-		sndrfact.ctl = fwd;
+		sndrfact.fwd = fwd;
 		exec(qmgr, sndrfact, true);
 		org.junit.Assert.assertEquals(500, sndrfact.senders.size()); //default maxconnections=500
 		for (int idx = 0; idx != sndrfact.senders.size(); idx++) {
@@ -325,9 +330,9 @@ public class ForwarderTest
 		int[][][] expected_senders = new int[][][]{{{101, 1}, {101, 3}}, {{101, 2}}, {{102, 1}}};
 		XmlConfig cfg = XmlConfig.makeSection(delivxml, "deliver");
 		MyQueueManager qmgr = new MyQueueManager(dsptch, msgs1, true);
-		SenderFactory sndrfact = new SenderFactory(expected_senders, deferred);
+		SenderFactory sndrfact = new SenderFactory(dsptch, qmgr, expected_senders, null, deferred);
 		fwd = new Forwarder(dsptch, cfg, null, qmgr, null, this, sndrfact, sndrfact, dnsResolver);
-		sndrfact.ctl = fwd;
+		sndrfact.fwd = fwd;
 		exec(qmgr, sndrfact, false);
 	}
 
@@ -348,7 +353,7 @@ public class ForwarderTest
 	}
 
 	@Override
-	public void eventIndication(Object obj, String eventId)
+	public void eventIndication(String eventId, Object obj, Object data)
 	{
 		if (obj == dsptch) {
 			halted = fwd.stop();
@@ -358,7 +363,7 @@ public class ForwarderTest
 	}
 
 	@Override
-	public void batchCompleted(int qsize, Delivery.Stats stats) {
+	public void batchCompleted(int qsize, Forwarder.DeliveryStats stats) {
 		dsptch.stop();
 	}
 
@@ -435,27 +440,29 @@ public class ForwarderTest
 	}
 
 
-	private static class MySender
-		implements Delivery.MessageSender,
-			TimerNAF.Handler
+	private static class MySender extends Client
 	{
-		private final Delivery.MessageParams msgparams = new Delivery.MessageParams();
 		private final SenderFactory mgr;
 		private final int id;
+		private QueueBasedMessage msgparams;
 		private TimerNAF tmr_report;
 		private int seqno; //sequence number amongst Sender set - first Sender to be launched is zero
 		public int msgcnt;
 
 		@Override public String getLogID() {return "MySender-"+id;}
-		@Override public Delivery.MessageParams getMessageParams() {return msgparams;}
 		@Override public short getDomainError() {return 0;}
 		@Override public void setEventListener(EventListenerNAF l) {}
 		@Override public String toString() {return "MySender="+getLogID();}
 
-		public MySender(int id, SenderFactory fact) {this.id=id; mgr=fact;}
+		public MySender(int id, SenderFactory fact) throws GeneralSecurityException {
+			super(SharedFields.builder().build(), fact.dsptch);
+			this.id = id;
+			mgr = fact;
+		}
 
 		@Override
-		public void start(Delivery.Controller ctl) {
+		public void startConnection(SmtpMessage msg, SmtpSender sender, Relay relay) {
+			msgparams = (QueueBasedMessage)msg;
 			seqno = mgr.sender_cnt++;
 			int[][] exp = null;
 			if (mgr.expected_msgs != null) {
@@ -473,7 +480,7 @@ public class ForwarderTest
 				if (msgparams.recipCount() != exp.length) mgr.addError(seqno, "recips="+msgparams.recipCount()+" vs "+exp.length);
 			}
 			for (int idx = 0; idx != msgparams.recipCount(); idx++) {
-				MessageRecip recip = msgparams.getRecipient(idx);
+				MessageRecip recip = msgparams.getRecipient(idx).getQueueRecip();
 				if (exp != null) {
 					int exp_spid = exp[idx][0];
 					int exp_qid = exp[idx][1];
@@ -486,7 +493,7 @@ public class ForwarderTest
 			}
 			msgcnt++;
 			if (mgr.deferred_cb) {
-				tmr_report = mgr.ctl.getDispatcher().setTimer(0, 0, this, Boolean.TRUE);
+				tmr_report = getDispatcher().setTimer(0, 0, this, Boolean.TRUE);
 			} else {
 				reportCompletion(true);
 			}
@@ -496,7 +503,7 @@ public class ForwarderTest
 			if (report_msg) {
 				int[][] exp = null;
 				if (mgr.expected_refills != null && msgcnt == 1 && seqno < mgr.expected_refills.length) exp = mgr.expected_refills[seqno];
-				mgr.ctl.messageCompleted(this);
+				mgr.fwd.messageCompleted(msgparams, msgcnt);
 				if (msgparams.recipCount() == 0) {
 					if (exp != null) mgr.addError(seqno, "Expected another message after messageCompleted()");
 				} else {
@@ -507,11 +514,11 @@ public class ForwarderTest
 					return;
 				}
 				if (mgr.deferred_cb) {
-					tmr_report = mgr.ctl.getDispatcher().setTimer(0, 0, this, Boolean.FALSE);
+					tmr_report = getDispatcher().setTimer(0, 0, this, Boolean.FALSE);
 					return;
 				}
 			}
-			mgr.ctl.senderCompleted(this);
+			mgr.fwd.onDisconnect(msgparams, msgcnt);
 			mgr.sender_completion_cnt++;
 		}
 
@@ -539,15 +546,17 @@ public class ForwarderTest
 
 
 	private static class SenderFactory
-		implements com.grey.base.collections.GenericFactory<Delivery.MessageSender>,
+		implements com.grey.base.collections.GenericFactory<Client>,
 			Forwarder.BatchCallback,
 			TimerNAF.Handler
 	{
+		private final Dispatcher dsptch;
+		private final MyQueueManager qmgr;
 		public final java.util.ArrayList<MySender> senders = new java.util.ArrayList<MySender>();
 		public final int[][][] expected_msgs; //expected messages, per MessageSender and per MessageRecip
 		public final int[][][] expected_refills; //expected message after possible refill in messageCompleted()
 		public final boolean deferred_cb;
-		public Delivery.Controller ctl;
+		public Forwarder fwd;
 		public int sender_cnt;
 		public int sender_completion_cnt;
 		public int batch_completion_cnt;
@@ -556,32 +565,34 @@ public class ForwarderTest
 
 		@Override
 		public MySender factory_create() {
-			MySender sender = new MySender(++next_id, this);
+			MySender sender;
+			try {
+				sender = new MySender(++next_id, this);
+			} catch (Exception ex) {
+				throw new RuntimeException(ex);
+			}
 			senders.add(sender);
 			return sender;
 		}
 
-		public SenderFactory(int[][][] exp, boolean deferred) {
-			this(exp, null, deferred);
-		}
-
-		public SenderFactory(int[][][] exp, int[][][] refills, boolean deferred) {
+		public SenderFactory(Dispatcher dsptch, MyQueueManager qmgr, int[][][] exp, int[][][] refills, boolean deferred) {
+			this.dsptch = dsptch;
+			this.qmgr = qmgr;
 			expected_msgs = exp;
 			expected_refills = refills;
 			deferred_cb = deferred;
 		}
 
 		void addError(int id, String s) {
-			MyQueueManager qmgr = (MyQueueManager)ctl.getQueue();
 			qmgr.addError("MessageSender="+id+": "+s);
 		}
 
 		@Override
-		public void batchCompleted(int qsize, Delivery.Stats stats) {
+		public void batchCompleted(int qsize, Forwarder.DeliveryStats stats) {
 			if (deferred_cb) {
-				ctl.getDispatcher().setTimer(0, 0, this);
+				dsptch.setTimer(0, 0, this);
 			} else {
-				ctl.getDispatcher().stop();
+				dsptch.stop();
 			}
 			if (expected_msgs != null) {
 				int relaycnt = 0;
@@ -606,7 +617,7 @@ public class ForwarderTest
 
 		@Override
 		public void timerIndication(TimerNAF tmr, Dispatcher d) {
-			ctl.getDispatcher().stop();
+			dsptch.stop();
 		}
 
 		@Override

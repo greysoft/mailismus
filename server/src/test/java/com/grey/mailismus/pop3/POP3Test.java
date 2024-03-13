@@ -279,12 +279,12 @@ public class POP3Test
 		}
 
 		@Override
-		public void eventIndication(Object obj, String eventId) {
-			if (obj instanceof DownloadTask) {
+		public void eventIndication(String eventId, Object evtsrc, Object data) {
+			if (evtsrc instanceof DownloadTask) {
 				dsptch.setTimer(100, TMRTYPE_STOP, observer); //give server time to receive disconnect event
 				return;
 			}
-			DownloadClient client = (DownloadClient)obj;
+			DownloadClient client = (DownloadClient)evtsrc;
 			DownloadClient.Results r = new DownloadClient.Results();
 			r.completed_ok = client.getResults().completed_ok;
 			r.msgcnt = client.getResults().msgcnt;
@@ -302,7 +302,7 @@ public class POP3Test
 		@Override
 		protected void nafletStopped() {
 			super.nafletStopped();
-			evtl.eventIndication(this, EventListenerNAF.EVENTID_ENTITY_STOPPED);
+			evtl.eventIndication(EventListenerNAF.EVENTID_ENTITY_STOPPED, this, null);
 		}
 	}
 }

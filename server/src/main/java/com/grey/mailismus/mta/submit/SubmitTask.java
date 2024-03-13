@@ -40,9 +40,9 @@ public final class SubmitTask
 	}
 
 	@Override
-	public void eventIndication(Object obj, String eventId) {
-		if (!(obj instanceof ListenerSet) || !EventListenerNAF.EVENTID_ENTITY_STOPPED.equals(eventId)) {
-			getDispatcher().getLogger().info("SubmitTask="+getName()+" discarding unexpected event="+obj.getClass().getName()+"/"+eventId);
+	public void eventIndication(String eventId, Object evtsrc, Object data) {
+		if (!(evtsrc instanceof ListenerSet) || !EventListenerNAF.EVENTID_ENTITY_STOPPED.equals(eventId)) {
+			getDispatcher().getLogger().info("SubmitTask="+getName()+" discarding unexpected event="+eventId+"/"+evtsrc.getClass().getName()+"/"+data);
 			return;
 		}
 		nafletStopped();

@@ -1,3 +1,7 @@
+/*
+ * Copyright 2010-2024 Yusef Badri - All rights reserved.
+ * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
+ */
 package com.grey.mailismus.mta.deliver;
 
 import java.io.IOException;
@@ -16,18 +20,17 @@ import com.grey.naf.reactor.config.SSLConfig;
 import com.grey.mailismus.AppConfig;
 import com.grey.mailismus.Transcript;
 import com.grey.mailismus.errors.MailismusConfigException;
+import com.grey.mailismus.mta.deliver.client.ConnectionConfig;
 
 class ClientConfiguration {
 	private static final String LOG_PREFIX = "SMTP-Client-Config";
 
 	public static SharedFields createSharedFields(XmlConfig xmlcfg,
-			Delivery.Controller ctl,
+			Dispatcher dsptch,
 			ResolverDNS dns,
 			AppConfig appConfig,
 			int max_serverconns) throws IOException, GeneralSecurityException
 	{
-		Dispatcher dsptch = ctl.getDispatcher();
-
 		boolean fallback_mx_a = xmlcfg.getBool("fallbackMX_A", false);
 		BufferGenerator bufferGenerator = createBufferGenerator(xmlcfg);
 		Transcript transcript = createTranscript(xmlcfg, dsptch);
@@ -45,14 +48,13 @@ class ClientConfiguration {
 		}
 
 		SharedFields shared = SharedFields.builder()
-				.withController(ctl)
 				.withDnsResolver(dns)
 				.withBufferGenerator(bufferGenerator)
 				.withTranscript(transcript)
 				.withDefaultConfig(defaultConfig)
 				.withRemoteConfigs(remotesConfig)
 				.build();
-		ctl.getDispatcher().getLogger().info(LOG_PREFIX+": "+bufferGenerator);
+		dsptch.getLogger().info(LOG_PREFIX+": "+bufferGenerator);
 		return shared;
 	}
 
