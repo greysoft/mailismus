@@ -2,7 +2,7 @@
  * Copyright 2015-2021 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
-package com.grey.mailismus.mta.smtp;
+package com.grey.mailismus.mta.testsupport;
 
 import com.grey.base.utils.ByteChars;
 import com.grey.base.utils.TimeOps;
@@ -29,12 +29,12 @@ public class MockServerDNS
 
 	public MockServerDNS(ApplicationContextNAF appctx) throws java.io.IOException {
 		populateAnswers();
-		com.grey.logging.Logger logger = com.grey.logging.Factory.getLogger("no-such-logger");
-		com.grey.naf.reactor.config.DispatcherConfig def = new com.grey.naf.reactor.config.DispatcherConfig.Builder()
+		com.grey.naf.reactor.config.DispatcherConfig def = com.grey.naf.reactor.config.DispatcherConfig.builder()
 				.withName("Mock-DNS-Server")
 				.withSurviveHandlers(false)
+				.withAppContext(appctx)
 				.build();
-		dsptch = Dispatcher.create(appctx, def, logger); //pass in null logger to get logging output
+		dsptch = Dispatcher.create(def);
 
 		DnsServerConfig.Builder bldr = new DnsServerConfig.Builder();
 		bldr.getListenerConfig().withPort(0).withInterface("127.0.0.1");

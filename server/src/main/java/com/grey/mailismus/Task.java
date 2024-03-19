@@ -61,7 +61,7 @@ public class Task
 		super(name, d, cfg);
 		Logger logger = d.getLogger();
 		dnsResolver = (dns == null ? null: dns);
-		NAFConfig nafcfg = d.getApplicationContext().getConfig();
+		NAFConfig nafcfg = d.getApplicationContext().getNafConfig();
 
 		String cfgfile = nafcfg.getPath(cfg, "configfile", null, false, null, null);
 		if (cfgfile != null) {
@@ -135,7 +135,7 @@ public class Task
 
 	public static ResolverDNS createResolverDNS(Dispatcher d) throws UnknownHostException {
 		ResolverConfig rcfg = new ResolverConfig.Builder()
-				.withXmlConfig(d.getApplicationContext().getConfig().getNode("dnsresolver"))
+				.withXmlConfig(d.getApplicationContext().getNafConfig().getNode("dnsresolver"))
 				.build();
 		return ResolverDNS.create(d, rcfg);
 	}

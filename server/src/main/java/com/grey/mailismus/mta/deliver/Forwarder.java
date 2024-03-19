@@ -168,7 +168,7 @@ public class Forwarder
 		Logger log = dsptch.getLogger();
 		audit = Audit.create("MTA-Delivery", "audit", dsptch, cfg);
 		XmlConfig relaycfg = cfg.getSection("relays");
-		routing = new Routing(relaycfg, dsptch.getApplicationContext().getConfig(), log);
+		routing = new Routing(relaycfg, dsptch.getApplicationContext().getNafConfig(), log);
 
 		int cap_qcache = 2500;
 		int _max_simulconns = cap_qcache;

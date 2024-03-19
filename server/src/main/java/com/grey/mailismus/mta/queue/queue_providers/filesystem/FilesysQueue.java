@@ -59,7 +59,7 @@ public final class FilesysQueue
 			throws java.io.IOException
 	{
 		super(d, qcfg, name);
-		NAFConfig nafcfg = dsptch.getApplicationContext().getConfig();
+		NAFConfig nafcfg = dsptch.getApplicationContext().getNafConfig();
 		String queuepath = nafcfg.getPath(qcfg, "rootpath", null, false, nafcfg.getPathVar()+"/queue", null);
 		maxDeferredIgnore = qcfg.getTime("deferred_maxignore", "5m");
 		maxFilesList = qcfg.getInt("maxfileslist", false, 0);

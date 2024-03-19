@@ -94,7 +94,7 @@ public class DownloadClient
 			appConfig = task.getAppConfig();
 			tmtprotocol = cfg.getTime("timeout", com.grey.base.utils.TimeOps.parseMilliTime("4m"));
 			delay_chanclose = cfg.getTime("delay_close", 0);
-			bufspec = new com.grey.naf.BufferGenerator(cfg, "niobuffers", 4*1024, 128); //always line-buffered
+			bufspec = com.grey.naf.BufferGenerator.create(cfg, "niobuffers", 4*1024, 128); //always line-buffered
 			audit = com.grey.mailismus.Audit.create("POP3-Download", "audit", dsptch, cfg);
 			transcript = com.grey.mailismus.Transcript.create(dsptch, cfg, "transcript");
 			ms = task.getMS();
@@ -110,7 +110,7 @@ public class DownloadClient
 			reqbuf_stls = com.grey.mailismus.Task.constBuffer(POP3Protocol.CMDREQ_STLS+POP3Protocol.EOL);
 			reqbuf_capa = com.grey.mailismus.Task.constBuffer(POP3Protocol.CMDREQ_CAPA+POP3Protocol.EOL);
 
-			String pthnam = dsptch.getApplicationContext().getConfig().getPathTemp()+"/pop3/downloadclient";
+			String pthnam = dsptch.getApplicationContext().getNafConfig().getPathTemp()+"/pop3/downloadclient";
 			stagingDir = new java.io.File(pthnam);
 
 			String pfx = "POP3-Clients: ";
@@ -204,7 +204,7 @@ public class DownloadClient
 		if (cfg.getBool("@omitreceivedheader", false)) fcfg |= CFG_OMITRCVHDR;
 		if (cfg.getBool("@fulltrans", false)) fcfg |= CFG_FULLTRANS;
 
-		String pthnam = d.getApplicationContext().getConfig().getPath(cfg, "downloads_directory", null, false, null, null);
+		String pthnam = d.getApplicationContext().getNafConfig().getPath(cfg, "downloads_directory", null, false, null, null);
 		if (pthnam != null) pthnam = pthnam.replace("%U%", localdest);
 		dh_download = (pthnam == null ? null : new java.io.File(pthnam));
 
@@ -221,7 +221,7 @@ public class DownloadClient
 			sslconfig = new SSLConfig.Builder()
 					.withPeerCertName(srvname)
 					.withIsClient(true)
-					.withXmlConfig(sslcfg, getDispatcher().getApplicationContext().getConfig())
+					.withXmlConfig(sslcfg, getDispatcher().getApplicationContext().getNafConfig())
 					.build();
 		}
 		// and finalise the server address, which depends on our SSL mode

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 Yusef Badri - All rights reserved.
+ * Copyright 2012-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus;
@@ -7,6 +7,7 @@ package com.grey.mailismus;
 import com.grey.base.config.SysProps;
 import com.grey.base.utils.DynLoader;
 import com.grey.base.utils.FileOps;
+import com.grey.logging.Logger;
 import com.grey.base.ExceptionUtils;
 import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.NAFConfig;
@@ -39,19 +40,24 @@ public class TestSupport
 		return rootpath;
 	}
 
-	public static ApplicationContextNAF createApplicationContext(String name, String cfgpath, boolean withNafman) {
+	public static ApplicationContextNAF createApplicationContext(String name, String cfgpath, boolean withNafman, Logger bootLogger) {
 		NAFConfig nafcfg = new NAFConfig.Builder().withConfigFile(cfgpath).build();
-		return createApplicationContext(name, nafcfg, withNafman);
+		return createApplicationContext(name, nafcfg, withNafman, bootLogger);
 	}
 
-	public static ApplicationContextNAF createApplicationContext(String name, boolean withNafman) {
+	public static ApplicationContextNAF createApplicationContext(String name, boolean withNafman, Logger bootLogger) {
 		NAFConfig nafcfg = new NAFConfig.Builder().withBasePort(NAFConfig.RSVPORT_ANON).build();
-		return createApplicationContext(name, nafcfg, withNafman);
+		return createApplicationContext(name, nafcfg, withNafman, bootLogger);
 	}
 
-	public static ApplicationContextNAF createApplicationContext(String name, NAFConfig nafcfg, boolean withNafman) {
+	public static ApplicationContextNAF createApplicationContext(String name, NAFConfig nafcfg, boolean withNafman, Logger bootLogger) {
 		NafManConfig nafmanConfig = (withNafman ? new NafManConfig.Builder(nafcfg).build() : null);
-		return ApplicationContextNAF.create(name, nafcfg, nafmanConfig);
+		return ApplicationContextNAF.builder()
+				.withName(name)
+				.withNafConfig(nafcfg)
+				.withNafManConfig(nafmanConfig)
+				.withBootLogger(bootLogger)
+				.build();
 	}
 
 	public static void setTime(Dispatcher d, long millisecs) {

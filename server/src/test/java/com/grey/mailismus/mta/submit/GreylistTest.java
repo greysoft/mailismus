@@ -46,13 +46,13 @@ public class GreylistTest
 	{
 		org.junit.Assume.assumeTrue(TestSupport.HAVE_DBDRIVERS);
 		String cfgpath = TestSupport.getResourcePath("/mtanaf.xml", getClass());
-		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true);
-		FileOps.deleteDirectory(appctx.getConfig().getPathVar());
-		XmlConfig dcfg = appctx.getConfig().getDispatcher("testmtadispatcher1");
-		DispatcherConfig def = new DispatcherConfig.Builder().withXmlConfig(dcfg).build();
-		Dispatcher dsptch = Dispatcher.create(appctx, def, logger);
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true, logger);
+		FileOps.deleteDirectory(appctx.getNafConfig().getPathVar());
+		XmlConfig dcfg = appctx.getNafConfig().getDispatcherConfigNode("testmtadispatcher1");
+		DispatcherConfig def = DispatcherConfig.builder().withXmlConfig(dcfg).withAppContext(appctx).build();
+		Dispatcher dsptch = Dispatcher.create(def);
 
-		String pthnam = dsptch.getApplicationContext().getConfig().getPathVar()+"/"+WHITELIST_FILE;
+		String pthnam = dsptch.getApplicationContext().getNafConfig().getPathVar()+"/"+WHITELIST_FILE;
 		java.io.File fh = new java.io.File(pthnam);
 		FileOps.writeTextFile(fh, WHITELIST_IP, false);
 
@@ -76,7 +76,7 @@ public class GreylistTest
 			throws java.io.IOException
 	{
 		XmlConfig cfg = XmlConfig.makeSection(xml, "/greylist");
-		final DBHandle.Type dbtype = new DBHandle.Type(cfg, dsptch.getApplicationContext().getConfig(), dsptch.getLogger());
+		final DBHandle.Type dbtype = new DBHandle.Type(cfg, dsptch.getApplicationContext().getNafConfig(), dsptch.getLogger());
 		grylst = new Greylist(dsptch, dbtype, cfg);
 		int cnt = grylst.reset();
 		org.junit.Assert.assertEquals(prevtotal, cnt);

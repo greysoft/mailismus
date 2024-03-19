@@ -47,7 +47,7 @@ public class POP3Test
 
 	private static final String SIZEPFX = "Size=";
 
-	private static final ApplicationContextNAF appctx = TestSupport.createApplicationContext("POP3Test", true);
+	private static final ApplicationContextNAF appctx = TestSupport.createApplicationContext("POP3Test", true, null);
 	private Dispatcher dsptch;
 	private boolean dsptch_failed;
 
@@ -149,23 +149,22 @@ public class POP3Test
 			throws java.io.IOException, java.security.GeneralSecurityException
 	{
 		// create a disposable Dispatcher first, just to identify and clean up the working directories that will be used
-		dsptch = Dispatcher.create(appctx, new DispatcherConfig.Builder().build(), com.grey.logging.Factory.getLogger("no-such-logger"));
-		NAFConfig nafcfg = dsptch.getApplicationContext().getConfig();
+		DispatcherConfig def = DispatcherConfig.builder().withAppContext(appctx).build();
+		dsptch = Dispatcher.create(def);
+		NAFConfig nafcfg = dsptch.getApplicationContext().getNafConfig();
 		FileOps.deleteDirectory(nafcfg.getPathVar());
 		FileOps.deleteDirectory(nafcfg.getPathTemp());
 		FileOps.deleteDirectory(nafcfg.getPathLogs());
 		// now create the real Dispatcher
-		com.grey.naf.reactor.config.DispatcherConfig def = new com.grey.naf.reactor.config.DispatcherConfig.Builder()
-				.withSurviveHandlers(false)
-				.build();
-		dsptch = Dispatcher.create(appctx, def, com.grey.logging.Factory.getLogger("no-such-logger"));
+		def = def.mutate().withSurviveHandlers(false).build();
+		dsptch = Dispatcher.create(def);
 
 		// set up the POP3 server
 		XmlConfig cfg = XmlConfig.makeSection(nafxml_server, "x");
 		com.grey.mailismus.Task stask = new com.grey.mailismus.Task("utest_pop3s", dsptch, cfg, Task.DFLT_FACT_DTORY, Task.DFLT_FACT_MS, null);
 		if (dotstuffing) DynLoader.setField(stask.getMS(), "dotstuffing", true);
 		String grpname = "utest_pop3s_listeners";
-		ConcurrentListenerConfig[] lcfg = ConcurrentListenerConfig.buildMultiConfig(grpname, appctx.getConfig(), "listeners/listener", stask.taskConfig(), 0, 0, POP3Server.Factory.class, null);
+		ConcurrentListenerConfig[] lcfg = ConcurrentListenerConfig.buildMultiConfig(grpname, appctx.getNafConfig(), "listeners/listener", stask.taskConfig(), 0, 0, POP3Server.Factory.class, null);
 		ListenerSet lstnrs = new ListenerSet(grpname, dsptch, stask, null, lcfg);
 		int srvport = (connectfail ? 0 : lstnrs.getListener(sid).getPort());
 

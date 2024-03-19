@@ -24,14 +24,15 @@ public class BaseManagerTest
 {
 	private static final Logger logger = com.grey.logging.Factory.getLoggerNoEx("qmgrbasetest");
 	private final String testrootpath = TestSupport.initPaths(getClass());
-	private final ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true);
+	private final ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true, logger);
 
 	private final Dispatcher dsptch;
 	private QueueManager qmgr;
 
 	public BaseManagerTest() throws Exception {
-		dsptch = Dispatcher.create(appctx, new DispatcherConfig.Builder().withName("qmgrbasetest").build(), logger);
-		FileOps.ensureDirExists(appctx.getConfig().getPathTemp());
+		DispatcherConfig def = DispatcherConfig.builder().withName("qmgrbasetest").withAppContext(appctx).build();
+		dsptch = Dispatcher.create(def);
+		FileOps.ensureDirExists(appctx.getNafConfig().getPathTemp());
 	}
 
 	@org.junit.After

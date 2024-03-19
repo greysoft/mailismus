@@ -122,7 +122,7 @@ class Client
 		this.shared = shared;
 	}
 
-	public void startConnection(SmtpMessage msg, SmtpSender sender, Relay relay) throws IOException {
+	public void startConnection(SmtpMessage msg, SmtpSender sender, SmtpRelay relay) throws IOException {
 		initConnection();
 		smtpMessage = msg;
 		smtpSender = sender;
@@ -521,7 +521,7 @@ class Client
 		case E_REPLY:
 			// Note that if we act on the start of a reply before we've seen the end of it, there is an infinitesmal chance that we will send
 			// our next request prematurely, and look like a slammer. I say infinitesmal because it's almost certain that the entire reply is
-			// already in transit even if we've only seen part of it so far, but setting a larger rcvbufsiz would mean this never happens anyway.
+			// already in transit even if we've only seen part of it so far, but setting a larger recvBufSiz would mean this never happens anyway.
 			// The largest reply I've seen so far is Hotmail's 308-byte greeting.
 			boolean discardThis = isFlagSet(S2_DISCARD); //discard this chunk of data?
 			setFlag(S2_DISCARD, rspdata.byteAt(rspdata.size() - 1) != '\n'); //discard next received chunk?

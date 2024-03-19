@@ -136,7 +136,7 @@ public final class POP3Server
 			expire = cfg.getInt("expire", true, -1);
 			tmtprotocol = cfg.getTime("timeout", com.grey.base.utils.TimeOps.parseMilliTime("2m")); //NB: RFC-1939 says at least 10 mins
 			delay_chanclose = cfg.getTime("delay_close", 0);
-			bufspec = new com.grey.naf.BufferGenerator(cfg, "niobuffers", 256, 128);
+			bufspec = com.grey.naf.BufferGenerator.create(cfg, "niobuffers", 256, 128);
 			transcript = com.grey.mailismus.Transcript.create(dsptch, cfg, "transcript");
 
 			authtypes_enabled = configureAuthTypes("authtypes", cfg, true, POP3Protocol.AUTHTYPE.values(), null, logpfx);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-2018 Yusef Badri - All rights reserved.
+ * Copyright 2013-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.imap.server;
@@ -9,6 +9,7 @@ import com.grey.mailismus.errors.MailismusConfigException;
 import com.grey.mailismus.imap.IMAP4Protocol;
 import com.grey.mailismus.imap.server.Defs.EnvelopeHeader;
 import com.grey.mailismus.imap.server.Defs.FetchOpDef;
+import com.grey.naf.BufferGenerator;
 import com.grey.mailismus.imap.server.Defs.FetchOp;
 
 /*
@@ -114,7 +115,7 @@ final class SharedFields
 		capa_idle = cfg.getBool("capa_idle", true);
 		delay_chanclose = cfg.getTime("delay_close", 0);
 		maximapbuf = cfg.getInt("maxtransmitbuf", true, 8 * 1024);
-		bufspec = new com.grey.naf.BufferGenerator(cfg, "niobuffers", 16 * 1024, 16 * 1024);
+		bufspec = BufferGenerator.create(cfg, "niobuffers", 16 * 1024, 16 * 1024);
 		transcript = com.grey.mailismus.Transcript.create(dsptch, cfg, "transcript");
 		full_transcript = cfg.getBool("transcript/@full", false);
 
@@ -131,7 +132,7 @@ final class SharedFields
 		long timeval = cfg.getTime("newmailfreq", TimeOps.parseMilliTime("20s"));
 		interval_newmail = Math.max(timeval, minval);
 
-		String pthnam_msgflags = cfg.getValue("keywords_map", true, dsptch.getApplicationContext().getConfig().getPathVar()+"/imap/imapkeywords");
+		String pthnam_msgflags = cfg.getValue("keywords_map", true, dsptch.getApplicationContext().getNafConfig().getPathVar()+"/imap/imapkeywords");
 		boolean dynkwords = cfg.getBool("keywords_dyn", true);
 		msgFlags = new MessageFlags(pthnam_msgflags, dynkwords);
 
@@ -211,7 +212,7 @@ final class SharedFields
 		imap4rsp_bye_timeout = com.grey.mailismus.Task.constBuffer(IMAP4Protocol.STATUS_UNTAGGED+IMAP4Protocol.STATUS_BYE+" idle timeout"+IMAP4Protocol.EOL);
 		imap4rsp_contd_ready = com.grey.mailismus.Task.constBuffer(IMAP4Protocol.STATUS_CONTD+"Ready"+IMAP4Protocol.EOL);
 
-		String pthnam = dsptch.getApplicationContext().getConfig().getPathTemp()+"/imap4server";
+		String pthnam = dsptch.getApplicationContext().getNafConfig().getPathTemp()+"/imap4server";
 		stagingDir = new java.io.File(pthnam);
 	}
 

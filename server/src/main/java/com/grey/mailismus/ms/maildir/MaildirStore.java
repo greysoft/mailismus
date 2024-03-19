@@ -82,7 +82,7 @@ public final class MaildirStore
 		char dflt_colon = (SysProps.isWindows ? '+' : ':');
 		String hostname = java.net.InetAddress.getLocalHost().getCanonicalHostName();
 
-		path_users = dsptch.getApplicationContext().getConfig().getPath(cfg, "userpath", null, true, null, getClass());
+		path_users = dsptch.getApplicationContext().getNafConfig().getPath(cfg, "userpath", null, true, null, getClass());
 		path_maildir = cfg.getValue("mailpath", true, "Maildir");
 		dotstuffing = cfg.getBool("dotstuffing", false);
 		mailismus_delivery = cfg.getBool("exclusive", false);
@@ -108,8 +108,8 @@ public final class MaildirStore
 		if (!virtual_users) dsptch.getLogger().info("MS-Maildir: chmod tree ["+chmod_tree+"] - msgfile="+chmod_msgfile);
 
 		//make sure the Maildir suffix chars are acceptable for this platform
-		FileOps.ensureDirExists(d.getApplicationContext().getConfig().getPathTemp());
-		java.io.File fh1 = new java.io.File(d.getApplicationContext().getConfig().getPathTemp()+"/ms_"+Thread.currentThread().getId()+".test"+FLAGS_MARKER+"x");
+		FileOps.ensureDirExists(d.getApplicationContext().getNafConfig().getPathTemp());
+		java.io.File fh1 = new java.io.File(d.getApplicationContext().getNafConfig().getPathTemp()+"/ms_"+Thread.currentThread().getId()+".test"+FLAGS_MARKER+"x");
 		java.io.File fh2 = new java.io.File(fh1.getParentFile(), fh1.getName()+"y");
 		FileOps.deleteFile(fh1);
 		FileOps.deleteFile(fh2);

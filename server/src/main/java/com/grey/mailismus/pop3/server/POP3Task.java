@@ -20,7 +20,7 @@ public final class POP3Task
 	public POP3Task(String name, Dispatcher d, XmlConfig cfg) throws java.io.IOException {
 		super(name, d, cfg, DFLT_FACT_DTORY, DFLT_FACT_MS, null);
 		String grpname = "POP3Task="+getName();
-		ConcurrentListenerConfig[] lcfg = ConcurrentListenerConfig.buildMultiConfig(grpname, d.getApplicationContext().getConfig(), "listeners/listener", taskConfig(),
+		ConcurrentListenerConfig[] lcfg = ConcurrentListenerConfig.buildMultiConfig(grpname, d.getApplicationContext().getNafConfig(), "listeners/listener", taskConfig(),
 				POP3Protocol.TCP_PORT, POP3Protocol.TCP_SSLPORT, POP3Server.Factory.class, null);
 		listeners = new ListenerSet(grpname, getDispatcher(), this, this, lcfg);
 		if (listeners.configured() != 0) registerDirectoryOps(com.grey.mailismus.nafman.Loader.PREF_DTORY_POP3S);

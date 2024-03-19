@@ -68,7 +68,7 @@ public final class ClusteredQueue
 	public ClusteredQueue(Dispatcher d, XmlConfig qcfg, AppConfig appcfg, String name) throws java.io.IOException
 	{
 		super(d, qcfg, name);
-		NAFConfig nafcfg = dsptch.getApplicationContext().getConfig();
+		NAFConfig nafcfg = dsptch.getApplicationContext().getNafConfig();
 		String queuepath = nafcfg.getPath(qcfg, "rootpath", null, false, nafcfg.getPathVar()+"/queue", null);
 		maxClusterSize = (int)qcfg.getSize("maxclustersize", "256K");
 		maxDeferredIgnore = qcfg.getTime("deferred_maxignore", "5m");

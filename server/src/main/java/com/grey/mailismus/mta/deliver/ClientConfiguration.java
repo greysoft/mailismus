@@ -89,7 +89,7 @@ class ClientConfiguration {
 		if (sslcfg != null && sslcfg.exists()) {
 			anonssl = new SSLConfig.Builder()
 					.withIsClient(true)
-					.withXmlConfig(sslcfg, dsptch.getApplicationContext().getConfig())
+					.withXmlConfig(sslcfg, dsptch.getApplicationContext().getNafConfig())
 					.build();
 		}
 
@@ -114,7 +114,7 @@ class ClientConfiguration {
 	}
 
 	private static BufferGenerator createBufferGenerator(XmlConfig xmlcfg) {
-		BufferGenerator bufferGenerator = new BufferGenerator(xmlcfg, "niobuffers", 256, 128);
+		BufferGenerator bufferGenerator = BufferGenerator.create(xmlcfg, "niobuffers", 256, 128);
 		if (bufferGenerator.rcvbufsiz < 40) throw new MailismusConfigException(LOG_PREFIX+": rcvbuf is too small - "+bufferGenerator);
 		return bufferGenerator;
 	}

@@ -44,7 +44,7 @@ public final class CachedFiles
 	private CachedFiles(com.grey.naf.reactor.Dispatcher d, com.grey.base.config.XmlConfig cfg) throws java.io.IOException
 	{
 		dsptch = d;
-		NAFConfig nafcfg = dsptch.getApplicationContext().getConfig();
+		NAFConfig nafcfg = dsptch.getApplicationContext().getNafConfig();
 		String pthnam = nafcfg.getPath(cfg, "users", null, false, null, getClass());
 		fh_users = (pthnam == null ? null : new java.io.File(pthnam));
 		pthnam = nafcfg.getPath(cfg, "domains", null, false, null, getClass());

@@ -41,6 +41,7 @@ import com.grey.mailismus.mta.submit.SubmitTask;
 import com.grey.mailismus.mta.submit.filter.api.FilterFactory;
 import com.grey.mailismus.mta.submit.filter.api.FilterResultsHandler;
 import com.grey.mailismus.mta.submit.filter.api.MessageFilter;
+import com.grey.mailismus.mta.testsupport.MockServerDNS;
 import com.grey.mailismus.mta.deliver.Relay;
 import com.grey.mailismus.mta.deliver.DeliverTask;
 import com.grey.mailismus.mta.deliver.Forwarder;
@@ -97,7 +98,7 @@ public class DeliveryTest
 		SysProps.setAppEnv("MAILISMUS_TEST_PORT_SMARTHOST", String.valueOf(TSAP.getVacantPort()));
 		System.out.println("DeliverTest App Env = "+SysProps.getAppEnv());
 
-		ApplicationContextNAF appctx = TestSupport.createApplicationContext("DeliveryTest-MockServerDNS", true);
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext("DeliveryTest-MockServerDNS", true, null);
 		mockserverDNS = new MockServerDNS(appctx);
 		mockserverDNS.start();
 	}
@@ -367,23 +368,23 @@ public class DeliveryTest
 
 		XmlConfig xmlcfg = XmlConfig.makeSection(nafxml, "/naf");
 		NAFConfig nafcfg = new NAFConfig.Builder().withXmlConfig(xmlcfg).build();
-		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, nafcfg, true);
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, nafcfg, true, null);
 		Clock clock = Clock.systemUTC();
 
 		// create a disposable Dispatcher first, just to identify and clean up the working directories that will be used
-		com.grey.logging.Logger logger = com.grey.logging.Factory.getLogger("no-such-logger");
-		DispatcherConfig dcfg = new DispatcherConfig.Builder().withName("DeliveryTest-preliminary").build();
-		dsptch = Dispatcher.create(appctx, dcfg, logger);
+		DispatcherConfig dcfg = DispatcherConfig.builder().withName("DeliveryTest-preliminary").withAppContext(appctx).build();
+		dsptch = Dispatcher.create(dcfg);
 		FileOps.deleteDirectory(nafcfg.getPathVar());
 		FileOps.deleteDirectory(nafcfg.getPathTemp());
 		FileOps.deleteDirectory(nafcfg.getPathLogs());
 		// now create the real Dispatcher
-		DispatcherConfig def = new DispatcherConfig.Builder()
+		DispatcherConfig def = DispatcherConfig.builder()
 				.withName("DeliveryTest")
 				.withSurviveHandlers(false)
 				.withClock(clock)
+				.withAppContext(appctx)
 				.build();
-		dsptch = Dispatcher.create(appctx, def, logger);
+		dsptch = Dispatcher.create(def);
 		AppConfig appcfg = AppConfig.get(nafcfg.getPath(pthnam_appcfg, null), dsptch);
 
 		// Inject the messages into the queue for Forwarder to pick up.

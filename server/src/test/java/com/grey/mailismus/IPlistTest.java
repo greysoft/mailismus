@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2021 Yusef Badri - All rights reserved.
+ * Copyright 2011-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus;
@@ -48,8 +48,8 @@ public class IPlistTest
 	public void testMemorySync() throws java.io.IOException, java.net.URISyntaxException
 	{
 		String cfgpath = TestSupport.getResourcePath("/mtanaf.xml", getClass());
-		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true);
-		XmlConfig cfg = appctx.getConfig().getNode("iplist");
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true, logger);
+		XmlConfig cfg = appctx.getNafConfig().getNode("iplist");
 		org.junit.Assert.assertNotNull(cfg);
 		IPlist iplist = new IPlist("test_iplist_mem_sync", null, cfg, appctx, logger);
 		org.junit.Assert.assertTrue(iplist.allowHostnames());
@@ -69,13 +69,13 @@ public class IPlistTest
 	public void testMemoryAsync() throws java.io.IOException, java.net.URISyntaxException
 	{
 		String cfgpath = TestSupport.getResourcePath("/mtanaf.xml", getClass());
-		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true);
-		XmlConfig dcfg = appctx.getConfig().getDispatcher(dname);
-		DispatcherConfig def = new DispatcherConfig.Builder().withXmlConfig(dcfg).build();
-		Dispatcher dsptch = Dispatcher.create(appctx, def, logger);
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true, logger);
+		XmlConfig dcfg = appctx.getNafConfig().getDispatcherConfigNode(dname);
+		DispatcherConfig def = DispatcherConfig.builder().withXmlConfig(dcfg).withAppContext(appctx).build();
+		Dispatcher dsptch = Dispatcher.create(def);
 		boolean ok = false;
 		try {
-			XmlConfig cfg = appctx.getConfig().getNode("iplist");
+			XmlConfig cfg = appctx.getNafConfig().getNode("iplist");
 			org.junit.Assert.assertNotNull(cfg);
 			IPlist iplist = new IPlist("test_iplist_mem_async", null, cfg, dsptch);
 			org.junit.Assert.assertTrue(iplist.allowHostnames());
@@ -120,9 +120,9 @@ public class IPlistTest
 		org.junit.Assume.assumeTrue(TestSupport.HAVE_DBDRIVERS);
 		XmlConfig cfg = XmlConfig.makeSection(cfgxml, "/iplist");
 		String cfgpath = TestSupport.getResourcePath("/mtanaf.xml", getClass());
-		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true);
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true, logger);
 		DBHandle.Type dbtype = setup_dbtype; //null means we will fail, but want to report the failure
-		if (dbtype == null) dbtype = new DBHandle.Type(cfg, appctx.getConfig(), logger);
+		if (dbtype == null) dbtype = new DBHandle.Type(cfg, appctx.getNafConfig(), logger);
 		IPlist iplist = new IPlist("test_iplist_db_sync", dbtype, cfg, appctx, logger);
 		org.junit.Assert.assertFalse(iplist.allowHostnames());
 		commonChecks(iplist, EXPSIZE_DBTEST);
@@ -144,14 +144,14 @@ public class IPlistTest
 		org.junit.Assume.assumeTrue(TestSupport.HAVE_DBDRIVERS);
 		XmlConfig cfg = XmlConfig.makeSection(cfgxml, "/iplist");
 		String cfgpath = TestSupport.getResourcePath("/mtanaf.xml", getClass());
-		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true);
-		XmlConfig dcfg = appctx.getConfig().getDispatcher(dname);
-		DispatcherConfig def = new DispatcherConfig.Builder().withXmlConfig(dcfg).build();
-		Dispatcher dsptch = Dispatcher.create(appctx, def, logger);
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, cfgpath, true, logger);
+		XmlConfig dcfg = appctx.getNafConfig().getDispatcherConfigNode(dname);
+		DispatcherConfig def = DispatcherConfig.builder().withXmlConfig(dcfg).withAppContext(appctx).build();
+		Dispatcher dsptch = Dispatcher.create(def);
 		boolean ok = false;
 		try {
 			DBHandle.Type dbtype = setup_dbtype; //null means we will fail, but want to report the failure
-			if (dbtype == null) dbtype = new DBHandle.Type(cfg, appctx.getConfig(), logger);
+			if (dbtype == null) dbtype = new DBHandle.Type(cfg, appctx.getNafConfig(), logger);
 			IPlist iplist = new IPlist("test_iplist_db", dbtype, cfg, dsptch);
 			org.junit.Assert.assertFalse(iplist.allowHostnames());
 			commonChecks(iplist, EXPSIZE_DBTEST);

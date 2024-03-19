@@ -20,7 +20,7 @@ public class IMAP4Task
 	public IMAP4Task(String name, Dispatcher d, XmlConfig cfg) throws java.io.IOException {
 		super(name, d, cfg, DFLT_FACT_DTORY, DFLT_FACT_MS, null);
 		String grpname = "IMAP4Task="+getName();
-		ConcurrentListenerConfig[] lcfg = ConcurrentListenerConfig.buildMultiConfig(grpname, d.getApplicationContext().getConfig(), "listeners/listener", taskConfig(),
+		ConcurrentListenerConfig[] lcfg = ConcurrentListenerConfig.buildMultiConfig(grpname, d.getApplicationContext().getNafConfig(), "listeners/listener", taskConfig(),
 				IMAP4Protocol.TCP_PORT, IMAP4Protocol.TCP_SSLPORT, IMAP4Server.Factory.class, null);
 		listeners = new ListenerSet(grpname, getDispatcher(), this, this, lcfg);
 		if (listeners.configured() != 0) registerDirectoryOps(com.grey.mailismus.nafman.Loader.PREF_DTORY_IMAP4S);

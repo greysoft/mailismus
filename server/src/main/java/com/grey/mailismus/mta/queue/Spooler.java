@@ -69,7 +69,7 @@ public final class Spooler
 		poolSubmitHandles = new ObjectWell<SubmitHandle>(SubmitHandle.class, "Spooler-"+name);
 		spidbuilder.setLength(EXTSPIDSIZE);
 
-		NAFConfig nafcfg = appctx.getConfig();
+		NAFConfig nafcfg = appctx.getNafConfig();
 		String rootpath = nafcfg.getPath(cfg, "rootpath", null, false, nafcfg.getPathVar()+"/spool", null);
 		int loadfactor = cfg.getInt("silofactor", false, 5);
 		bufsiz_submit = (int)cfg.getSize("bufsize", "16K");

@@ -102,7 +102,7 @@ public class IPlist
 		listname = name;
 		log = logger;
 
-		srcpath = appctx.getConfig().getURL(cfg, "sourcefile", null, true, null, getClass());
+		srcpath = appctx.getNafConfig().getURL(cfg, "sourcefile", null, true, null, getClass());
 		memlimit = cfg.getInt("mem_threshold", false, 0);
 		loadfactor = cfg.getInt("hashfactor", false, 10);
 		allow_hostnames = cfg.getBool("hostnames", true);

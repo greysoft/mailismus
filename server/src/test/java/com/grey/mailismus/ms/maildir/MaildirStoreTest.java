@@ -11,12 +11,14 @@ import com.grey.mailismus.directory.DirectoryFactory;
 import com.grey.mailismus.ms.MessageStore;
 import com.grey.mailismus.ms.MessageStoreFactory;
 import com.grey.naf.ApplicationContextNAF;
+import com.grey.naf.reactor.Dispatcher;
+import com.grey.naf.reactor.config.DispatcherConfig;
 
 public class MaildirStoreTest
 {
 	private static final String workdir = TestSupport.initPaths(MaildirStoreTest.class)+"/work";
 	private static final com.grey.logging.Logger logger = com.grey.logging.Factory.getLoggerNoEx("");
-	private static final ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true);
+	private static final ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true, logger);
 
 	private final String mscfgxml = "<message_store>"
 			+"<directory>"
@@ -176,7 +178,8 @@ public class MaildirStoreTest
 		FileOps.deleteDirectory(dh_work);
 		org.junit.Assert.assertFalse(dh_work.exists());
 		FileOps.ensureDirExists(dh_work);
-		dsptch = com.grey.naf.reactor.Dispatcher.create(appctx, new com.grey.naf.reactor.config.DispatcherConfig.Builder().build(), logger);
+		DispatcherConfig def = DispatcherConfig.builder().withAppContext(appctx).build();
+		dsptch = Dispatcher.create(def);
 
 		String cfgxml = mscfgxml;
 		if (!withDirectory) {
@@ -189,11 +192,11 @@ public class MaildirStoreTest
 		if (!dotstuffed) cfgxml = cfgxml.replace("dotstuffing>", "xdotstuffing>");
 		com.grey.base.config.XmlConfig cfg = com.grey.base.config.XmlConfig.makeSection(cfgxml, "message_store");
 		if (!withDirectory) return cfg;
-		String pthnam = appctx.getConfig().getPath(cfg, "directory/domains", null, true, null, getClass());
+		String pthnam = appctx.getNafConfig().getPath(cfg, "directory/domains", null, true, null, getClass());
 		java.io.File fh = new java.io.File(pthnam);
 		FileOps.ensureDirExists(fh.getParentFile());
 		FileOps.writeTextFile(fh, local_domains, false);
-		pthnam = appctx.getConfig().getPath(cfg, "directory/users", null, true, null, getClass());
+		pthnam = appctx.getNafConfig().getPath(cfg, "directory/users", null, true, null, getClass());
 		FileOps.writeTextFile(pthnam, local_users);
 		return cfg;
 	}

@@ -13,6 +13,7 @@ import com.grey.base.utils.TimeOps;
 import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.NAFConfig;
 import com.grey.naf.reactor.Dispatcher;
+import com.grey.naf.reactor.config.DispatcherConfig;
 import com.grey.mailismus.TestSupport;
 import com.grey.mailismus.imap.IMAP4Protocol;
 
@@ -34,7 +35,7 @@ public class IMAP4ServerTest
 
 	private static final String UNTAG_NOCHECK = "_JUNIT_NOASSERT_"; //untagged response is present, but not to be checked
 
-	private static final ApplicationContextNAF appctx = TestSupport.createApplicationContext("IMAP4ServerTest", true);
+	private static final ApplicationContextNAF appctx = TestSupport.createApplicationContext("IMAP4ServerTest", true, null);
 	private Dispatcher dsptch;
 	private IMAP4Task srvtask;
 	private TSAP srvaddr;
@@ -314,7 +315,7 @@ public class IMAP4ServerTest
 
 	private void testOddMessages() throws java.io.IOException, java.net.URISyntaxException
 	{
-		String pthnam = dsptch.getApplicationContext().getConfig().getPathTemp()+"/badmsg1";
+		String pthnam = dsptch.getApplicationContext().getNafConfig().getPathTemp()+"/badmsg1";
 		java.io.File fh = new java.io.File(pthnam);
 		int exists_cnt = 1;
 		int recent_cnt = 0;
@@ -376,16 +377,15 @@ public class IMAP4ServerTest
 	private void startServer() throws java.io.IOException
 	{
 		// create a disposable Dispatcher first, just to identify and clean up the working directories that will be used
-		dsptch = Dispatcher.create(appctx, new com.grey.naf.reactor.config.DispatcherConfig.Builder().build(), com.grey.logging.Factory.getLogger("no-such-logger"));
-		NAFConfig nafcfg = dsptch.getApplicationContext().getConfig();
+		DispatcherConfig def = DispatcherConfig.builder().withAppContext(appctx).build();
+		dsptch = Dispatcher.create(def);
+		NAFConfig nafcfg = dsptch.getApplicationContext().getNafConfig();
 		FileOps.deleteDirectory(nafcfg.getPathVar());
 		FileOps.deleteDirectory(nafcfg.getPathTemp());
 		FileOps.deleteDirectory(nafcfg.getPathLogs());
 		// now create the real Dispatcher
-		com.grey.naf.reactor.config.DispatcherConfig def = new com.grey.naf.reactor.config.DispatcherConfig.Builder()
-				.withSurviveHandlers(false)
-				.build();
-		dsptch = Dispatcher.create(appctx, def, com.grey.logging.Factory.getLogger("no-such-logger"));
+		def = def.mutate().withSurviveHandlers(false).build();
+		dsptch = Dispatcher.create(def);
 
 		// set up the IMAP server
 		XmlConfig cfg = XmlConfig.makeSection(nafxml_server, "x");

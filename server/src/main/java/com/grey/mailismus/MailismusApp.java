@@ -9,7 +9,6 @@ import com.grey.base.utils.CommandParser;
 import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.Launcher;
 import com.grey.mailismus.directory.DirectoryImpl;
-import com.grey.logging.Logger;
 
 public class MailismusApp
 	extends Launcher
@@ -30,13 +29,13 @@ public class MailismusApp
 	}
 
 	@Override
-	protected void appExecute(ApplicationContextNAF appctx, int param1, Logger bootlog) throws Exception {
+	protected void appExecute(ApplicationContextNAF appctx, int param1) throws Exception {
 		if (options.plaintxt != null) {
 			ByteChars plain = new ByteChars(options.plaintxt);
 			char[] digest = DirectoryImpl.passwordHash(plain);
 			System.out.println("Hashed to ["+new String(digest)+"]");
 		} else {
-			super.appExecute(appctx, param1, bootlog);
+			super.appExecute(appctx, param1);
 		}
 	}
 

@@ -56,7 +56,7 @@ public final class AppConfig
 		announceHost = getAnnounceHost(cfg, hostName);
 
 		XmlConfig dbcfg = cfg.getSection("database"+XmlConfig.XPATH_ENABLED);
-		dbType = (dbcfg.exists() ? new DBHandle.Type(dbcfg, dsptch.getApplicationContext().getConfig(), dsptch.getLogger()) : null);
+		dbType = (dbcfg.exists() ? new DBHandle.Type(dbcfg, dsptch.getApplicationContext().getNafConfig(), dsptch.getLogger()) : null);
 	}
 
 	public XmlConfig getConfigQueue(String name)

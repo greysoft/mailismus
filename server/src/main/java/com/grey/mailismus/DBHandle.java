@@ -160,7 +160,7 @@ public class DBHandle
 		this.name = name;
 		this.dbtype = dbtype;
 		this.log = log;
-		nafcfg = appctx.getConfig();
+		nafcfg = appctx.getNafConfig();
 		connurl_base = dbtype.connurl.replace(TOKEN_CONNSTR_NAME, name);
 		liveconns = appctx.getNamedItem(getClass().getName()+"-liveconns", () -> new HashedSet<>());
 

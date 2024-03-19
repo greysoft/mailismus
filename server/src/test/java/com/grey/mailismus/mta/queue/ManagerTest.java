@@ -69,10 +69,10 @@ public abstract class ManagerTest
 		String qcfgxml_extra = getQueueConfig();
 		if (qcfgxml_extra != null) qcfgxml = qcfgxml.replace("</queue>", qcfgxml_extra+"</queue>");
 		String dname = "qmgrtest-"+getQueueClass().getName();
-		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true);
-		DispatcherConfig def = new DispatcherConfig.Builder().withName(dname).build();
-		dsptch = Dispatcher.create(appctx, def, logger);
-		FileOps.ensureDirExists(dsptch.getApplicationContext().getConfig().getPathTemp());
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true, logger);
+		DispatcherConfig def = DispatcherConfig.builder().withName(dname).withAppContext(appctx).build();
+		dsptch = Dispatcher.create(def);
+		FileOps.ensureDirExists(dsptch.getApplicationContext().getNafConfig().getPathTemp());
 		appcfg = createAppConfig(dsptch, hasDatabase());
 		qmgr = createManager(qcfgxml, "utest");
 		org.junit.Assert.assertEquals(getQueueClass(), qmgr.getClass());
@@ -694,7 +694,7 @@ public abstract class ManagerTest
 
 	private void verifyExport(int spid, int qid, long expectsize) throws java.io.IOException
 	{
-		String exportpath = dsptch.getApplicationContext().getConfig().getPathVar()+"/exports";
+		String exportpath = dsptch.getApplicationContext().getNafConfig().getPathVar()+"/exports";
 		java.nio.file.Path fh = qmgr.exportMessage(spid, qid, exportpath);
 		String pthnam = fh.toAbsolutePath().toString();
 		exportpath = java.nio.file.Paths.get(exportpath).toAbsolutePath().toString();
@@ -755,7 +755,7 @@ public abstract class ManagerTest
 		}
 		String dbcfg = (withDB ? "<database/>" : "");
 		String cfgtxt = "<mailserver><application>"+dbcfg+"</application></mailserver>";
-		String cfgfile =  dsptch.getApplicationContext().getConfig().getPathTemp()+"/mailismus-conf.xml";
+		String cfgfile =  dsptch.getApplicationContext().getNafConfig().getPathTemp()+"/mailismus-conf.xml";
 		FileOps.writeTextFile(cfgfile, cfgtxt);
 		return AppConfig.get(cfgfile, dsptch);
 	}

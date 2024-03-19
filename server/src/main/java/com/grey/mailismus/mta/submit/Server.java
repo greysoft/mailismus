@@ -409,7 +409,7 @@ public final class Server
 			spf_sender_rewrite = cfg.getBool("spf_sender_rewrite", true);
 			stats_start = dsptch.getRealTime();
 			discard_msgid = stats_start;
-			netbufs = new com.grey.naf.BufferGenerator(cfg, "niobuffers", 4*1024, 128);
+			netbufs = com.grey.naf.BufferGenerator.create(cfg, "niobuffers", 4*1024, 128);
 			if (netbufs.rcvbufsiz < 80) throw new MailismusConfigException(logpfx+"recvbuf="+netbufs.rcvbufsiz+" is too small");
 
 			// read the per-connection config
@@ -431,7 +431,7 @@ public final class Server
 			// the existence of a relay as proof that a domain is known a priori to be legit, and shouldn't be subjected to
 			// DNS-Validation or relay-restriction checks.
 			// Doesn't matter if a relay domain duplicates a local one, as recipient-validation tests if local domain first.
-			routing = new Routing(appConfig.getConfigRelays(), dsptch.getApplicationContext().getConfig(), null);
+			routing = new Routing(appConfig.getConfigRelays(), dsptch.getApplicationContext().getNafConfig(), null);
 
 			// Set up blacklisting, if configured
 			String xpath = "blacklist"+XmlConfig.XPATH_ENABLED;

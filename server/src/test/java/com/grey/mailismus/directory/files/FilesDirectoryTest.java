@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2021 Yusef Badri - All rights reserved.
+ * Copyright 2012-2024 Yusef Badri - All rights reserved.
  * Mailismus is distributed under the terms of the GNU Affero General Public License, Version 3 (AGPLv3).
  */
 package com.grey.mailismus.directory.files;
@@ -13,6 +13,7 @@ import com.grey.mailismus.directory.DirectoryFactory;
 import com.grey.mailismus.directory.DirectoryImpl;
 import com.grey.naf.ApplicationContextNAF;
 import com.grey.naf.NAFConfig;
+import com.grey.naf.reactor.config.DispatcherConfig;
 
 public class FilesDirectoryTest
 {
@@ -35,7 +36,7 @@ public class FilesDirectoryTest
 			+" role1 : locuser2 : somebody@elsewhere.com\n"
 			+" role2 : role1 : somebody2@elsewhere.com";
 
-	private final ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true);
+	private final ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true, logger);
 	private com.grey.naf.reactor.Dispatcher dsptch;
 	private String pthnam_users;
 	private String pthnam_aliases;
@@ -198,7 +199,8 @@ public class FilesDirectoryTest
 		FileOps.deleteDirectory(dh_work);
 		org.junit.Assert.assertFalse(dh_work.exists());
 		FileOps.ensureDirExists(dh_work);
-		dsptch = com.grey.naf.reactor.Dispatcher.create(appctx, new com.grey.naf.reactor.config.DispatcherConfig.Builder().build(), logger);
+		DispatcherConfig def = DispatcherConfig.builder().withAppContext(appctx).build();
+		dsptch = com.grey.naf.reactor.Dispatcher.create(def);
 
 		String cfgxml = cfgxml_directory;
 		String local_users = local_users_hashed;
@@ -206,7 +208,7 @@ public class FilesDirectoryTest
 			cfgxml = cfgxml.replace("xplainpass", "plainpass");
 			local_users = local_users_plain;
 		}
-		NAFConfig nafcfg = appctx.getConfig();
+		NAFConfig nafcfg = appctx.getNafConfig();
 		com.grey.base.config.XmlConfig cfg = com.grey.base.config.XmlConfig.makeSection(cfgxml, "directory");
 		String pthnam = nafcfg.getPath(cfg, "domains", null, true, null, getClass());
 		java.io.File fh = new java.io.File(pthnam);

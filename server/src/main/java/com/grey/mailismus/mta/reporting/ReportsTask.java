@@ -121,7 +121,7 @@ public final class ReportsTask
 		interval_housekeep = taskcfg.getTime("interval_housekeeping", TimeOps.parseMilliTime("24h"));
 		delay_start = taskcfg.getTime("delay_start", TimeOps.parseMilliTime("20s"));
 		statuszero = (short)taskcfg.getInt("statuszero", false, 0);
-		archiveDirectory = getDispatcher().getApplicationContext().getConfig().getPath(taskcfg, "ndr_copies_folder", null, false, null, null);
+		archiveDirectory = getDispatcher().getApplicationContext().getNafConfig().getPath(taskcfg, "ndr_copies_folder", null, false, null, null);
 		String ndr_recip = taskcfg.getValue("ndr_recip_redirect", false, null);
 		String[] ndr_bcc = taskcfg.getTuple("ndr_recips_additional", "|", false, null);
 

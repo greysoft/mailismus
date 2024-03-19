@@ -25,9 +25,10 @@ import com.grey.mailismus.AppConfig;
 import com.grey.mailismus.TestSupport;
 import com.grey.mailismus.mta.Protocol;
 import com.grey.mailismus.mta.deliver.client.SmtpMessage;
+import com.grey.mailismus.mta.deliver.client.SmtpRelay;
 import com.grey.mailismus.mta.deliver.client.SmtpSender;
 import com.grey.mailismus.mta.queue.MessageRecip;
-import com.grey.mailismus.mta.smtp.MockServerDNS;
+import com.grey.mailismus.mta.testsupport.MockServerDNS;
 
 // Note that the older DeliveryTest suite includes a lot of test cases designed to test the Forwarder as well as the
 // SMTP client and server entities, but it is a blunter interest, and this class allows a more precise exploration of
@@ -96,7 +97,7 @@ public class ForwarderTest
 
 	@org.junit.BeforeClass
 	public static void beforeClass() throws java.io.IOException {
-		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true);
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, true, logger);
 		mockserver = new MockServerDNS(appctx);
 		mockserver.start();
 	}
@@ -113,17 +114,18 @@ public class ForwarderTest
 				+"<dnsresolver>"
 				+"<interceptor host=\"127.0.0.1\" port=\""+mockserver.getPort()+"\"/>"
 				+"</dnsresolver></naf>";
-		com.grey.naf.reactor.config.DispatcherConfig def = new com.grey.naf.reactor.config.DispatcherConfig.Builder()
-				.withName("utest_fwd_"+testname)
-				.withSurviveHandlers(false)
-				.build();
 		XmlConfig xmlcfg = XmlConfig.makeSection(nafxml, "/naf");
 		NAFConfig nafcfg = new NAFConfig.Builder().withXmlConfig(xmlcfg).build();
+		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, nafcfg, true, logger);
+		com.grey.naf.reactor.config.DispatcherConfig def = com.grey.naf.reactor.config.DispatcherConfig.builder()
+				.withName("utest_fwd_"+testname)
+				.withSurviveHandlers(false)
+				.withAppContext(appctx)
+				.build();
 		ResolverConfig rcfg = new ResolverConfig.Builder()
 				.withXmlConfig(nafcfg.getNode("dnsresolver"))
 				.build();
-		ApplicationContextNAF appctx = TestSupport.createApplicationContext(null, nafcfg, true);
-		dsptch = Dispatcher.create(appctx, def, logger);
+		dsptch = Dispatcher.create(def);
 		dsptch.registerEventListener(this);
 		dnsResolver = ResolverDNS.create(dsptch, rcfg);
 	}
@@ -461,7 +463,7 @@ public class ForwarderTest
 		}
 
 		@Override
-		public void startConnection(SmtpMessage msg, SmtpSender sender, Relay relay) {
+		public void startConnection(SmtpMessage msg, SmtpSender sender, SmtpRelay relay) {
 			msgparams = (QueueBasedMessage)msg;
 			seqno = mgr.sender_cnt++;
 			int[][] exp = null;
